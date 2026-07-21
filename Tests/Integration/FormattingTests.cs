@@ -111,6 +111,22 @@ public class FormattingTests : HarnessTestBase
     }
 
     /// <summary>
+    /// The selection push carries the selected text, so an app action can store the quote
+    /// it acts on. Collapsing the selection clears it — the caret quotes nothing.
+    /// </summary>
+    [Fact]
+    public async Task SelectionState_CarriesTheSelectedText()
+    {
+        var page = await Fx.OpenHarnessAsync();
+
+        await TypeAndSelectAllAsync(page, "#editor-notify", "quote me");
+        await Expect(page.Locator("#notify-sel-text")).ToHaveTextAsync("quote me");
+
+        await page.Keyboard.PressAsync("ArrowRight");
+        await Expect(page.Locator("#notify-sel-text")).ToHaveTextAsync("");
+    }
+
+    /// <summary>
     /// StartContent/EndContent add to the toolbar instead of replacing it — the common
     /// "the default controls plus my one button" case, which ChildContent cannot serve
     /// without re-composing every group.

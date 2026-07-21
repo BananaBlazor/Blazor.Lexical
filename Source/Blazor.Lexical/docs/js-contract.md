@@ -144,6 +144,12 @@ C# side and mirrored in `setNotifications` so it can be armed after `create()`:
 | `selection` | `OnSelectionChangedInternal` | `LexicalEditor.OnSelectionChanged` |
 | `blockHover` | `OnBlockHoveredInternal` | `LexicalBlockGutter.OnBlockHovered`, or any `LexicalGutterButton` in a rail |
 
+`selection` carries the selected text (`text`, `''` while collapsed) alongside the format
+flags, so an app-side action — the "comment on this" button in a floating toolbar — has the
+quote it acts on without a follow-up call, and without needing the selection to survive its
+own click. `readSelectionState` skips the read while the selection is collapsed, which is
+the typing case: it runs on every update.
+
 `blockHover` is the only overlay-owned channel. It is deduped by node key — one crossing
 per *block*, not per mousemove — and carries the whole `LexicalBlockRef`, so a subscriber
 never needs a follow-up call. There is **one** crossing regardless of how many rails the

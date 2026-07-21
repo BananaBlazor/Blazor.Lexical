@@ -51,6 +51,15 @@ public sealed record LexicalSelectionState
     /// <summary>Whether a redo is currently available.</summary>
     public bool CanRedo { get; init; }
 
+    /// <summary>
+    /// The selected text, or an empty string when the selection is collapsed (a plain
+    /// caret) or is not a text range. Captured at selection time, so a custom action —
+    /// a "comment on this" button in a <see cref="LexicalFloatingToolbar"/>, say — can
+    /// store the quote it acts on without a round trip, and without depending on the
+    /// selection surviving the click.
+    /// </summary>
+    public string Text { get; init; } = string.Empty;
+
     /// <summary>Returns whether the given inline text format is active on the selection.</summary>
     public bool HasFormat(LexicalTextFormat format) => format switch
     {
@@ -83,5 +92,6 @@ public sealed record LexicalSelectionState
         Alignment = LexicalAlignmentExtensions.FromJsToken(dto.Alignment),
         CanUndo = dto.CanUndo,
         CanRedo = dto.CanRedo,
+        Text = dto.Text ?? string.Empty,
     };
 }

@@ -52,6 +52,26 @@ public class MarkTests : HarnessTestBase
         await Expect(mark).ToHaveClassAsync(new Regex(@"\bblazor-lexical__mark\b"));
     }
 
+    /// <summary>
+    /// The selection-hover "add comment" affordance end to end: an app button dropped into
+    /// <c>&lt;LexicalFloatingToolbar&gt;</c> marks the selected span and stores the quote
+    /// from <c>LexicalSelectionState.Text</c>. The click must not collapse the selection —
+    /// if it did, the wrap would find nothing and the toolbar would vanish mid-click.
+    /// </summary>
+    [Fact]
+    public async Task FloatingToolbarAppButton_MarksTheSelection_AndKeepsItsQuote()
+    {
+        var page = await Fx.OpenHarnessAsync();
+
+        await TypeAsync(page, NotifyEditor, "hello quoted world");
+        await SelectRangeAsync(page, NotifyEditor, 6, 6);
+        await page.ClickAsync("#btn-mark-comment");
+
+        await Expect(page.Locator("#mark-comment-quote")).ToHaveTextAsync("quoted");
+        await Expect(page.Locator("#mark-wrap-result")).ToHaveTextAsync("True");
+        await Expect(page.Locator($"{NotifyEditor} mark")).ToHaveTextAsync("quoted");
+    }
+
     [Fact] // invariant #1: a decorative highlighter performs zero JS→.NET calls
     public async Task Marks_DoNoInterop_WhenNoCallbackIsWired()
     {

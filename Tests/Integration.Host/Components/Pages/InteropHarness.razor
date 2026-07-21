@@ -112,6 +112,7 @@
     <p>Notify sel bold: <span id="notify-sel-bold">@_notifySelBold</span></p>
     <p>Notify sel block: <span id="notify-sel-block">@_notifySelBlock</span></p>
     <p>Notify sel count: <span id="notify-sel-count">@_notifySelCount</span></p>
+    <p>Notify sel text: <span id="notify-sel-text">@_notifySelText</span></p>
 </section>
 
 <section>
@@ -291,10 +292,18 @@
                    Id="editor-marks-notify"
                    CssClass="harness-marks-notify"
                    Theme="LexicalTheme.Default"
-                   OnContentChanged="OnMarksContent">
+                   OnContentChanged="OnMarksContent"
+                   OnSelectionChanged="OnMarksSelection">
         <LexicalMarks @ref="_marksNotifyExt"
                       OnMarkClicked="OnMarkClicked"
                       OnActiveMarksChanged="OnActiveMarksChanged" />
+        @* The selection-hover "add comment" affordance: an app button beside the
+           built-in format ones. It quotes LexicalSelectionState.Text — captured when
+           the selection was made, so the quote survives the button's own click. *@
+        <LexicalFloatingToolbar>
+            <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+            <button type="button" id="btn-mark-comment" @onclick="CommentOnSelection">Comment</button>
+        </LexicalFloatingToolbar>
     </LexicalEditor>
 
     <div>
@@ -313,6 +322,7 @@
     <p>Mark wrap result: <span id="mark-wrap-result">@_markWrapResult</span></p>
     <p>Mark remove count: <span id="mark-remove-count">@_markRemoveCount</span></p>
     <p>Marks content-change count: <span id="marks-change-count">@_marksChangeCount</span></p>
+    <p>Comment quote: <span id="mark-comment-quote">@_markCommentQuote</span></p>
 
     <LexicalEditor @ref="_marksQuiet"
                    Id="editor-marks-quiet"
@@ -639,6 +649,7 @@
     private string _notifySelBold = "";
     private string _notifySelBlock = "";
     private int _notifySelCount;
+    private string _notifySelText = "";
     private string _mentionSelected = "";
     private string _mentionList = "";
     private int _mentionRefreshCount;
@@ -685,6 +696,8 @@
     private string _markWrapResult = "";
     private int _markRemoveCount;
     private int _marksChangeCount;
+    private string _marksSelectionText = "";
+    private string _markCommentQuote = "";
 
     private LexicalEditor? _statsNotify;
     private LexicalStats? _statsNotifyExt;
@@ -746,6 +759,19 @@
     // --- Marks ----------------------------------------------------------
 
     private void OnMarksContent(LexicalContent content) => _marksChangeCount++;
+
+    private void OnMarksSelection(LexicalSelectionState state) => _marksSelectionText = state.Text;
+
+    // The comment affordance: mark the span and keep the quote the selection carried.
+    private async Task CommentOnSelection()
+    {
+        _markCommentQuote = _marksSelectionText;
+        if (_marksNotifyExt is not null)
+        {
+            _markWrapResult =
+                (await _marksNotifyExt.WrapSelectionInMarkAsync("mark-comment")).ToString();
+        }
+    }
 
     private void OnMarkClicked(IReadOnlyList<string> ids) => _markClicked = string.Join(",", ids);
 
@@ -1042,6 +1068,7 @@
     {
         _notifySelBold = state.IsBold ? "true" : "false";
         _notifySelBlock = state.BlockType.ToString();
+        _notifySelText = state.Text;
         _notifySelCount++;
     }
 

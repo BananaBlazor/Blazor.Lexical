@@ -122,6 +122,18 @@ export function registerFloatingToolbar(
     positionFloatingToolbar(toolbarEl, rect, root, contentEl);
   };
 
+  // Keep the selection intact when the toolbar itself is clicked. The built-in
+  // buttons are already covered by the root's `data-lexical-command` guard, but an
+  // app's own button in `ChildContent` is not — without this its mousedown would
+  // collapse the selection and hide the toolbar out from under the click. Inputs
+  // still need focus, so their mousedown goes through (as in the link editor).
+  const onMouseDown = (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('input, textarea, select') === null) {
+      e.preventDefault();
+    }
+  };
+  toolbarEl.addEventListener('mousedown', onMouseDown);
+
   // `selectionchange` covers mouse-drag selection; the editor update listener
   // covers programmatic changes; scroll/resize keep the box glued to the text.
   const onChange = () => update();
@@ -131,6 +143,7 @@ export function registerFloatingToolbar(
   const unregister = editor.registerUpdateListener(() => update());
 
   return () => {
+    toolbarEl.removeEventListener('mousedown', onMouseDown);
     document.removeEventListener('selectionchange', onChange);
     window.removeEventListener('scroll', onChange, true);
     window.removeEventListener('resize', onChange);

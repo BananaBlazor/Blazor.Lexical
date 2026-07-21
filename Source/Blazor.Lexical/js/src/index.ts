@@ -232,6 +232,8 @@ interface SelectionStateDto {
   alignment: string;
   canUndo: boolean;
   canRedo: boolean;
+  /** The selected text; '' when the selection is collapsed or not a range. */
+  text: string;
 }
 
 /** Creates the block-level node for a `setBlockType` target token. */
@@ -272,6 +274,7 @@ function readSelectionState(canUndo: boolean, canRedo: boolean): SelectionStateD
     alignment: '',
     canUndo,
     canRedo,
+    text: '',
   };
 
   const selection = $getSelection();
@@ -310,6 +313,11 @@ function readSelectionState(canUndo: boolean, canRedo: boolean): SelectionStateD
 
   const linkNode = $findMatchingParent(anchorNode, $isLinkNode);
   state.isLink = linkNode !== null || $isLinkNode(anchorNode);
+
+  // The selected text, so an app button (a "comment on this" affordance) can store the
+  // quote it acts on. Skipped while collapsed — that is the typing case, and this runs
+  // on every update — so caret movement costs nothing extra.
+  state.text = selection.isCollapsed() ? '' : selection.getTextContent();
 
   return state;
 }

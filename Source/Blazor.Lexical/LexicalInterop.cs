@@ -250,6 +250,9 @@ internal sealed class LexicalSelectionStateDto
 
     public bool CanUndo { get; set; }
     public bool CanRedo { get; set; }
+
+    /// <summary>The selected text ('' when the selection is collapsed).</summary>
+    public string? Text { get; set; }
 }
 
 /// <summary>

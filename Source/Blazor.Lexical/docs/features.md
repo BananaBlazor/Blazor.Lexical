@@ -112,7 +112,10 @@ Two surfaces, independent and both opt-in:
 in core (measured **+1.5 kb gzipped** including the package — the mentions precedent, not
 the table one). Grow `LexicalTheme` (`Mark`, `MarkOverlap`) alongside it.
 
-**Mark ids are app-minted and opaque.** The library never generates or interprets one.
+**Mark ids are app-minted and opaque.** The library never generates or interprets one. An
+app storing a quote beside the mark takes it from `LexicalSelectionState.Text` (pushed at
+selection time), not from a read at click time — the click may already have collapsed the
+selection.
 
 **`registerNestedElementResolver` is load-bearing.** `$wrapSelectionInMarkNode` nests a new
 MarkNode *inside* an existing one when wraps overlap; the resolver flattens that into a
