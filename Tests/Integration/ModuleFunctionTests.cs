@@ -171,4 +171,65 @@ public class ModuleFunctionTests : HarnessTestBase
         await page.ClickAsync("#btn-set-json");
         await Expect(page.Locator("#editor-main")).ToHaveTextAsync("restore me");
     }
+
+    [Fact] // setEditorStateJson(silent): app-driven content, so no echo and no undo step
+    public async Task SilentSetEditorStateJson_DoesNotRaiseTheContentChannel()
+    {
+        var page = await Fx.OpenHarnessAsync();
+
+        await TypeAsync(page, "#editor-main", "restore me");
+        await page.ClickAsync("#btn-get-json"); // capture current state
+
+        await page.ClickAsync("#btn-set");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("Set via C#");
+
+        // Let the overwrite's own (non-silent) push settle before taking the baseline.
+        await page.WaitForTimeoutAsync(400);
+        var before = await page.Locator("#change-count").TextContentAsync();
+
+        await page.ClickAsync("#btn-set-json-silent");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("restore me");
+
+        // Well past the content debounce: the count must not have moved.
+        await page.WaitForTimeoutAsync(500);
+        await Expect(page.Locator("#change-count")).ToHaveTextAsync(before!);
+
+        // The same restore without `silent` does push — so the assertion above is the
+        // silence talking, not a channel that never fires on this path.
+        await page.ClickAsync("#btn-set");
+        await page.ClickAsync("#btn-set-json");
+        await Expect(page.Locator("#change-count")).Not.ToHaveTextAsync(before!);
+    }
+
+    [Fact] // a silent restore merges into history: undo skips it, landing on the overwrite
+    public async Task SilentSetEditorStateJson_AddsNoUndoStep()
+    {
+        var page = await Fx.OpenHarnessAsync();
+
+        await TypeAsync(page, "#editor-main", "restore me");
+        await page.ClickAsync("#btn-get-json");
+
+        await page.ClickAsync("#btn-set");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("Set via C#");
+
+        await page.ClickAsync("#btn-set-json-silent");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("restore me");
+
+        // The silent apply is not its own undoable step, so undo goes past it to the
+        // state before the overwrite rather than back to "Set via C#".
+        await page.Locator("#editor-main").ClickAsync();
+        await page.Keyboard.PressAsync("Control+z");
+        await Expect(page.Locator("#editor-main")).Not.ToHaveTextAsync("Set via C#");
+
+        // Same sequence without `silent` — proving undo is live here and that the
+        // difference above is the missing history entry, not a no-op undo.
+        await page.ClickAsync("#btn-set");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("Set via C#");
+        await page.ClickAsync("#btn-set-json");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("restore me");
+
+        await page.Locator("#editor-main").ClickAsync();
+        await page.Keyboard.PressAsync("Control+z");
+        await Expect(page.Locator("#editor-main")).ToHaveTextAsync("Set via C#");
+    }
 }

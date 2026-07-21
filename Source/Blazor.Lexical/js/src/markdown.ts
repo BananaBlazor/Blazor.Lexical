@@ -25,12 +25,14 @@ export function toMarkdown(editor: LexicalEditor): string {
 /**
  * Replaces the editor content with nodes parsed from a Markdown string. `options`
  * is passed through to `editor.update` — create()'s initial-content step uses
- * `{ discrete: true }` so the document is committed before history is registered.
+ * `{ discrete: true }` so the document is committed before history is registered,
+ * and a silent `setMarkdown` passes the silent + history-merge tags so an app-driven
+ * load neither pushes the content channel nor lands on the undo stack.
  */
 export function fromMarkdown(
   editor: LexicalEditor,
   markdown: string,
-  options?: { discrete?: true },
+  options?: { discrete?: true; tag?: string[] },
 ): void {
   editor.update(() => {
     $convertFromMarkdownString(markdown, TRANSFORMERS);

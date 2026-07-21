@@ -112,9 +112,19 @@ yourself.
 
 Persist `GetEditorStateJsonAsync()` — it is the highest-fidelity format.
 
+Every `Set*Async` takes an optional `silent: true` for content the app supplied rather
+than content the user typed — a remote revision, a server refresh, an autosave
+reconcile. A silent apply adds no undo step and raises no `OnContentChanged`, so the
+host is not echoed back what it just applied and the user's next undo does not wobble
+back to the pre-apply document:
+
+```csharp
+await editor.SetEditorStateJsonAsync(revisionFromServer, silent: true);
+```
+
 When the format is a value rather than something known at the call site, use the
 generic pair instead: `GetContentAsync(LexicalContentFormat)` returns a
-`LexicalContent`, and `SetContentAsync(LexicalContent)` takes one — the same type
+`LexicalContent`, and `SetContentAsync(LexicalContent)` takes one (and the same `silent` option) — the same type
 `InitialContent` accepts, so a document round-trips without a `switch`.
 
 See the [API Reference](xref:Blazor.Lexical) for the full list of parameters and

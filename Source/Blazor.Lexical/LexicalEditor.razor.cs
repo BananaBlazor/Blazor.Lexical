@@ -452,13 +452,21 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Replaces the editor content with a single paragraph of <paramref name="text"/>.</summary>
-    public async Task SetTextAsync(string text)
+    /// <param name="text">The paragraph text.</param>
+    /// <param name="silent">
+    /// When <c>true</c>, the content is applied as app-driven rather than user-typed: it
+    /// adds no undo step and does not raise <see cref="OnContentChanged"/>. Use it for
+    /// content the app supplied — a remote update, a server refresh — so the host is not
+    /// echoed back what it just applied and the user's next undo does not wobble back to
+    /// the pre-apply document. Leave <c>false</c> for a replacement the user asked for.
+    /// </param>
+    public async Task SetTextAsync(string text, bool silent = false)
     {
         if (_module is null)
         {
             return;
         }
-        await _module.InvokeVoidAsync("setText", Id, text);
+        await _module.InvokeVoidAsync("setText", Id, text, silent);
     }
 
     /// <summary>
@@ -486,13 +494,19 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Replaces the editor content with nodes parsed from <paramref name="html"/>.</summary>
-    public async Task SetHtmlAsync(string html)
+    /// <param name="html">The HTML to parse.</param>
+    /// <param name="silent">
+    /// When <c>true</c>, the content is applied as app-driven rather than user-typed: it
+    /// adds no undo step and does not raise <see cref="OnContentChanged"/>. See
+    /// <see cref="SetTextAsync"/> for the full rationale.
+    /// </param>
+    public async Task SetHtmlAsync(string html, bool silent = false)
     {
         if (_module is null)
         {
             return;
         }
-        await _module.InvokeVoidAsync("setHtml", Id, html);
+        await _module.InvokeVoidAsync("setHtml", Id, html, silent);
     }
 
     /// <summary>Serializes the editor content to a Markdown string.</summary>
@@ -506,13 +520,19 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Replaces the editor content with nodes parsed from <paramref name="markdown"/>.</summary>
-    public async Task SetMarkdownAsync(string markdown)
+    /// <param name="markdown">The Markdown to parse.</param>
+    /// <param name="silent">
+    /// When <c>true</c>, the content is applied as app-driven rather than user-typed: it
+    /// adds no undo step and does not raise <see cref="OnContentChanged"/>. See
+    /// <see cref="SetTextAsync"/> for the full rationale.
+    /// </param>
+    public async Task SetMarkdownAsync(string markdown, bool silent = false)
     {
         if (_module is null)
         {
             return;
         }
-        await _module.InvokeVoidAsync("setMarkdown", Id, markdown);
+        await _module.InvokeVoidAsync("setMarkdown", Id, markdown, silent);
     }
 
     /// <summary>
@@ -529,13 +549,22 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Restores the editor from a canonical editor-state JSON string.</summary>
-    public async Task SetEditorStateJsonAsync(string json)
+    /// <param name="json">State produced by <see cref="GetEditorStateJsonAsync"/>.</param>
+    /// <param name="silent">
+    /// When <c>true</c>, the state is applied as app-driven rather than user-typed: it
+    /// adds no undo step and does not raise <see cref="OnContentChanged"/> — the option to
+    /// use when pushing a remote or server-supplied revision into a live editor. See
+    /// <see cref="SetTextAsync"/> for the full rationale. The caret still follows the
+    /// selection serialized in <paramref name="json"/>: silence covers the content channel
+    /// and the undo stack, not <see cref="OnSelectionChanged"/>.
+    /// </param>
+    public async Task SetEditorStateJsonAsync(string json, bool silent = false)
     {
         if (_module is null)
         {
             return;
         }
-        await _module.InvokeVoidAsync("setEditorStateJson", Id, json);
+        await _module.InvokeVoidAsync("setEditorStateJson", Id, json, silent);
     }
 
     /// <summary>
@@ -546,12 +575,18 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     /// something known at the call site (content out of a database, say); call the
     /// format-specific method when you already know which one you mean.
     /// </summary>
-    public Task SetContentAsync(LexicalContent content) => content.Format switch
+    /// <param name="content">The content and the format it is in.</param>
+    /// <param name="silent">
+    /// When <c>true</c>, the content is applied as app-driven rather than user-typed: it
+    /// adds no undo step and does not raise <see cref="OnContentChanged"/>. See
+    /// <see cref="SetTextAsync"/> for the full rationale.
+    /// </param>
+    public Task SetContentAsync(LexicalContent content, bool silent = false) => content.Format switch
     {
-        LexicalContentFormat.Text => SetTextAsync(content.Text),
-        LexicalContentFormat.Html => SetHtmlAsync(content.Text),
-        LexicalContentFormat.Markdown => SetMarkdownAsync(content.Text),
-        LexicalContentFormat.EditorStateJson => SetEditorStateJsonAsync(content.Text),
+        LexicalContentFormat.Text => SetTextAsync(content.Text, silent),
+        LexicalContentFormat.Html => SetHtmlAsync(content.Text, silent),
+        LexicalContentFormat.Markdown => SetMarkdownAsync(content.Text, silent),
+        LexicalContentFormat.EditorStateJson => SetEditorStateJsonAsync(content.Text, silent),
         _ => throw new ArgumentOutOfRangeException(nameof(content), content.Format, null),
     };
 

@@ -164,6 +164,23 @@ id-routed extension channel (see [extensions.md](extensions.md)).
 Reserve it for edits the user did not make: a silently-tagged *user* edit would never reach
 the host, because the content push in `create()`'s update listener skips tagged updates.
 
+The `silent` argument on `setText`/`setHtml`/`setMarkdown`/`setEditorStateJson` (C#
+`Set*Async(…, silent: true)`) is the same pair of tags applied to an app-driven load — a
+remote revision, a server refresh — so the host is not echoed back what it just applied and
+the user's next undo does not wobble past it. The first three ride `editor.update`, whose
+`tag` option takes an array, so they carry both tags (the `SILENT` constant in `index.ts`).
+
+**`setEditorStateJson` is the one exception to "the tag is the contract."**
+`editor.setEditorState` is not `editor.update`: its `EditorSetOptions.tag` is a *single*
+string, and an outer tagged `editor.update` does not help — `setEditorState` force-commits
+the outer pending state first, which resets the accumulated tags before the real commit.
+So the two halves are split: `history-merge` travels as the tag (only Lexical can act on
+it), and the silence is a `create()`-scoped counter (`silentApplyDepth`) that
+`Instance.applyStateJson` raises around the call and the update listener checks alongside
+the tag. `setEditorState` commits synchronously, so the bracket covers the listener; if
+that ever changed, the flag fails open — one echoed push, nothing lost. Extensions get no
+such flag: `setup.silentUpdateTag` remains their only route.
+
 ## Initial content ordering
 
 Initial content is applied inside `create()` — after the core plugins, *before*

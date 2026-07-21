@@ -91,7 +91,7 @@ type TableModule = typeof import('./table');
 // The silent-update tag: the content-changed push below skips any update carrying it,
 // so an app-driven touch-up never marks the document dirty. The mention refresh is the
 // built-in user; extensions reach the same tag through `setup.silentUpdateTag`.
-import { SILENT_UPDATE_TAG } from './tags';
+import { HISTORY_MERGE_TAG, SILENT_UPDATE_TAG } from './tags';
 
 // The nodes every editor registers, so HTML/Markdown round-trips carry headings,
 // quotes, lists and links — not just plain paragraphs. Everything else, the table,
@@ -206,6 +206,13 @@ interface Instance {
   extensions: Map<string, LexicalExtensionModule>;
   /** Flips the .NET push channels on/off after create (opt-in at runtime). */
   setNotify(flags: Partial<NotifyFlags>): void;
+  /**
+   * Restores the document from editor-state JSON. Lives on the instance rather than
+   * beside the other setters because a silent apply needs the create()-scoped flag
+   * that suppresses the content push — see applyEditorStateJson for why the silent
+   * tag cannot travel through `setEditorState` itself.
+   */
+  applyStateJson(json: string, silent: boolean): void;
   dispose(): void;
 }
 
@@ -619,8 +626,19 @@ function makeNotifyDotNet(
  */
 const DISCRETE = { discrete: true } as const;
 
+/**
+ * `editor.update` options for a **silent** application: content the app supplied
+ * rather than content the user typed. The silent tag makes the update listener below
+ * skip the content push (no echo of what the host just applied) and history-merge
+ * keeps the edit off the undo stack (no wobble on the user's next Ctrl+Z).
+ */
+const SILENT = { tag: [SILENT_UPDATE_TAG, HISTORY_MERGE_TAG] };
+
+/** The options either apply path accepts — the two shapes above, or nothing. */
+type ApplyOptions = typeof DISCRETE | typeof SILENT;
+
 /** Replaces the document with a single paragraph holding `text`. */
-function applyText(editor: LexicalEditor, text: string, options?: typeof DISCRETE): void {
+function applyText(editor: LexicalEditor, text: string, options?: ApplyOptions): void {
   editor.update(() => {
     const root = $getRoot();
     root.clear();
@@ -633,7 +651,7 @@ function applyText(editor: LexicalEditor, text: string, options?: typeof DISCRET
 }
 
 /** Replaces the document with nodes parsed from an HTML string. */
-function applyHtml(editor: LexicalEditor, html: string, options?: typeof DISCRETE): void {
+function applyHtml(editor: LexicalEditor, html: string, options?: ApplyOptions): void {
   editor.update(() => {
     const dom = new DOMParser().parseFromString(html, 'text/html');
     const nodes = $generateNodesFromDOM(editor, dom);
@@ -644,9 +662,20 @@ function applyHtml(editor: LexicalEditor, html: string, options?: typeof DISCRET
   }, options);
 }
 
-/** Restores the document from a canonical editor-state JSON string. */
-function applyEditorStateJson(editor: LexicalEditor, json: string): void {
-  editor.setEditorState(editor.parseEditorState(json));
+/**
+ * Restores the document from a canonical editor-state JSON string.
+ *
+ * `setEditorState` is not `editor.update`: its options carry a **single** tag
+ * (`EditorSetOptions.tag?: string`), so a silent apply cannot deliver both halves of
+ * {@link SILENT} the way the other apply paths do. History-merge travels as the tag —
+ * only Lexical can act on it — and the silence is flagged around the call by
+ * `Instance.applyStateJson`, which is why that method exists at all.
+ */
+function applyEditorStateJson(editor: LexicalEditor, json: string, silent = false): void {
+  editor.setEditorState(
+    editor.parseEditorState(json),
+    silent ? { tag: HISTORY_MERGE_TAG } : undefined,
+  );
 }
 
 /**
@@ -1047,6 +1076,9 @@ export async function create(
   let canRedo = false;
   let lastSelectionJson = '';
   let contentDebounce: ReturnType<typeof setTimeout> | undefined;
+  // Non-zero while a silent setEditorState is being applied (see applyStateJson).
+  // A counter rather than a boolean so nested applies cannot un-silence each other.
+  let silentApplyDepth = 0;
 
   const refreshToolbar = () => {
     const state = editor.getEditorState().read(() => readSelectionState(canUndo, canRedo));
@@ -1069,10 +1101,12 @@ export async function create(
           editorState.read(() => $getRoot().getTextContent() === ''),
         );
         refreshToolbar();
-        // A silent update (an app-driven touch-up, e.g. a mention refresh) must not
-        // push the content channel — otherwise opening a document with stale names
-        // would mark it dirty before the user typed anything.
-        if (notify.content && !tags.has(SILENT_UPDATE_TAG)) {
+        // A silent update (an app-driven touch-up, e.g. a mention refresh, or a
+        // silent Set*Async) must not push the content channel — otherwise opening a
+        // document with stale names would mark it dirty before the user typed
+        // anything. The tag is the contract everywhere except the state-JSON apply,
+        // which can only carry one tag and so raises the flag instead.
+        if (notify.content && silentApplyDepth === 0 && !tags.has(SILENT_UPDATE_TAG)) {
           if (contentDebounce !== undefined) {
             clearTimeout(contentDebounce);
           }
@@ -1121,6 +1155,21 @@ export async function create(
     table: tableModule,
     mentions: mentionsModule,
     extensions: extensionModules,
+    applyStateJson(json, silent) {
+      if (!silent) {
+        applyEditorStateJson(editor, json);
+        return;
+      }
+      // setEditorState commits synchronously, so the update listener above runs
+      // inside this bracket and sees the flag. Were Lexical ever to defer that
+      // commit, the flag would fail open — one echoed content push, nothing lost.
+      silentApplyDepth++;
+      try {
+        applyEditorStateJson(editor, json, true);
+      } finally {
+        silentApplyDepth--;
+      }
+    },
     setNotify(flags) {
       if (flags.content !== undefined) {
         notify.content = flags.content;
@@ -1190,13 +1239,16 @@ export function getText(instanceId: string): string {
     .read(() => $getRoot().getTextContent());
 }
 
-/** Replaces the editor content with a single paragraph holding `text`. */
-export function setText(instanceId: string, text: string): void {
+/**
+ * Replaces the editor content with a single paragraph holding `text`. `silent`
+ * applies it as app-driven content: no content push and no undo step (see SILENT).
+ */
+export function setText(instanceId: string, text: string, silent = false): void {
   const instance = instances.get(instanceId);
   if (!instance) {
     return;
   }
-  applyText(instance.editor, text);
+  applyText(instance.editor, text, silent ? SILENT : undefined);
 }
 
 /** Inserts `text` at the current selection, replacing any selected range. */
@@ -1224,13 +1276,16 @@ export function getHtml(instanceId: string): string {
     .read(() => $generateHtmlFromNodes(instance.editor, null));
 }
 
-/** Replaces the editor content with nodes parsed from an HTML string. */
-export function setHtml(instanceId: string, html: string): void {
+/**
+ * Replaces the editor content with nodes parsed from an HTML string. `silent`
+ * applies it as app-driven content: no content push and no undo step (see SILENT).
+ */
+export function setHtml(instanceId: string, html: string, silent = false): void {
   const instance = instances.get(instanceId);
   if (!instance) {
     return;
   }
-  applyHtml(instance.editor, html);
+  applyHtml(instance.editor, html, silent ? SILENT : undefined);
 }
 
 /**
@@ -1250,15 +1305,20 @@ export async function getMarkdown(instanceId: string): Promise<string> {
 /**
  * Replaces the editor content with nodes parsed from a Markdown string. The
  * @lexical/markdown transformers live in a lazily-loaded chunk (see markdown.ts),
- * fetched on first use.
+ * fetched on first use. `silent` applies it as app-driven content: no content push
+ * and no undo step (see SILENT).
  */
-export async function setMarkdown(instanceId: string, markdown: string): Promise<void> {
+export async function setMarkdown(
+  instanceId: string,
+  markdown: string,
+  silent = false,
+): Promise<void> {
   const instance = instances.get(instanceId);
   if (!instance) {
     return;
   }
   const md = await import('./markdown');
-  md.fromMarkdown(instance.editor, markdown);
+  md.fromMarkdown(instance.editor, markdown, silent ? SILENT : undefined);
 }
 
 /** Serializes the full editor state to its canonical JSON string. */
@@ -1270,13 +1330,14 @@ export function getEditorStateJson(instanceId: string): string {
   return JSON.stringify(instance.editor.getEditorState().toJSON());
 }
 
-/** Restores the editor from a canonical editor-state JSON string. */
-export function setEditorStateJson(instanceId: string, json: string): void {
-  const instance = instances.get(instanceId);
-  if (!instance) {
-    return;
-  }
-  applyEditorStateJson(instance.editor, json);
+/**
+ * Restores the editor from a canonical editor-state JSON string. `silent` applies it
+ * as app-driven content — a remote update, a server refresh — so it neither pushes
+ * the content channel back at the host that just supplied it nor lands on the undo
+ * stack. The caret still follows the state's own serialized selection.
+ */
+export function setEditorStateJson(instanceId: string, json: string, silent = false): void {
+  instances.get(instanceId)?.applyStateJson(json, silent);
 }
 
 /** Sets whether the editor is editable. */

@@ -44,6 +44,7 @@
     <div>
         <button id="btn-get-json" @onclick="GetJson">Get JSON</button>
         <button id="btn-set-json" @onclick="SetJson">Set JSON (restore captured)</button>
+        <button id="btn-set-json-silent" @onclick="SetJsonSilent">Set JSON silently</button>
     </div>
     <p>JSON result: <span id="json-result">@_jsonResult</span></p>
 </section>
@@ -1286,6 +1287,16 @@
         if (_main is not null && _capturedJson.Length > 0)
         {
             await _main.SetEditorStateJsonAsync(_capturedJson);
+        }
+    }
+
+    // The same restore applied silently: an app-driven revision (a remote update, a
+    // server refresh) must not echo back on the content channel or land on undo.
+    private async Task SetJsonSilent()
+    {
+        if (_main is not null && _capturedJson.Length > 0)
+        {
+            await _main.SetEditorStateJsonAsync(_capturedJson, silent: true);
         }
     }
 

@@ -143,6 +143,10 @@ When the format is a value rather than something known at the call site, use
 
 Persist `GetEditorStateJsonAsync()` — it is the highest-fidelity format.
 
+Every `Set*Async` takes an optional `silent: true` for content the app supplied rather
+than content the user typed (a remote revision, a server refresh): the apply adds no undo
+step and raises no `OnContentChanged`.
+
 ## License
 
 MIT
