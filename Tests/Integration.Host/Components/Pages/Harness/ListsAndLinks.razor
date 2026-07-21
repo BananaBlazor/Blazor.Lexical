@@ -1,0 +1,121 @@
+@page "/harness/lists-links"
+
+@* Lists and links share a page: both exercise a @lexical/* node package through the
+   same shape — a command touchpoint plus a Markdown transformer round-trip. *@
+
+<PageTitle>Harness — lists and links</PageTitle>
+
+<h1>Lists and links</h1>
+
+<section>
+    <h2>Lists (insertUnorderedList / insertOrderedList / removeList)</h2>
+    <LexicalEditor @ref="_lists" Id="editor-lists" />
+    <div>
+        <button id="btn-ul" @onclick="InsertUnordered">Bulleted</button>
+        <button id="btn-ol" @onclick="InsertOrdered">Numbered</button>
+        <button id="btn-list-remove" @onclick="RemoveListFmt">Remove list</button>
+        <button id="btn-list-md" @onclick="SetListMarkdown">Set list markdown</button>
+        <button id="btn-list-get-md" @onclick="GetListMarkdown">Get list markdown</button>
+    </div>
+    <p>List markdown result: <span id="list-md-result">@_listMarkdownResult</span></p>
+</section>
+
+<section>
+    <h2>Links (toggleLink set / remove)</h2>
+    <LexicalEditor @ref="_links" Id="editor-links" />
+    <div>
+        <button id="btn-link-set" @onclick="SetLink">Set link</button>
+        <button id="btn-link-remove" @onclick="RemoveLink">Remove link</button>
+        <button id="btn-link-md" @onclick="SetLinkMarkdown">Set link markdown</button>
+        <button id="btn-link-get-md" @onclick="GetLinkMarkdown">Get link markdown</button>
+    </div>
+    <p>Link markdown result: <span id="link-md-result">@_linkMarkdownResult</span></p>
+</section>
+
+@code {
+    // Stable URL asserted by the link integration tests.
+    private const string LinkUrl = "https://example.com/";
+
+    private LexicalEditor? _lists;
+    private LexicalEditor? _links;
+    private string _listMarkdownResult = "";
+    private string _linkMarkdownResult = "";
+
+    // Lists: insertUnorderedList / insertOrderedList / removeList touchpoints.
+    private async Task InsertUnordered()
+    {
+        if (_lists is not null)
+        {
+            await _lists.InsertUnorderedListAsync();
+        }
+    }
+
+    private async Task InsertOrdered()
+    {
+        if (_lists is not null)
+        {
+            await _lists.InsertOrderedListAsync();
+        }
+    }
+
+    private async Task RemoveListFmt()
+    {
+        if (_lists is not null)
+        {
+            await _lists.RemoveListAsync();
+        }
+    }
+
+    // Round-trips list markdown to exercise the @lexical/list nodes' Markdown
+    // transformers (registered via createEditor's nodes[]).
+    private async Task SetListMarkdown()
+    {
+        if (_lists is not null)
+        {
+            await _lists.SetMarkdownAsync("- one\n- two\n- three");
+        }
+    }
+
+    private async Task GetListMarkdown()
+    {
+        if (_lists is not null)
+        {
+            _listMarkdownResult = await _lists.GetMarkdownAsync();
+        }
+    }
+
+    // Links: toggleLink set / remove touchpoints.
+    private async Task SetLink()
+    {
+        if (_links is not null)
+        {
+            await _links.SetLinkAsync(LinkUrl);
+        }
+    }
+
+    private async Task RemoveLink()
+    {
+        if (_links is not null)
+        {
+            await _links.RemoveLinkAsync();
+        }
+    }
+
+    // Round-trips link markdown to exercise the @lexical/link node's Markdown
+    // transformer.
+    private async Task SetLinkMarkdown()
+    {
+        if (_links is not null)
+        {
+            await _links.SetMarkdownAsync($"see [Example]({LinkUrl}) now");
+        }
+    }
+
+    private async Task GetLinkMarkdown()
+    {
+        if (_links is not null)
+        {
+            _linkMarkdownResult = await _links.GetMarkdownAsync();
+        }
+    }
+}

@@ -1,0 +1,63 @@
+@page "/harness/horizontal-rule"
+
+<PageTitle>Harness — horizontal rule</PageTitle>
+
+<h1>Horizontal rule</h1>
+
+<section>
+    <h2>Horizontal rule — an opt-in node, inserted by command token or from C#</h2>
+    @* editor-hr carries the extension; editor-hr-absent deliberately does NOT, which is
+       what proves the hr:insert token is an inert no-op rather than an error when the
+       node was never registered. *@
+    @* The token buttons live INSIDE the editor: the delegated dispatcher is bound to the
+       editor root, so a data-lexical-command button outside it would never fire. *@
+    <LexicalEditor @ref="_hrEditor"
+                   Id="editor-hr"
+                   CssClass="harness-hr"
+                   Theme="LexicalTheme.Default">
+        <button id="btn-hr-insert" type="button" data-lexical-command="hr:insert">Rule</button>
+        <LexicalHorizontalRule @ref="_hrExt" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-hr-insert-cs" @onclick="InsertRuleFromCSharp">Rule (C#)</button>
+        <button id="btn-hr-get-html" @onclick="GetHrHtml">Get HTML</button>
+        <button id="btn-hr-set-html" @onclick="SetHrHtml">Set HTML</button>
+    </div>
+    <p>HR html: <span id="hr-html">@_hrHtml</span></p>
+
+    <LexicalEditor Id="editor-hr-absent"
+                   CssClass="harness-hr-absent"
+                   Theme="LexicalTheme.Default">
+        <button id="btn-hr-absent-insert" type="button" data-lexical-command="hr:insert">Rule</button>
+    </LexicalEditor>
+</section>
+
+@code {
+    private LexicalEditor? _hrEditor;
+    private LexicalHorizontalRule? _hrExt;
+    private string _hrHtml = "";
+
+    private async Task InsertRuleFromCSharp()
+    {
+        if (_hrExt is not null)
+        {
+            await _hrExt.InsertAsync();
+        }
+    }
+
+    private async Task GetHrHtml()
+    {
+        if (_hrEditor is not null)
+        {
+            _hrHtml = await _hrEditor.GetHtmlAsync();
+        }
+    }
+
+    private async Task SetHrHtml()
+    {
+        if (_hrEditor is not null)
+        {
+            await _hrEditor.SetHtmlAsync("<p>above</p><hr><p>below</p>");
+        }
+    }
+}

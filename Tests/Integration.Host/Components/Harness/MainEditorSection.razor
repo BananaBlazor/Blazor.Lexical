@@ -1,0 +1,138 @@
+@* The "main" editor plus every format that reads and writes it. Shared because more
+   than one harness page needs the same editor under the same stable ids: the core page
+   drives it through get/set, the callbacks page watches what typing pushes back. *@
+
+<section>
+    <h2>Main editor (placeholder, css class, theme, change callback, get/set)</h2>
+    <LexicalEditor @ref="_main"
+                   Id="editor-main"
+                   Placeholder="Type here…"
+                   CssClass="harness-main"
+                   Theme="@(new { paragraph = "harness-paragraph" })"
+                   OnContentChanged="OnMainChanged" />
+
+    <div>
+        <button id="btn-get" @onclick="GetMain">Get text</button>
+        <button id="btn-set" @onclick="SetMain">Set text</button>
+    </div>
+    <p>Get result: <span id="get-result">@_getResult</span></p>
+    <p>Change callback: <span id="change-log">@_changeLog</span></p>
+    <p>Change count: <span id="change-count">@_changeCount</span></p>
+</section>
+
+<section>
+    <h2>Formats (HTML / Markdown / editor-state JSON)</h2>
+
+    <div>
+        <button id="btn-get-html" @onclick="GetHtml">Get HTML</button>
+        <button id="btn-set-html" @onclick="SetHtml">Set HTML</button>
+    </div>
+    <p>HTML result: <span id="html-result">@_htmlResult</span></p>
+
+    <div>
+        <button id="btn-get-markdown" @onclick="GetMarkdown">Get Markdown</button>
+        <button id="btn-set-markdown" @onclick="SetMarkdown">Set Markdown</button>
+    </div>
+    <p>Markdown result: <span id="markdown-result">@_markdownResult</span></p>
+
+    <div>
+        <button id="btn-get-json" @onclick="GetJson">Get JSON</button>
+        <button id="btn-set-json" @onclick="SetJson">Set JSON (restore captured)</button>
+        <button id="btn-set-json-silent" @onclick="SetJsonSilent">Set JSON silently</button>
+    </div>
+    <p>JSON result: <span id="json-result">@_jsonResult</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _main;
+    private string _getResult = "";
+    private string _changeLog = "";
+    private int _changeCount;
+    private string _htmlResult = "";
+    private string _markdownResult = "";
+    private string _jsonResult = "";
+    private string _capturedJson = "";
+
+    private void OnMainChanged(LexicalContent content)
+    {
+        _changeLog = content.Text;
+        _changeCount++;
+    }
+
+    private async Task GetMain()
+    {
+        if (_main is not null)
+        {
+            _getResult = await _main.GetTextAsync();
+        }
+    }
+
+    private async Task SetMain()
+    {
+        if (_main is not null)
+        {
+            await _main.SetTextAsync("Set via C#");
+        }
+    }
+
+    private async Task GetHtml()
+    {
+        if (_main is not null)
+        {
+            _htmlResult = await _main.GetHtmlAsync();
+        }
+    }
+
+    private async Task SetHtml()
+    {
+        if (_main is not null)
+        {
+            await _main.SetHtmlAsync("<h1>HTML heading</h1><p>HTML <strong>bold</strong> body</p>");
+        }
+    }
+
+    private async Task GetMarkdown()
+    {
+        if (_main is not null)
+        {
+            _markdownResult = await _main.GetMarkdownAsync();
+        }
+    }
+
+    private async Task SetMarkdown()
+    {
+        if (_main is not null)
+        {
+            await _main.SetMarkdownAsync("# Markdown heading\n\nMarkdown **bold** body");
+        }
+    }
+
+    // Captures the current editor state as JSON. The Set button restores it,
+    // so the round-trip covers both getEditorStateJson and setEditorStateJson.
+    private async Task GetJson()
+    {
+        if (_main is not null)
+        {
+            _capturedJson = await _main.GetEditorStateJsonAsync();
+            _jsonResult = _capturedJson;
+        }
+    }
+
+    private async Task SetJson()
+    {
+        if (_main is not null && _capturedJson.Length > 0)
+        {
+            await _main.SetEditorStateJsonAsync(_capturedJson);
+        }
+    }
+
+    // The same restore applied silently: an app-driven revision (a remote update, a
+    // server refresh) must not echo back on the content channel or land on undo.
+    private async Task SetJsonSilent()
+    {
+        if (_main is not null && _capturedJson.Length > 0)
+        {
+            await _main.SetEditorStateJsonAsync(_capturedJson, silent: true);
+        }
+    }
+}

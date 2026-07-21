@@ -9,7 +9,7 @@
 | `Samples/Extensions.Badge/` | The reference consumer extension — the worked example for the extension SDK, built only against the library's public surface. Not packed. |
 | `Tests/UnitTests/` | xUnit tests (options, DI, theme serialization). |
 | `Tests/Integration/` | Playwright end-to-end tests driving the harness. |
-| `Tests/Integration.Host/` | Blazor Server host for the integration harness (`/interop-harness`), booted in-process by `Tests/Integration`. |
+| `Tests/Integration.Host/` | Blazor Server host for the integration harness (one page per feature area under `/harness/*`), booted in-process by `Tests/Integration`. |
 | `Scripts/` | JS build (`build-js.ps1`) and Lexical version bump (`update-lexical.ps1`). |
 
 Samples and tests are named `<top-level folder>.<subfolder>` —
@@ -38,6 +38,12 @@ The integration tests drive system Chrome (override with `LEXICAL_TEST_CHROME`),
 no `playwright install` step is needed. The harness includes a no-callback editor
 (`.harness-format`) and an opt-in editor (`.harness-notify`) that together prove the
 library's interop invariants — keep both when editing it.
+
+The harness is one page per feature area, roughly one per test class, so a test boots
+only the editors it drives; test classes run in parallel over a single shared host and
+browser. A new feature gets a new page under
+`Tests/Integration.Host/Components/Pages/Harness/` plus a test class declaring its
+`Route` and `ReadySelector`.
 
 `TreatWarningsAsErrors` is on repo-wide, as is `GenerateDocumentationFile`, so an
 undocumented public member fails the build. Keep the build clean.

@@ -13,6 +13,11 @@ public class HighlightTests : HarnessTestBase
 {
     public HighlightTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/highlights";
+
+    protected override string ReadySelector =>
+        "#editor-highlights[data-lexical-editor='true']";
+
     private const string Editor = "#editor-highlights";
 
     /// <summary>
@@ -28,7 +33,7 @@ public class HighlightTests : HarnessTestBase
     [Fact] // the whole point: an app-supplied quote finds and paints its text
     public async Task HighlightText_PaintsTheQuote()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-string");
 
@@ -43,7 +48,7 @@ public class HighlightTests : HarnessTestBase
     [Fact]
     public async Task HighlightText_ReportsAmbiguity_WhenContextCannotChoose()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-plain");
 
@@ -54,7 +59,7 @@ public class HighlightTests : HarnessTestBase
     [Fact] // prefix/suffix resolve the same ambiguous quote to one occurrence
     public async Task HighlightText_DisambiguatesWithContext()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-context");
 
@@ -65,7 +70,7 @@ public class HighlightTests : HarnessTestBase
     [Fact] // a quote that is not there paints nothing and says so
     public async Task HighlightText_ReportsNotFound()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-missing");
 
@@ -81,7 +86,7 @@ public class HighlightTests : HarnessTestBase
     [Fact]
     public async Task HighlightText_MatchesAcrossBlockBoundaries()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-cross");
 
@@ -92,7 +97,7 @@ public class HighlightTests : HarnessTestBase
     [Fact] // find-all: every occurrence, under its own id
     public async Task HighlightAll_PaintsEveryOccurrence()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-all");
 
@@ -107,7 +112,7 @@ public class HighlightTests : HarnessTestBase
     [Fact]
     public async Task ClearHighlights_ClearsOneIdOrAllOfThem()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-string");
         await Expect(page.Locator("#hl-result")).ToHaveTextAsync("Matched");
@@ -134,7 +139,7 @@ public class HighlightTests : HarnessTestBase
     [Fact]
     public async Task Highlighting_DoesNotChangeTheDocument()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         var before = await StateJsonAsync(page);
@@ -155,7 +160,7 @@ public class HighlightTests : HarnessTestBase
     [Fact]
     public async Task Highlight_ReanchorsAfterEdits()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-string");
         await Expect(page.Locator("#hl-result")).ToHaveTextAsync("Matched");
@@ -173,7 +178,7 @@ public class HighlightTests : HarnessTestBase
     [Fact] // scrolling asks the same question as anchoring, so it answers false when unpainted
     public async Task ScrollToHighlight_ReportsWhetherAnythingIsAnchored()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-hl-scroll");
         await Expect(page.Locator("#hl-scroll-result")).ToHaveTextAsync("False");

@@ -20,6 +20,11 @@ public class LinkEditorTests : HarnessTestBase
 
     public LinkEditorTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/link-editor";
+
+    protected override string ReadySelector =>
+        "#editor-linkeditor[data-lexical-editor='true']";
+
     /// <summary>Selects some text, clicks the toolbar link button, and returns once
     /// the popup is open in edit mode over the freshly inserted placeholder link.</summary>
     private static async Task InsertLinkAsync(IPage page, string text)
@@ -34,7 +39,7 @@ public class LinkEditorTests : HarnessTestBase
     [Fact] // link button → edit form → confirm writes the URL and shows the preview
     public async Task LinkButton_InsertsLink_EditsUrl_AndPreviews()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-linkeditor");
 
@@ -58,7 +63,7 @@ public class LinkEditorTests : HarnessTestBase
     [Fact] // the preview's edit (pencil) button re-opens the form to change the URL
     public async Task EditButton_UpdatesExistingLinkUrl()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-linkeditor");
 
         await InsertLinkAsync(page, "editme");
@@ -80,7 +85,7 @@ public class LinkEditorTests : HarnessTestBase
     [Fact] // the preview's remove button (link:remove command) unwraps the link
     public async Task RemoveButton_UnwrapsLink()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-linkeditor");
 
         await InsertLinkAsync(page, "goodbye");

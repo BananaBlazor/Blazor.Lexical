@@ -15,6 +15,11 @@ public class FormattingTests : HarnessTestBase
 {
     public FormattingTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/formatting";
+
+    protected override string ReadySelector =>
+        "#editor-toolbar-extra[data-lexical-editor='true']";
+
     private static async Task TypeAndSelectAllAsync(IPage page, string selector, string text)
     {
         await TypeAsync(page, selector, text);
@@ -24,7 +29,7 @@ public class FormattingTests : HarnessTestBase
     [Fact] // toolbar Bold button works with NO callbacks wired — pure JS, zero interop
     public async Task ToolbarBoldButton_BoldsSelection_WithoutAnyCallback()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-format");
 
         await TypeAndSelectAllAsync(page, "#editor-format", "pure js bold");
@@ -37,7 +42,7 @@ public class FormattingTests : HarnessTestBase
     [Fact] // active-state reflects the selection with no callback (JS sets data-lexical-active)
     public async Task ToolbarActiveState_ReflectsSelection_WithoutCallback()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var boldButton = page.Locator(".harness-format [aria-label='Bold']");
 
         await TypeAndSelectAllAsync(page, "#editor-format", "active me");
@@ -50,7 +55,7 @@ public class FormattingTests : HarnessTestBase
     [Fact] // block-type via the toolbar <select> (change dispatched in JS)
     public async Task ToolbarBlockSelect_AppliesHeading()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-format");
 
         await TypeAndSelectAllAsync(page, "#editor-format", "heading via select");
@@ -65,7 +70,7 @@ public class FormattingTests : HarnessTestBase
            // selecting "Bulleted list" makes a list, selecting "Normal" unwraps it
     public async Task ToolbarBlockSelect_AppliesAndRemovesList()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-format");
         var select = page.Locator(".harness-format [data-lexical-command='block:select']");
 
@@ -82,7 +87,7 @@ public class FormattingTests : HarnessTestBase
     [Fact] // programmatic C# methods still drive the same editor
     public async Task ProgrammaticMethods_FormatAndBlockAndHistory()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-format");
 
         await TypeAndSelectAllAsync(page, "#editor-format", "history text");
@@ -99,7 +104,7 @@ public class FormattingTests : HarnessTestBase
     [Fact] // opt-in: OnContentChanged + OnSelectionChanged push only on the subscribed editor
     public async Task OptInCallbacks_PushContentAndSelection()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-notify", "hello");
         await Expect(page.Locator("#notify-change")).ToHaveTextAsync("hello");
@@ -117,7 +122,7 @@ public class FormattingTests : HarnessTestBase
     [Fact]
     public async Task SelectionState_CarriesTheSelectedText()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAndSelectAllAsync(page, "#editor-notify", "quote me");
         await Expect(page.Locator("#notify-sel-text")).ToHaveTextAsync("quote me");
@@ -134,7 +139,7 @@ public class FormattingTests : HarnessTestBase
     [Fact]
     public async Task ToolbarFragments_AddToTheDefaultControlSet()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var toolbar = page.Locator(".harness-toolbar-extra .blazor-lexical__toolbar");
 
         await Expect(toolbar.Locator("#btn-toolbar-start")).ToHaveCountAsync(1);

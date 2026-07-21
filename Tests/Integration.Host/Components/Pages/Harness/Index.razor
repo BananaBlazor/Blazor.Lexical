@@ -1,0 +1,44 @@
+@page "/"
+@page "/interop-harness"
+
+@* The harness landing page. The interop surface used to live on one enormous page;
+   it is now one page per feature area, so a Playwright test boots only the editors it
+   actually drives. Each route below is owned by one test class in Tests.Integration. *@
+
+<PageTitle>Interop Harness</PageTitle>
+
+<h1>Blazor.Lexical interop harness</h1>
+
+<p>Deterministic harness pages that exercise every Blazor &lt;-&gt; Lexical JS touchpoint.
+   Driven by the Tests.Integration Playwright suite. Stable ids only.</p>
+
+<ul>
+    @foreach (var (route, label) in Pages)
+    {
+        <li><a href="@route">@label</a></li>
+    }
+</ul>
+
+@code {
+    private static readonly (string Route, string Label)[] Pages =
+    [
+        ("/harness/core", "Core — main editor, formats, history, read-only, disposal"),
+        ("/harness/callbacks", "Callbacks — content channel payload modes"),
+        ("/harness/formatting", "Formatting — toolbar, the format/notify pair"),
+        ("/harness/lists-links", "Lists and links"),
+        ("/harness/overlays", "Overlays — floating toolbar, slash menu, drag handle"),
+        ("/harness/link-editor", "Link editor popup"),
+        ("/harness/tables", "Tables"),
+        ("/harness/mentions", "Mentions"),
+        ("/harness/extensions", "Extensions — the badge reference extension"),
+        ("/harness/extension-hardening", "Extension hardening — colliding modules"),
+        ("/harness/toc", "TOC"),
+        ("/harness/marks", "Marks"),
+        ("/harness/highlights", "Highlights"),
+        ("/harness/stats", "Stats"),
+        ("/harness/horizontal-rule", "Horizontal rule"),
+        ("/harness/tab-indent", "Tab indent"),
+        ("/harness/block-gutter", "Block gutter"),
+        ("/harness/initial-content", "Initial content"),
+    ];
+}

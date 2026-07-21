@@ -1,0 +1,96 @@
+@page "/harness/formatting"
+
+@* The formatting pair: .harness-format formats with zero interop, .harness-notify does
+   the same work with both callbacks wired. Keep both — together they are what proves
+   the built-in toolbar needs no .NET round-trip. *@
+
+<PageTitle>Harness — formatting</PageTitle>
+
+<h1>Formatting</h1>
+
+<section>
+    <h2>Formatting — nested toolbar, NO callbacks (pure JS, zero interop)</h2>
+    @* No OnContentChanged/OnSelectionChanged: proves built-in toolbar buttons format
+       entirely in JS and drive data-lexical-active without any .NET round-trip. *@
+    <LexicalEditor @ref="_format"
+                   Id="editor-format"
+                   CssClass="harness-format"
+                   Placeholder="Type here…"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+    </LexicalEditor>
+
+    @* Direct C# method calls (the opt-in programmatic path), driving the same editor. *@
+    <div>
+        <button id="btn-fmt-bold" @onclick="() => FormatFmt(LexicalTextFormat.Bold)">Bold</button>
+        <button id="btn-block-h1" @onclick="() => BlockFmt(LexicalBlockType.Heading1)">H1</button>
+        <button id="btn-block-quote" @onclick="() => BlockFmt(LexicalBlockType.Quote)">Quote</button>
+        <button id="btn-block-p" @onclick="() => BlockFmt(LexicalBlockType.Paragraph)">Paragraph</button>
+        <button id="btn-fmt-undo" @onclick="UndoFmt">Undo</button>
+        <button id="btn-fmt-redo" @onclick="RedoFmt">Redo</button>
+        <button id="btn-fmt-get-html" @onclick="GetFmtHtml">Get HTML</button>
+    </div>
+    <p>Format HTML result: <span id="fmt-html-result">@_fmtHtmlResult</span></p>
+</section>
+
+<NotifyEditorSection />
+
+<section>
+    <h2>Toolbar — StartContent/EndContent added to the default set</h2>
+    @* The default controls still render; the two fragments bracket them. *@
+    <LexicalEditor Id="editor-toolbar-extra" CssClass="harness-toolbar-extra">
+        <LexicalToolbar>
+            <StartContent>
+                <button id="btn-toolbar-start" type="button">Start</button>
+            </StartContent>
+            <EndContent>
+                <button id="btn-toolbar-end" type="button">End</button>
+            </EndContent>
+        </LexicalToolbar>
+    </LexicalEditor>
+</section>
+
+@code {
+    private LexicalEditor? _format;
+    private string _fmtHtmlResult = "";
+
+    private async Task FormatFmt(LexicalTextFormat format)
+    {
+        if (_format is not null)
+        {
+            await _format.FormatTextAsync(format);
+        }
+    }
+
+    private async Task BlockFmt(LexicalBlockType blockType)
+    {
+        if (_format is not null)
+        {
+            await _format.SetBlockTypeAsync(blockType);
+        }
+    }
+
+    private async Task UndoFmt()
+    {
+        if (_format is not null)
+        {
+            await _format.UndoAsync();
+        }
+    }
+
+    private async Task RedoFmt()
+    {
+        if (_format is not null)
+        {
+            await _format.RedoAsync();
+        }
+    }
+
+    private async Task GetFmtHtml()
+    {
+        if (_format is not null)
+        {
+            _fmtHtmlResult = await _format.GetHtmlAsync();
+        }
+    }
+}

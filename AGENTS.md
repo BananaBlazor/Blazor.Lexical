@@ -19,7 +19,8 @@ A Blazor Razor Class Library wrapping the
 - **`Tests/UnitTests`** — xUnit unit tests (options, DI, theme serialization).
 - **`Tests/Integration`** — Playwright end-to-end tests driving the harness.
 - **`Tests/Integration.Host`** — Blazor Server host for the integration-test
-  harness (`/interop-harness`); booted in-process by `Tests/Integration`.
+  harness (`/harness/*`, indexed at `/interop-harness`); booted in-process by
+  `Tests/Integration`.
 - **`Scripts/`** — JS build (`build-js.ps1`) and Lexical version bump
   (`update-lexical.ps1`).
 
@@ -35,10 +36,13 @@ A Blazor Razor Class Library wrapping the
 
 - `dotnet test Tests/UnitTests/Tests.UnitTests.csproj` — fast, no browser.
 - `dotnet test Tests/Integration/Tests.Integration.csproj` — Playwright; boots
-  `Tests/Integration.Host` in-process and drives `/interop-harness` (stable element
-  ids). The harness includes a no-callback editor (`.harness-format`) and an opt-in
-  editor (`.harness-notify`) that together prove the library's interop invariants —
-  keep both when editing it.
+  `Tests/Integration.Host` in-process and drives one harness page per feature area
+  under `/harness/*` (stable element ids). **One page per test class**: a class
+  declares its `Route` and `ReadySelector`, so it boots only the editors it drives.
+  Test classes carry no `[Collection]` and run in parallel over a single shared host
+  and browser (`HarnessServer`). The harness includes a no-callback editor
+  (`.harness-format`) and an opt-in editor (`.harness-notify`) that together prove the
+  library's interop invariants — keep both when editing it.
 - Run the website by hand: `dotnet run --project Web` (WebAssembly).
 
 ## Docs

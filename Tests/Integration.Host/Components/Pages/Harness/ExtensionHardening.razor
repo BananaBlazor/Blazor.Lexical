@@ -1,0 +1,32 @@
+@page "/harness/extension-hardening"
+
+<PageTitle>Harness — extension hardening</PageTitle>
+
+<h1>Extension hardening</h1>
+
+<section>
+    <h2>Extension hardening — colliding modules are skipped, the editor survives</h2>
+    @* Three editors, each loading a pair of consumer extension modules that collide in a
+       different way. In every case the SECOND module must be skipped with a console error
+       while the editor stays alive and typeable — the whole point of failing soft. *@
+    <LexicalEditor Id="editor-collide-name"
+                   CssClass="harness-collide-name"
+                   Theme="LexicalTheme.Default">
+        <HarnessCollider Variant="name-a" />
+        <HarnessCollider Variant="name-b" />
+    </LexicalEditor>
+
+    <LexicalEditor Id="editor-collide-nodetype"
+                   CssClass="harness-collide-nodetype"
+                   Theme="LexicalTheme.Default">
+        <HarnessCollider Variant="node-a" />
+        <HarnessCollider Variant="node-b" />
+    </LexicalEditor>
+
+    <LexicalEditor Id="editor-collide-declared"
+                   CssClass="harness-collide-declared"
+                   Theme="LexicalTheme.Default">
+        <HarnessCollider Variant="conflict-a" />
+        <HarnessCollider Variant="conflict-b" />
+    </LexicalEditor>
+</section>

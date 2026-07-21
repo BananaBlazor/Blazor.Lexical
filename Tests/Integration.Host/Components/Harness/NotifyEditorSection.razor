@@ -1,0 +1,54 @@
+@* The opt-in editor: both callbacks wired, so selection and content both cross to .NET.
+   Shared because it is one half of a pair the suite asserts from two angles — the
+   formatting page pairs it against .harness-format, the callbacks page reads what its
+   pushes leave behind in LastContent. *@
+
+<section>
+    <h2>Formatting — opt-in callbacks (selection + content push)</h2>
+    <LexicalEditor @ref="_notify"
+                   Id="editor-notify"
+                   CssClass="harness-notify"
+                   OnContentChanged="OnNotifyContent"
+                   OnSelectionChanged="OnNotifySelection">
+        <LexicalToolbar ShowLink="false" />
+    </LexicalEditor>
+    <p>Notify change: <span id="notify-change">@_notifyChange</span></p>
+    <p>Notify change count: <span id="notify-change-count">@_notifyChangeCount</span></p>
+    <p>Notify sel bold: <span id="notify-sel-bold">@_notifySelBold</span></p>
+    <p>Notify sel block: <span id="notify-sel-block">@_notifySelBlock</span></p>
+    <p>Notify sel count: <span id="notify-sel-count">@_notifySelCount</span></p>
+    <p>Notify sel text: <span id="notify-sel-text">@_notifySelText</span></p>
+
+    <div>
+        <button id="btn-notify-last" @onclick="ReadNotifyLast">Read notify LastContentText</button>
+    </div>
+    <p>Notify last: <span id="notify-last">@_notifyLast</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _notify;
+    private string _notifyChange = "";
+    private int _notifyChangeCount;
+    private string _notifySelBold = "";
+    private string _notifySelBlock = "";
+    private int _notifySelCount;
+    private string _notifySelText = "";
+    private string _notifyLast = "";
+
+    private void OnNotifyContent(LexicalContent content)
+    {
+        _notifyChange = content.Text;
+        _notifyChangeCount++;
+    }
+
+    private void OnNotifySelection(LexicalSelectionState state)
+    {
+        _notifySelBold = state.IsBold ? "true" : "false";
+        _notifySelBlock = state.BlockType.ToString();
+        _notifySelText = state.Text;
+        _notifySelCount++;
+    }
+
+    private void ReadNotifyLast() =>
+        _notifyLast = _notify?.LastContent is { } c ? $"{c.Format}|{c.Text}" : "(null)";
+}

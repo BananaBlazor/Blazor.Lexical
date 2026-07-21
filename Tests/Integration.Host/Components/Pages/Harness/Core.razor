@@ -1,0 +1,44 @@
+@page "/harness/core"
+
+@* The core editor lifecycle: the main editor and its formats, plus the small
+   parameter-driven editors (history, read-only, disposal). Driven by SmokeTests,
+   ModuleFunctionTests, ParameterTests and ModuleContractTests. *@
+
+<PageTitle>Harness — core</PageTitle>
+
+<h1>Core</h1>
+
+<MainEditorSection />
+
+<section>
+    <h2>History disabled</h2>
+    <LexicalEditor Id="editor-nohistory" EnableHistory="false" />
+</section>
+
+<section>
+    <h2>Read-only (created read-only)</h2>
+    <LexicalEditor Id="editor-readonly" ReadOnly="true" />
+</section>
+
+<section>
+    <h2>Toggle read-only (setEditable)</h2>
+    <LexicalEditor Id="editor-toggle" ReadOnly="_toggleReadOnly" />
+    <button id="btn-toggle" @onclick="() => _toggleReadOnly = !_toggleReadOnly">
+        Toggle read-only (now: <span id="toggle-state">@(_toggleReadOnly ? "readonly" : "editable")</span>)
+    </button>
+</section>
+
+<section>
+    <h2>Disposable (dispose on removal)</h2>
+    @if (_showDisposable)
+    {
+        <LexicalEditor Id="editor-disposable" />
+    }
+    <button id="btn-remove" @onclick="() => _showDisposable = false">Remove</button>
+    <button id="btn-readd" @onclick="() => _showDisposable = true">Re-add</button>
+</section>
+
+@code {
+    private bool _toggleReadOnly;
+    private bool _showDisposable = true;
+}

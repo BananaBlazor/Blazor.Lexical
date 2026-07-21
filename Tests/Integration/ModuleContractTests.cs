@@ -10,12 +10,16 @@ namespace Tests.Integration;
 /// Blazor→JS touchpoint. Behavioral coverage of each lives in the other suites;
 /// this one nails the names down.
 /// </summary>
-[Collection("harness")]
-public class ModuleContractTests
+public class ModuleContractTests : HarnessTestBase
 {
-    private readonly HarnessFixture _fx;
+    public ModuleContractTests(HarnessFixture fx) : base(fx) { }
 
-    public ModuleContractTests(HarnessFixture fx) => _fx = fx;
+    // Any harness page will do — this suite reads the shipped module, not the DOM — so
+    // it rides along on the lightest one that is already there.
+    protected override string Route => "harness/core";
+
+    protected override string ReadySelector =>
+        "#editor-disposable[data-lexical-editor='true']";
 
     /// <summary>
     /// The complete set of function exports LexicalEditor.razor.cs invokes on the
@@ -57,8 +61,8 @@ public class ModuleContractTests
     [Fact]
     public async Task Module_ExportsExactlyTheExpectedFunctions()
     {
-        var page = await _fx.OpenHarnessAsync();
-        var moduleUrl = _fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs";
+        var page = await OpenAsync();
+        var moduleUrl = Fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs";
 
         // Import the shipped bundle in the page and list its function exports.
         var actualExports = await page.EvaluateAsync<string[]>(
@@ -74,8 +78,8 @@ public class ModuleContractTests
     [Fact]
     public async Task CoreBundle_ExcludesTableCode_UntilLazilyLoaded()
     {
-        var page = await _fx.OpenHarnessAsync();
-        var baseAssets = _fx.BaseUrl + "_content/Blazor.Lexical/";
+        var page = await OpenAsync();
+        var baseAssets = Fx.BaseUrl + "_content/Blazor.Lexical/";
 
         // Fetch the entry bundle and everything it *statically* imports (the shared
         // core chunk) — i.e. the modules every editor eagerly downloads — but not the
@@ -107,8 +111,8 @@ public class ModuleContractTests
     [Fact]
     public async Task CoreBundle_ExcludesMarkdownCode_UntilLazilyLoaded()
     {
-        var page = await _fx.OpenHarnessAsync();
-        var baseAssets = _fx.BaseUrl + "_content/Blazor.Lexical/";
+        var page = await OpenAsync();
+        var baseAssets = Fx.BaseUrl + "_content/Blazor.Lexical/";
 
         // Fetch the entry bundle and everything it *statically* imports (the shared
         // core chunk) — the modules every editor eagerly downloads — but not the

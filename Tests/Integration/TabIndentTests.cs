@@ -13,6 +13,11 @@ public class TabIndentTests : HarnessTestBase
 {
     public TabIndentTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/tab-indent";
+
+    protected override string ReadySelector =>
+        "#editor-tab-plain[data-lexical-editor='true']";
+
     /// <summary>
     /// Reads the first block's indent level out of the editor state (via the harness's
     /// read button), rather than off a CSS side effect that styling could move.
@@ -26,7 +31,7 @@ public class TabIndentTests : HarnessTestBase
     [Fact] // Tab at the start of a block indents it
     public async Task Tab_IndentsTheBlock_WithTheExtension()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await TypeAsync(page, "#editor-tab-indent", "indent me");
@@ -40,7 +45,7 @@ public class TabIndentTests : HarnessTestBase
     [Fact] // Shift+Tab is the inverse
     public async Task ShiftTab_OutdentsTheBlock()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         // No mid-flight assertion: reading the level clicks a button, which takes focus
         // off the editor and would leave the Shift+Tab below with nothing to act on.
@@ -56,7 +61,7 @@ public class TabIndentTests : HarnessTestBase
     [Fact] // MaxIndent="2" allows levels below 2, so indenting stops at 1
     public async Task MaxIndent_CapsTheDepth()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-tab-capped", "capped");
         await page.Keyboard.PressAsync("Control+A");
@@ -71,7 +76,7 @@ public class TabIndentTests : HarnessTestBase
     [Fact] // the whole reason this is opt-in: Tab must stay a navigation key otherwise
     public async Task Tab_DoesNotIndent_WithoutTheExtension()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-tab-plain", "leave me");
         await page.Keyboard.PressAsync("Control+A");

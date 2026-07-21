@@ -1,130 +1,47 @@
-using System.Linq;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Playwright;
 
 namespace Tests.Integration;
 
 /// <summary>
-/// Boots Tests.Integration.Host in-process on a real Kestrel port (so a
-/// real browser can reach it, including the Blazor Server WebSocket circuit)
-/// and launches a headless browser. Shared across the whole integration suite.
+/// The per-test-class handle on the shared host and browser. It is an
+/// <c>IClassFixture</c> rather than a collection fixture on purpose: that is what lets
+/// each test class sit in its own collection and run in parallel with the others. The
+/// expensive resources behind it are started once, by <see cref="HarnessServer"/>.
 /// </summary>
 public sealed class HarnessFixture : IAsyncLifetime
 {
-    private const string DefaultChrome = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
+    private HarnessServer _server = default!;
 
-    private RealServerFactory _factory = default!;
-    private IPlaywright _playwright = default!;
-
-    public IBrowser Browser { get; private set; } = default!;
+    public IBrowser Browser => _server.Browser;
 
     /// <summary>Base URL of the running host, e.g. http://127.0.0.1:49xxx/.</summary>
-    public string BaseUrl { get; private set; } = default!;
+    public string BaseUrl => _server.BaseUrl;
 
-    public async Task InitializeAsync()
-    {
-        _factory = new RealServerFactory();
-        // Accessing the server triggers CreateHost, which starts real Kestrel.
-        _ = _factory.Server;
-        BaseUrl = _factory.ServerAddress;
+    public async Task InitializeAsync() => _server = await HarnessServer.GetAsync();
 
-        _playwright = await Playwright.CreateAsync();
-
-        var launchOptions = new BrowserTypeLaunchOptions { Headless = true };
-        var chromePath = Environment.GetEnvironmentVariable("LEXICAL_TEST_CHROME");
-        if (string.IsNullOrEmpty(chromePath) && File.Exists(DefaultChrome))
-        {
-            chromePath = DefaultChrome;
-        }
-        if (!string.IsNullOrEmpty(chromePath))
-        {
-            launchOptions.ExecutablePath = chromePath;
-        }
-
-        Browser = await _playwright.Chromium.LaunchAsync(launchOptions);
-    }
-
-    /// <summary>Opens the interop harness page in a fresh browser context.</summary>
-    public async Task<IPage> OpenHarnessAsync()
+    /// <summary>
+    /// Opens one harness page in a fresh browser context and waits for Lexical to take
+    /// it over. The suite has one page per feature area, so a test boots only the
+    /// editors it drives — <paramref name="readySelector"/> is the page's own gate.
+    /// </summary>
+    /// <param name="route">Route relative to the host root, e.g. <c>harness/marks</c>.</param>
+    /// <param name="readySelector">
+    /// A selector satisfied only once the page's editors are live, conventionally the
+    /// last editor declared on it.
+    /// </param>
+    public async Task<IPage> OpenAsync(string route, string readySelector)
     {
         var context = await Browser.NewContextAsync();
         var page = await context.NewPageAsync();
-        await page.GotoAsync(BaseUrl + "interop-harness", new PageGotoOptions
+        await page.GotoAsync(BaseUrl + route, new PageGotoOptions
         {
             WaitUntil = WaitUntilState.NetworkIdle,
         });
-        // Wait until Lexical has taken over the main editor.
-        await page.Locator("#editor-main[data-lexical-editor='true']")
+        await page.Locator(readySelector)
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
         return page;
     }
 
-    public async Task DisposeAsync()
-    {
-        if (Browser is not null)
-        {
-            await Browser.CloseAsync();
-        }
-        _playwright?.Dispose();
-        _factory?.Dispose();
-    }
-
-    /// <summary>
-    /// WebApplicationFactory variant that hosts on a real Kestrel port instead
-    /// of the in-memory TestServer. Pattern from the ASP.NET Core docs.
-    /// </summary>
-    private sealed class RealServerFactory : WebApplicationFactory<Program>
-    {
-        private IHost? _kestrelHost;
-
-        public string ServerAddress
-        {
-            get
-            {
-                _ = Server; // ensure CreateHost has run
-                return ClientOptions.BaseAddress.ToString();
-            }
-        }
-
-        protected override IHost CreateHost(IHostBuilder builder)
-        {
-            // Build the in-memory TestServer host first (what the base type expects).
-            var testHost = builder.Build();
-
-            // Rebuild using real Kestrel on an OS-assigned port.
-            builder.ConfigureWebHost(webHost => webHost
-                .UseKestrel()
-                .UseUrls("http://127.0.0.1:0"));
-
-            _kestrelHost = builder.Build();
-            _kestrelHost.Start();
-
-            var addresses = _kestrelHost.Services
-                .GetRequiredService<IServer>()
-                .Features.Get<IServerAddressesFeature>()!;
-            ClientOptions.BaseAddress = addresses.Addresses.Select(a => new Uri(a)).Last();
-
-            testHost.Start();
-            return testHost;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            base.Dispose(disposing);
-            if (disposing)
-            {
-                _kestrelHost?.Dispose();
-            }
-        }
-    }
-}
-
-[CollectionDefinition("harness")]
-public sealed class HarnessCollection : ICollectionFixture<HarnessFixture>
-{
+    // The shared host and browser outlive any one class; HarnessTestFramework closes them.
+    public Task DisposeAsync() => Task.CompletedTask;
 }

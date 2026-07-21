@@ -21,6 +21,11 @@ public class ExtensionTests : HarnessTestBase
 {
     public ExtensionTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/extensions";
+
+    protected override string ReadySelector =>
+        "#editor-badge-quiet[data-lexical-editor='true']";
+
     private const string NotifyEditor = "#editor-badge-notify";
     private const string QuietEditor = "#editor-badge-quiet";
 
@@ -34,7 +39,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // the external module loads, registers its node, and inserts it with no interop
     public async Task Extension_InsertsCustomNode_WithoutAnyCallback()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await InsertBadgeAsync(page, QuietEditor, ".harness-badge-quiet");
@@ -48,7 +53,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // each instance gets its own GetOptions() payload (label differs per editor)
     public async Task Extension_ReceivesPerInstanceOptions()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await InsertBadgeAsync(page, NotifyEditor, ".harness-badge-notify");
         await InsertBadgeAsync(page, QuietEditor, ".harness-badge-quiet");
@@ -60,7 +65,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // the module's theme fragment is merged into the editor's theme pre-create
     public async Task Extension_ThemeFragment_StylesItsOwnNode()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await InsertBadgeAsync(page, QuietEditor, ".harness-badge-quiet");
 
@@ -73,7 +78,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // JS→.NET: clicking a badge reaches the extension's own C# handler
     public async Task BadgeClick_InvokesDotNet_WhenHandlerIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await InsertBadgeAsync(page, NotifyEditor, ".harness-badge-notify");
         await page.ClickAsync($"{NotifyEditor} [data-badge]");
@@ -85,7 +90,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // invariant #1: with no handler wired the extension performs zero interop
     public async Task BadgeClick_DoesNoInterop_WhenNoHandlerIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await InsertBadgeAsync(page, QuietEditor, ".harness-badge-quiet");
@@ -104,7 +109,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // .NET→JS: InvokeJsAsync reaches the module's invoke handler, both ways
     public async Task InvokeJs_InsertsAndCounts_ThroughTheExtensionModule()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         // Give the editor a selection to insert at, then drive it from C#.
         await TypeAsync(page, NotifyEditor, "csharp ");
@@ -119,7 +124,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // an extension's custom node participates in the editor's own serialization
     public async Task ExtensionNode_SurvivesHtmlExport()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await InsertBadgeAsync(page, NotifyEditor, ".harness-badge-notify");
         await page.ClickAsync("#btn-badge-html");
@@ -131,7 +136,7 @@ public class ExtensionTests : HarnessTestBase
     [Fact] // the extension module is loaded by URL from its own RCL, not from our bundle
     public async Task ExtensionModule_IsServedByItsOwnLibrary()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var url = Fx.BaseUrl + "_content/Samples.Extensions.Badge/badge.mjs";
 
         var hasDefaultFactory = await page.EvaluateAsync<bool>(

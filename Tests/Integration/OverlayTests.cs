@@ -17,10 +17,15 @@ public class OverlayTests : HarnessTestBase
 {
     public OverlayTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/overlays";
+
+    protected override string ReadySelector =>
+        "#editor-overlays[data-lexical-editor='true']";
+
     [Fact] // floating toolbar shows over a selection and bolds it — no callbacks wired
     public async Task FloatingToolbar_AppearsOnSelection_AndBolds()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-overlays");
         var toolbar = page.Locator(".harness-overlays .blazor-lexical__floating-toolbar");
@@ -40,7 +45,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // the hover toolbar exposes the playground's transform buttons (uppercase here)
     public async Task FloatingToolbar_AppliesUppercaseTransform()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-overlays");
         var toolbar = page.Locator(".harness-overlays .blazor-lexical__floating-toolbar");
@@ -60,7 +65,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // the toolbar's left edge never crosses into the gutter (first text column)
     public async Task FloatingToolbar_LeftEdge_StaysInTextColumn()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var toolbar = page.Locator(".harness-overlays .blazor-lexical__floating-toolbar");
 
         // A selection starting at column 0 is where the left clamp actually bites.
@@ -84,7 +89,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // typing "/h1" then Enter converts the line to a heading and removes the trigger
     public async Task SlashMenu_ConvertsLineToHeading()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-overlays");
         var menu = page.Locator(".harness-overlays .blazor-lexical__slash-menu");
 
@@ -102,7 +107,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // Escape closes the slash menu without changing the block
     public async Task SlashMenu_EscapeCloses()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var menu = page.Locator(".harness-overlays .blazor-lexical__slash-menu");
 
         await page.ClickAsync("#editor-overlays");
@@ -120,7 +125,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // the rail appears in the gutter when the pointer is over a block
     public async Task BlockGutter_AppearsOnHover()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var rail = page.Locator(".harness-overlays .blazor-lexical__block-gutter");
 
         await TypeAsync(page, "#editor-overlays", "hover target");
@@ -133,7 +138,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // the "+" add-block button inserts a paragraph below and opens the slash menu
     public async Task AddBlockButton_InsertsParagraph_AndOpensSlashMenu()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-overlays");
         var menu = page.Locator(".harness-overlays .blazor-lexical__slash-menu");
 
@@ -151,7 +156,7 @@ public class OverlayTests : HarnessTestBase
     [Fact] // the grip still reorders blocks now that it is delegated from the root
     public async Task DragGrip_ReordersBlocks()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-overlays");
 
         await TypeAsync(page, "#editor-overlays", "alpha");

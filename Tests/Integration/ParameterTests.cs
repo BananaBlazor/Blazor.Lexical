@@ -12,10 +12,15 @@ public class ParameterTests : HarnessTestBase
 {
     public ParameterTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/core";
+
+    protected override string ReadySelector =>
+        "#editor-disposable[data-lexical-editor='true']";
+
     [Fact] // Placeholder — driven purely by JS/CSS (data-lexical-empty + data-placeholder), no interop
     public async Task Placeholder_ShowsWhenEmpty_HidesAfterTyping()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var content = page.Locator("#editor-main");
 
         // The placeholder text rides on the content element and the empty-state flag
@@ -30,7 +35,7 @@ public class ParameterTests : HarnessTestBase
     [Fact] // CssClass
     public async Task CssClass_AppliedToWrapper()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         // The main editor's contenteditable lives inside a wrapper carrying the class.
         await Expect(page.Locator(".blazor-lexical.harness-main #editor-main")).ToHaveCountAsync(1);
@@ -39,7 +44,7 @@ public class ParameterTests : HarnessTestBase
     [Fact] // Theme -> options.theme -> Lexical applies class to nodes
     public async Task Theme_AppliedToParagraphNodes()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "themed");
 
@@ -49,7 +54,7 @@ public class ParameterTests : HarnessTestBase
     [Fact] // ReadOnly (options.readOnly at create)
     public async Task ReadOnly_CreatedNonEditable_RejectsTyping()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var readonlyEditor = page.Locator("#editor-readonly");
 
         await Expect(readonlyEditor).ToHaveAttributeAsync("contenteditable", "false");
@@ -63,7 +68,7 @@ public class ParameterTests : HarnessTestBase
     [Fact] // EnableHistory = true -> undo reverts
     public async Task History_Enabled_UndoReverts()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "first ");
         // Separate history entry, then a second edit.
@@ -83,7 +88,7 @@ public class ParameterTests : HarnessTestBase
     [Fact] // EnableHistory = false -> undo does nothing
     public async Task History_Disabled_UndoDoesNotRevert()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-nohistory", "keep this");
         await page.Keyboard.PressAsync("Control+z");

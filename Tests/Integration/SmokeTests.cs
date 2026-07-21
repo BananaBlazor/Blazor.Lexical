@@ -2,17 +2,19 @@ using Microsoft.Playwright;
 
 namespace Tests.Integration;
 
-[Collection("harness")]
-public class SmokeTests
+public class SmokeTests : HarnessTestBase
 {
-    private readonly HarnessFixture _fx;
+    public SmokeTests(HarnessFixture fx) : base(fx) { }
 
-    public SmokeTests(HarnessFixture fx) => _fx = fx;
+    protected override string Route => "harness/core";
+
+    protected override string ReadySelector =>
+        "#editor-disposable[data-lexical-editor='true']";
 
     [Fact]
     public async Task Harness_MountsLexicalEditor()
     {
-        var page = await _fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editable = await page.GetAttributeAsync("#editor-main", "contenteditable");
         Assert.Equal("true", editable);
     }
@@ -20,9 +22,9 @@ public class SmokeTests
     [Fact]
     public async Task ModuleAsset_IsServed()
     {
-        var page = await _fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var response = await page.APIRequest.GetAsync(
-            _fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs");
+            Fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs");
         Assert.Equal(200, response.Status);
     }
 }

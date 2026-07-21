@@ -1,0 +1,99 @@
+@page "/harness/toc"
+
+<PageTitle>Harness — TOC</PageTitle>
+
+<h1>TOC</h1>
+
+<section>
+    <h2>TOC — heading outline, rendered by JS and pushed to .NET</h2>
+    @* Paired like .harness-format / .harness-notify:
+
+         * editor-toc-notify wires OnTocChanged AND a render target, so both surfaces
+           run: JS builds #toc-target-notify and the model reaches C#.
+         * editor-toc-quiet renders into #toc-target-quiet with no callback at all —
+           the anchors and the list still appear, with zero JS→.NET calls. *@
+    <LexicalEditor @ref="_tocNotify"
+                   Id="editor-toc-notify"
+                   CssClass="harness-toc-notify"
+                   Theme="LexicalTheme.Default">
+        <LexicalToc @ref="_tocNotifyExt"
+                    TargetSelector="#toc-target-notify"
+                    MaxLevel="3"
+                    AnchorPrefix="n-"
+                    OnTocChanged="OnTocChanged" />
+    </LexicalEditor>
+    <nav id="toc-target-notify"></nav>
+    <p>TOC count: <span id="toc-count">@_tocCount</span></p>
+    <p>TOC push count: <span id="toc-push-count">@_tocPushCount</span></p>
+    <p>TOC flat: <span id="toc-flat">@_tocFlat</span></p>
+
+    @* The same model, rendered by Blazor instead of by JS. *@
+    <LexicalTocList Entries="_tocEntries" CssClass="harness-toc-list" />
+
+    <div>
+        <button id="btn-toc-get" @onclick="GetToc">Get TOC</button>
+        <button id="btn-toc-scroll" @onclick="ScrollToFirstAnchor">Scroll to first</button>
+    </div>
+    <p>TOC get result: <span id="toc-get-result">@_tocGetResult</span></p>
+    <p>TOC scroll result: <span id="toc-scroll-result">@_tocScrollResult</span></p>
+
+    <LexicalEditor Id="editor-toc-quiet"
+                   CssClass="harness-toc-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalToc TargetSelector="#toc-target-quiet" AnchorPrefix="q-" />
+    </LexicalEditor>
+    <nav id="toc-target-quiet"></nav>
+</section>
+
+@code {
+    private LexicalEditor? _tocNotify;
+    private LexicalToc? _tocNotifyExt;
+    private IReadOnlyList<LexicalTocEntry> _tocEntries = [];
+    private int _tocCount;
+    private int _tocPushCount;
+    private string _tocFlat = "";
+    private string _tocGetResult = "";
+    private string _tocScrollResult = "";
+
+    // The push carries the whole tree, so nothing here needs a follow-up call.
+    private void OnTocChanged(IReadOnlyList<LexicalTocEntry> entries)
+    {
+        _tocEntries = entries;
+        _tocCount = entries.Count;
+        _tocPushCount++;
+        _tocFlat = string.Join(",", Flatten(entries).Select(e => $"{e.Level}:{e.AnchorId}"));
+    }
+
+    /// <summary>Depth-first walk, so a test can assert nesting from one flat string.</summary>
+    private static IEnumerable<LexicalTocEntry> Flatten(IReadOnlyList<LexicalTocEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            yield return entry;
+            foreach (var child in Flatten(entry.Children))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private async Task GetToc()
+    {
+        if (_tocNotifyExt is not null)
+        {
+            var entries = await _tocNotifyExt.GetTocAsync();
+            _tocGetResult = string.Join(",", Flatten(entries).Select(e => e.AnchorId));
+        }
+    }
+
+    private async Task ScrollToFirstAnchor()
+    {
+        if (_tocNotifyExt is not null)
+        {
+            var first = _tocEntries.FirstOrDefault();
+            _tocScrollResult = first is null
+                ? "(none)"
+                : (await _tocNotifyExt.ScrollToAnchorAsync(first.AnchorId)).ToString();
+        }
+    }
+}

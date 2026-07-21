@@ -1,0 +1,23 @@
+@page "/harness/overlays"
+
+<PageTitle>Harness — overlays</PageTitle>
+
+<h1>Overlays</h1>
+
+<section>
+    <h2>Overlays — floating toolbar, slash menu, drag handle (pure JS, zero interop)</h2>
+    @* No callbacks wired: proves the in-editor overlays are entirely client-side.
+       The overlays activate purely from the marker markup they render. *@
+    <LexicalEditor Id="editor-overlays"
+                   CssClass="harness-overlays"
+                   Placeholder="Type '/' for blocks, select text for the toolbar…"
+                   Theme="LexicalTheme.Default">
+        <LexicalFloatingToolbar />
+        <LexicalSlashMenu />
+        @* The playground-style left rail, composed from its two items. *@
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+            <LexicalAddBlockButton />
+            <LexicalDragHandle />
+        </LexicalBlockGutter>
+    </LexicalEditor>
+</section>

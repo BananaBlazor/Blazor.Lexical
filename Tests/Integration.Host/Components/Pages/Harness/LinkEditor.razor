@@ -1,0 +1,18 @@
+@page "/harness/link-editor"
+
+<PageTitle>Harness — link editor</PageTitle>
+
+<h1>Link editor</h1>
+
+<section>
+    <h2>Link editor popup — toolbar link button + floating editor (pure JS, zero interop)</h2>
+    @* No callbacks wired: the toolbar link button inserts a placeholder link and the
+       floating <LexicalLinkEditor/> opens to edit its URL — all client-side. *@
+    <LexicalEditor Id="editor-linkeditor"
+                   CssClass="harness-linkeditor"
+                   Placeholder="Select text, then click the link button…"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+        <LexicalLinkEditor />
+    </LexicalEditor>
+</section>

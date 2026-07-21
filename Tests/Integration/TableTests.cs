@@ -16,13 +16,18 @@ public class TableTests : HarnessTestBase
 {
     public TableTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/tables";
+
+    protected override string ReadySelector =>
+        "#editor-tables[data-lexical-editor='true']";
+
     private const string Editor = "#editor-tables";
     private const string Root = ".harness-tables";
 
     [Fact] // the programmatic C# insert makes a 2×3 table with a header row — no callbacks
     public async Task ProgrammaticInsert_MakesSizedTableWithHeaderRow()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator(Editor);
 
@@ -39,7 +44,7 @@ public class TableTests : HarnessTestBase
     [Fact] // the toolbar grid picker inserts a table of the clicked R×C size
     public async Task ToolbarPicker_InsertsTableOfHoveredSize()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator(Editor);
         var popover = page.Locator($"{Root} [data-lexical-table-picker-popover]");
@@ -61,7 +66,7 @@ public class TableTests : HarnessTestBase
     [Fact] // typing "/table" then Enter inserts a default table and removes the trigger
     public async Task SlashMenu_InsertsDefaultTable()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(Editor);
         var menu = page.Locator($"{Root} .blazor-lexical__slash-menu");
 
@@ -80,7 +85,7 @@ public class TableTests : HarnessTestBase
     [Fact] // the action menu appears in the caret's cell and inserts a row below
     public async Task ActionMenu_InsertsRowBelow()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator(Editor);
         var menu = page.Locator($"{Root} .blazor-lexical__table-menu");
@@ -104,7 +109,7 @@ public class TableTests : HarnessTestBase
     [Fact] // the action menu's "Delete table" removes the whole table
     public async Task ActionMenu_DeletesTable()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(Editor);
         var menu = page.Locator($"{Root} .blazor-lexical__table-menu");
 

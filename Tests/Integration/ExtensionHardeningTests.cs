@@ -18,13 +18,18 @@ public class ExtensionHardeningTests : HarnessTestBase
 {
     public ExtensionHardeningTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/extension-hardening";
+
+    protected override string ReadySelector =>
+        "#editor-collide-declared[data-lexical-editor='true']";
+
     // The loaded-marker is written onto the editor ROOT, which carries the CssClass;
     // the Id sits on the [data-lexical-content] surface inside it.
 
     [Fact] // two modules claiming one name: the second is skipped
     public async Task DuplicateName_SkipsTheSecondModule()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         // The collisions are logged during create(), so the listener has to be in place
         // before the page loads.
         var errors = await CaptureErrorsFromLoadAsync(page);
@@ -38,7 +43,7 @@ public class ExtensionHardeningTests : HarnessTestBase
     [Fact] // two node classes claiming one getType(): the second is skipped
     public async Task DuplicateNodeType_SkipsTheSecondModule()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         // The collisions are logged during create(), so the listener has to be in place
         // before the page loads.
         var errors = await CaptureErrorsFromLoadAsync(page);
@@ -54,7 +59,7 @@ public class ExtensionHardeningTests : HarnessTestBase
     [Fact] // an explicitly declared conflict is honoured
     public async Task DeclaredConflict_SkipsTheConflictingModule()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         // The collisions are logged during create(), so the listener has to be in place
         // before the page loads.
         var errors = await CaptureErrorsFromLoadAsync(page);
@@ -71,7 +76,7 @@ public class ExtensionHardeningTests : HarnessTestBase
     [InlineData("#editor-collide-declared")]
     public async Task ACollision_LeavesTheEditorAliveAndTypeable(string editor)
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, editor, "still works");
 

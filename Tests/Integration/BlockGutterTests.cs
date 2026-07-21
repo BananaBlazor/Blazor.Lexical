@@ -18,13 +18,18 @@ public class BlockGutterTests : HarnessTestBase
 {
     public BlockGutterTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/block-gutter";
+
+    protected override string ReadySelector =>
+        "#editor-gutter-quiet[data-lexical-editor='true']";
+
     private const string NotifyEditor = "#editor-gutter-notify";
     private const string QuietEditor = "#editor-gutter-quiet";
 
     [Fact] // it reveals beside the hovered block
     public async Task Gutter_AppearsOnHover()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var gutter = page.Locator(".harness-gutter-quiet .blazor-lexical__block-gutter");
 
         await TypeAsync(page, QuietEditor, "hover target");
@@ -37,7 +42,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // invariant #1: no callback and no typed button ⇒ no interop, button still works
     public async Task Gutter_DoesNoInterop_WhenNothingIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await TypeAsync(page, QuietEditor, "hover target");
@@ -54,7 +59,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // several rails coexist, and both reveal on the same hover
     public async Task TwoGutters_BothRevealOnHover()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var left = page.Locator(".harness-gutter-left");
         var right = page.Locator(".harness-gutter-right");
 
@@ -68,7 +73,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // Inside sits in the card's reserved margin; Outside hangs off its edge
     public async Task Gutters_PositionAccordingToTheirDeclaredPosition()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hover target");
         var block = page.Locator($"{NotifyEditor} p").First;
@@ -107,7 +112,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // you can travel to a rail's buttons, even one hanging outside the editor
     public async Task GutterButton_StaysReachable_WhenThePointerTravelsToIt()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hover target");
         var block = page.Locator($"{NotifyEditor} p").First;
@@ -136,7 +141,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // the opt-in push identifies which block the pointer is on
     public async Task Gutter_PushesTheHoveredBlock_WhenOnBlockHoveredIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "first block");
         await page.Keyboard.PressAsync("Enter");
@@ -151,7 +156,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // the block context is stamped onto EVERY rail, not just the subscribed one
     public async Task Gutters_StampTheBlockContextOntoBothContainers()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "first block");
         await page.Keyboard.PressAsync("Enter");
@@ -168,7 +173,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // a plain @onclick in a rail reads HoveredBlock for the block it acts on
     public async Task GutterButton_ActsOnTheHoveredBlock()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "first block");
         await page.Keyboard.PressAsync("Enter");
@@ -185,7 +190,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // <LexicalGutterButton> is handed the block directly, with no @ref bookkeeping
     public async Task TypedGutterButton_ReceivesTheHoveredBlock()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "first block");
         await page.Keyboard.PressAsync("Enter");
@@ -201,7 +206,7 @@ public class BlockGutterTests : HarnessTestBase
     [Fact] // one crossing per block, not per mouse move (deduped by node key)
     public async Task Gutter_DoesNotPush_WhileTheHoverStaysOnOneBlock()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "a single long block of text to move across");
         var block = page.Locator($"{NotifyEditor} p").First;

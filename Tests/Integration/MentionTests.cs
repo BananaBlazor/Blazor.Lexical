@@ -16,13 +16,18 @@ public class MentionTests : HarnessTestBase
 {
     public MentionTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/mentions";
+
+    protected override string ReadySelector =>
+        "#editor-mention-slow[data-lexical-editor='true']";
+
     private const string PeopleEditor = "#editor-mention-people";
     private const string Menu = ".harness-mention-people .blazor-lexical__mention-menu";
 
     [Fact] // typing "@lu" queries the provider and shows a candidate with its secondary line
     public async Task Typeahead_ShowsCandidate_WithSecondary()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var menu = page.Locator(Menu);
 
@@ -39,7 +44,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // pressing Enter inserts the atomic reference node and fires OnSelected
     public async Task Typeahead_Enter_InsertsMention_AndNotifiesSelected()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(PeopleEditor);
 
         await TypeAsync(page, PeopleEditor, "@lu");
@@ -61,7 +66,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // Escape dismisses the menu and leaves the typed text in place (no freeform here)
     public async Task Typeahead_Escape_LeavesTypedText()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(PeopleEditor);
 
         await TypeAsync(page, PeopleEditor, "@le");
@@ -76,7 +81,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // ArrowDown moves the highlight to the second candidate before committing
     public async Task Typeahead_ArrowDown_SelectsSecondCandidate()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(PeopleEditor);
         var menu = page.Locator(Menu);
 
@@ -93,7 +98,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // freeform "#" highlights typed tags live with no provider and no interop
     public async Task Freeform_HighlightsHashtag_WithZeroInterop()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-mention-hashtag");
 
@@ -108,7 +113,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // getMentions enumerates inserted references with their app-owned value
     public async Task GetMentions_ListsInsertedReference()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, PeopleEditor, "@lu");
         await Expect(page.Locator(Menu)).ToHaveAttributeAsync("data-lexical-visible", "");
@@ -122,7 +127,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // a refresh updates the rendered text but does NOT fire the content channel
     public async Task Refresh_UpdatesText_WithoutDirtyingDocument()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(PeopleEditor);
         var mention = editor.Locator("span[data-lexical-mention]");
 
@@ -150,7 +155,7 @@ public class MentionTests : HarnessTestBase
     [Fact] // a mention survives an editor-state JSON round-trip (registered node + value)
     public async Task Mention_SurvivesJsonRoundTrip()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator(PeopleEditor);
         var moduleUrl = Fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs";
 
@@ -205,7 +210,7 @@ public class MentionTests : HarnessTestBase
     [Fact]
     public async Task SlowProvider_MenuShowsLoadingWhileTheQueryIsInFlight()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var menu = page.Locator(SlowMenu);
 
         await TypeAsync(page, SlowEditor, "@lu");
@@ -221,7 +226,7 @@ public class MentionTests : HarnessTestBase
     [Fact]
     public async Task SlowProvider_ClosesTheMenu_WhenTheQueryTimesOut()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var menu = page.Locator(SlowMenu);
 
         await TypeAsync(page, SlowEditor, "@lu");

@@ -1,0 +1,79 @@
+@page "/harness/initial-content"
+
+<PageTitle>Harness — initial content</PageTitle>
+
+<h1>Initial content</h1>
+
+<section>
+    <h2>Initial content — one editor per format, loaded inside create()</h2>
+    @* No @ref and no OnReady: the document is applied while the editor is created, so
+       it is present on the first paint (data-lexical-empty is never set) and it is the
+       history baseline — undo must not empty these. *@
+    <LexicalEditor Id="editor-initial-html"
+                   CssClass="harness-initial-html"
+                   InitialContent="@LexicalContent.FromHtml(InitialHtml)"
+                   Theme="LexicalTheme.Default" />
+
+    <LexicalEditor Id="editor-initial-text"
+                   CssClass="harness-initial-text"
+                   InitialContent="@LexicalContent.FromText(InitialText)" />
+
+    <LexicalEditor Id="editor-initial-md"
+                   CssClass="harness-initial-md"
+                   InitialContent="@LexicalContent.FromMarkdown(InitialMarkdown)" />
+
+    <LexicalEditor @ref="_initialJson"
+                   Id="editor-initial-json"
+                   CssClass="harness-initial-json"
+                   InitialContent="@LexicalContent.FromEditorStateJson(InitialStateJson)" />
+
+    <div>
+        <button id="btn-initial-undo" @onclick="UndoInitialJson">Undo (json editor)</button>
+        <button id="btn-initial-ready" @onclick="ReadInitialReady">Read IsReady</button>
+        <button id="btn-content-roundtrip" @onclick="RoundTripContent">Round-trip content</button>
+    </div>
+    <p>Initial IsReady: <span id="initial-ready">@_initialReady</span></p>
+    <p>Round-trip result: <span id="content-roundtrip">@_contentRoundTrip</span></p>
+</section>
+
+@code {
+    // Initial content, one constant per format. Each carries a distinct marker string
+    // so a test can tell which format actually loaded.
+    private const string InitialHtml = "<p>Initial <strong>html</strong> content</p>";
+    private const string InitialText = "Initial text content";
+    private const string InitialMarkdown = "## Initial markdown heading";
+    private const string InitialStateJson =
+        """
+        {"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"",
+        "text":"Initial state json content","type":"text","version":1}],"direction":"ltr",
+        "format":"","indent":0,"type":"paragraph","version":1}],"direction":"ltr","format":"",
+        "indent":0,"type":"root","version":1}}
+        """;
+
+    private LexicalEditor? _initialJson;
+    private string _initialReady = "";
+    private string _contentRoundTrip = "";
+
+    private void ReadInitialReady() => _initialReady = _initialJson?.IsReady.ToString() ?? "(null)";
+
+    // The generic, format-as-a-value pair: read the document in a format chosen at
+    // runtime, then write the same value straight back.
+    private async Task RoundTripContent()
+    {
+        if (_initialJson is null)
+        {
+            return;
+        }
+        var content = await _initialJson.GetContentAsync(LexicalContentFormat.Markdown);
+        await _initialJson.SetContentAsync(content);
+        _contentRoundTrip = $"{content.Format}|{content.Text}";
+    }
+
+    private async Task UndoInitialJson()
+    {
+        if (_initialJson is not null)
+        {
+            await _initialJson.UndoAsync();
+        }
+    }
+}

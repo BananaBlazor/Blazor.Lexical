@@ -1,0 +1,76 @@
+@page "/harness/block-gutter"
+
+<PageTitle>Harness — block gutter</PageTitle>
+
+<h1>Block gutter</h1>
+
+<section>
+    <h2>Block gutter — composable per-block rails</h2>
+    @* editor-gutter-notify carries TWO rails, proving they coexist: a left rail with the
+       two built-in JS-driven items, and a right rail with host actions. OnBlockHovered is
+       wired on the right one only, so the fan-out and the per-rail arming are both
+       exercised. editor-gutter-quiet places a rail with no callback and no
+       LexicalGutterButton — it reveals and its plain @onclick button works with zero
+       JS→.NET calls. *@
+    <LexicalEditor @ref="_gutterNotify"
+                   Id="editor-gutter-notify"
+                   CssClass="harness-gutter-notify"
+                   Theme="LexicalTheme.Default">
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside" CssClass="harness-gutter-left">
+            <LexicalAddBlockButton />
+            <LexicalDragHandle />
+        </LexicalBlockGutter>
+        @* Deliberately OUTSIDE the card: that is the layout the hover grace window has to
+           survive, since travelling to it crosses page pixels the editor root does not own. *@
+        <LexicalBlockGutter @ref="_gutterNotifyExt"
+                            Position="LexicalGutterPosition.RightOutside"
+                            CssClass="harness-gutter-right"
+                            OnBlockHovered="OnBlockHovered">
+            <button id="btn-gutter-action" type="button" @onclick="GutterAction">★</button>
+            @* The typed item: it is handed the block itself, no @ref bookkeeping. *@
+            <LexicalGutterButton OnClick="GutterTypedAction" CssClass="harness-gutter-typed">☆</LexicalGutterButton>
+        </LexicalBlockGutter>
+    </LexicalEditor>
+    <p>Gutter hovered: <span id="gutter-hovered">@_gutterHovered</span></p>
+    <p>Gutter hover count: <span id="gutter-hover-count">@_gutterHoverCount</span></p>
+    <p>Gutter action: <span id="gutter-action">@_gutterAction</span></p>
+    <p>Gutter typed action: <span id="gutter-typed-action">@_gutterTypedAction</span></p>
+
+    <LexicalEditor Id="editor-gutter-quiet"
+                   CssClass="harness-gutter-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+            <button id="btn-gutter-quiet-action" type="button" @onclick="GutterQuietAction">☆</button>
+        </LexicalBlockGutter>
+    </LexicalEditor>
+    <p>Gutter quiet action: <span id="gutter-quiet-action">@_gutterQuietAction</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _gutterNotify;
+    private LexicalBlockGutter? _gutterNotifyExt;
+    private string _gutterHovered = "";
+    private int _gutterHoverCount;
+    private string _gutterAction = "";
+    private string _gutterTypedAction = "";
+    private string _gutterQuietAction = "";
+
+    private void OnBlockHovered(LexicalBlockRef? block)
+    {
+        _gutterHovered = block is null ? "(none)" : $"{block.Index}|{block.BlockType}";
+        _gutterHoverCount++;
+    }
+
+    // An ordinary Blazor @onclick inside the gutter — invariant 4's escape hatch. It
+    // reads HoveredBlock for the block it acts on.
+    private void GutterAction() =>
+        _gutterAction = _gutterNotifyExt?.HoveredBlock is { } block
+            ? $"{block.Index}|{block.TextPreview}"
+            : "(no block)";
+
+    // The typed item is handed the block directly — no @ref, no HoveredBlock read.
+    private void GutterTypedAction(LexicalBlockRef? block) =>
+        _gutterTypedAction = block is null ? "(no block)" : $"{block.Index}|{block.BlockType}";
+
+    private void GutterQuietAction() => _gutterQuietAction = "clicked";
+}

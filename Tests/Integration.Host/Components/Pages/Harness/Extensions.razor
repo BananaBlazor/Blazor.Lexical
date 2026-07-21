@@ -1,0 +1,82 @@
+@page "/harness/extensions"
+
+<PageTitle>Harness — extensions</PageTitle>
+
+<h1>Extensions</h1>
+
+<section>
+    <h2>Extensions — the badge reference extension (external ESM, opt-in interop)</h2>
+    @* Two editors prove the extension SDK's invariants as a pair, like
+       .harness-format / .harness-notify do for the core:
+
+         * editor-badge-notify wires OnBadgeClicked, so HasInvokeHandler is true and
+           clicking a badge round-trips to C#.
+         * editor-badge-quiet wires nothing: the same extension, the same custom node
+           and the same client-side insert, but zero JS→.NET calls. *@
+    <LexicalEditor @ref="_badgeNotify"
+                   Id="editor-badge-notify"
+                   CssClass="harness-badge-notify"
+                   Placeholder="Insert a badge…"
+                   Theme="LexicalTheme.Default">
+        <BadgeExtension @ref="_badgeNotifyExt" Label="Draft" OnBadgeClicked="OnBadgeClicked" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-badge-insert-cs" @onclick="InsertBadgeFromCs">Insert badge from C#</button>
+        <button id="btn-badge-count" @onclick="CountBadges">Count badges</button>
+        <button id="btn-badge-html" @onclick="GetBadgeHtml">Get HTML</button>
+    </div>
+    <p>Badge clicked: <span id="badge-clicked">@_badgeClicked</span></p>
+    <p>Badge click count: <span id="badge-click-count">@_badgeClickCount</span></p>
+    <p>Badge count: <span id="badge-count">@_badgeCount</span></p>
+    <p>Badge HTML: <span id="badge-html-result">@_badgeHtmlResult</span></p>
+
+    <LexicalEditor Id="editor-badge-quiet"
+                   CssClass="harness-badge-quiet"
+                   Placeholder="Insert a badge (no callbacks)…"
+                   Theme="LexicalTheme.Default">
+        <BadgeExtension Label="Quiet" />
+    </LexicalEditor>
+</section>
+
+@code {
+    private LexicalEditor? _badgeNotify;
+    private BadgeExtension? _badgeNotifyExt;
+    private string _badgeClicked = "";
+    private int _badgeClickCount;
+    private int _badgeCount;
+    private string _badgeHtmlResult = "";
+
+    // The extension's opt-in JS→.NET channel (its own [JSInvokable] route, not the
+    // editor's content/selection channels).
+    private void OnBadgeClicked(string text)
+    {
+        _badgeClicked = text;
+        _badgeClickCount++;
+    }
+
+    // The .NET→JS direction: C# asks the extension's JS half to insert / count.
+    private async Task InsertBadgeFromCs()
+    {
+        if (_badgeNotifyExt is not null)
+        {
+            await _badgeNotifyExt.InsertBadgeAsync("From C#");
+        }
+    }
+
+    private async Task CountBadges()
+    {
+        if (_badgeNotifyExt is not null)
+        {
+            _badgeCount = await _badgeNotifyExt.CountBadgesAsync();
+        }
+    }
+
+    private async Task GetBadgeHtml()
+    {
+        if (_badgeNotify is not null)
+        {
+            _badgeHtmlResult = await _badgeNotify.GetHtmlAsync();
+        }
+    }
+}

@@ -14,10 +14,15 @@ public class InitialContentTests : HarnessTestBase
 {
     public InitialContentTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/initial-content";
+
+    protected override string ReadySelector =>
+        "#editor-initial-json[data-lexical-editor='true']";
+
     [Fact]
     public async Task Html_LoadsWithMarkup()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#editor-initial-html")).ToContainTextAsync("Initial html content");
         await Expect(page.Locator("#editor-initial-html strong")).ToHaveTextAsync("html");
@@ -26,7 +31,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact]
     public async Task Text_LoadsAsASingleParagraph()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#editor-initial-text")).ToContainTextAsync("Initial text content");
         await Expect(page.Locator("#editor-initial-text p")).ToHaveCountAsync(1);
@@ -35,7 +40,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact] // The markdown chunk is fetched inside create() before the first paint.
     public async Task Markdown_LoadsAsRichNodes()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#editor-initial-md h2"))
             .ToHaveTextAsync("Initial markdown heading");
@@ -44,7 +49,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact]
     public async Task EditorStateJson_LoadsVerbatim()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#editor-initial-json"))
             .ToContainTextAsync("Initial state json content");
@@ -58,7 +63,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact]
     public async Task PreloadedEditor_IsNeverMarkedEmpty()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#editor-initial-html"))
             .Not.ToHaveAttributeAsync("data-lexical-empty", "");
@@ -71,7 +76,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact]
     public async Task Undo_DoesNotEraseInitialContent()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-initial-json");
 
         await page.ClickAsync("#btn-initial-undo");
@@ -90,7 +95,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact]
     public async Task GetAndSetContentAsync_RoundTripTheDocument()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-content-roundtrip");
 
@@ -105,7 +110,7 @@ public class InitialContentTests : HarnessTestBase
     [Fact] // IsReady complements OnReady: a property to read in guard clauses.
     public async Task IsReady_IsTrueOnceTheEditorExists()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-initial-ready");
 

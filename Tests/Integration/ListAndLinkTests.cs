@@ -15,6 +15,11 @@ public class ListAndLinkTests : HarnessTestBase
 
     public ListAndLinkTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/lists-links";
+
+    protected override string ReadySelector =>
+        "#editor-links[data-lexical-editor='true']";
+
     /// <summary>Types into an editor and selects all of it, so the following
     /// command applies to a real, non-empty selection.</summary>
     private static async Task TypeAndSelectAllAsync(IPage page, string selector, string text)
@@ -26,7 +31,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // insertUnorderedList
     public async Task InsertUnorderedList_WrapsSelectionInBulletedList()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-lists");
 
@@ -41,7 +46,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // insertOrderedList
     public async Task InsertOrderedList_WrapsSelectionInNumberedList()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-lists");
 
@@ -56,7 +61,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // removeList
     public async Task RemoveList_ConvertsListBackToParagraph()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-lists");
 
         await TypeAndSelectAllAsync(page, "#editor-lists", "toggle me");
@@ -76,7 +81,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // setMarkdown + getMarkdown of a list -> exercises @lexical/list nodes
     public async Task ListMarkdown_RoundTrips()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-lists");
 
         await page.ClickAsync("#btn-list-md"); // setMarkdown("- one\n- two\n- three")
@@ -96,7 +101,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // toggleLink (set)
     public async Task SetLink_WrapsSelectionInAnchor()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
         var editor = page.Locator("#editor-links");
 
@@ -113,7 +118,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // toggleLink (remove)
     public async Task RemoveLink_UnwrapsAnchor()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-links");
 
         await TypeAndSelectAllAsync(page, "#editor-links", "clicky");
@@ -132,7 +137,7 @@ public class ListAndLinkTests : HarnessTestBase
     [Fact] // setMarkdown + getMarkdown of a link -> exercises @lexical/link node
     public async Task LinkMarkdown_RoundTrips()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var editor = page.Locator("#editor-links");
 
         await page.ClickAsync("#btn-link-md"); // setMarkdown("see [Example](https://example.com/) now")

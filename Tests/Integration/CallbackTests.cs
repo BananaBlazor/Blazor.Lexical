@@ -11,10 +11,15 @@ public class CallbackTests : HarnessTestBase
 {
     public CallbackTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/callbacks";
+
+    protected override string ReadySelector =>
+        "#editor-payload-html[data-lexical-editor='true']";
+
     [Fact]
     public async Task Typing_RaisesOnContentChanged_WithText()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "callback fired");
 
@@ -24,7 +29,7 @@ public class CallbackTests : HarnessTestBase
     [Fact]
     public async Task SetText_AlsoRaisesOnContentChanged()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-set");
 
@@ -34,7 +39,7 @@ public class CallbackTests : HarnessTestBase
     [Fact]
     public async Task ChangeCallback_IsDebounced_NotOncePerKeystroke()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "abcdefghij"); // 10 keystrokes
         await Expect(page.Locator("#change-log")).ToHaveTextAsync("abcdefghij");
@@ -52,7 +57,7 @@ public class CallbackTests : HarnessTestBase
     [Fact]
     public async Task SignalOnlyPayload_FiresTheCallback_WithNoText()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-signal", "not shipped");
 
@@ -69,7 +74,7 @@ public class CallbackTests : HarnessTestBase
     [Fact]
     public async Task HtmlPayload_PushesSerializedHtml_WithItsFormat()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-payload-html", "pushed as html");
 
@@ -84,7 +89,7 @@ public class CallbackTests : HarnessTestBase
     [Fact]
     public async Task SignalOnlyPayload_LeavesLastContentNull()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-signal", "not shipped");
         await Expect(page.Locator("#signal-count")).Not.ToHaveTextAsync("0");
@@ -100,7 +105,7 @@ public class CallbackTests : HarnessTestBase
     [Fact]
     public async Task LastContent_HoldsTheMostRecentPush()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-notify", "cached text");
         await Expect(page.Locator("#notify-change")).ToHaveTextAsync("cached text");

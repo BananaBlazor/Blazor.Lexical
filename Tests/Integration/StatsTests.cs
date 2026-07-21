@@ -11,10 +11,15 @@ public class StatsTests : HarnessTestBase
 {
     public StatsTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/stats";
+
+    protected override string ReadySelector =>
+        "#editor-stats-quiet[data-lexical-editor='true']";
+
     [Fact] // the target surface is entirely client-side
     public async Task Stats_WriteTheTemplateIntoTheTarget_WithNoInterop()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await TypeAsync(page, "#editor-stats-quiet", "one two three");
@@ -26,7 +31,7 @@ public class StatsTests : HarnessTestBase
     [Fact] // every token in the template is substituted
     public async Task Stats_SubstituteEveryTemplateToken()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-stats-notify", "one two");
 
@@ -37,7 +42,7 @@ public class StatsTests : HarnessTestBase
     [Fact] // the opt-in push carries the same numbers the target shows
     public async Task Stats_PushTheSnapshot_WhenOnStatsChangedIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-stats-notify", "one two three four five");
 
@@ -48,7 +53,7 @@ public class StatsTests : HarnessTestBase
     [Fact] // the pull API answers without a subscription
     public async Task GetStatsAsync_ReturnsTheCurrentNumbers()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-stats-notify", "alpha beta");
         await Expect(page.Locator("#stats-target-notify")).ToHaveTextAsync("2w/10c");
@@ -62,7 +67,7 @@ public class StatsTests : HarnessTestBase
     [Fact] // an empty document is zero words, not one
     public async Task Stats_CountAnEmptyDocumentAsZeroWords()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#stats-target-quiet")).ToHaveTextAsync("0 words");
     }

@@ -1,0 +1,67 @@
+@page "/harness/tab-indent"
+
+<PageTitle>Harness — tab indent</PageTitle>
+
+<h1>Tab indent</h1>
+
+<section>
+    <h2>Tab indent — opt-in Tab/Shift+Tab block indentation</h2>
+    @* editor-tab-indent binds Tab; editor-tab-plain does not, which is the invariant that
+       matters: an editor that did not ask for it must leave Tab to the browser. *@
+    <LexicalEditor @ref="_tabIndent"
+                   Id="editor-tab-indent"
+                   CssClass="harness-tab-indent"
+                   Theme="LexicalTheme.Default">
+        <LexicalTabIndent />
+    </LexicalEditor>
+
+    <LexicalEditor @ref="_tabCapped"
+                   Id="editor-tab-capped"
+                   CssClass="harness-tab-capped"
+                   Theme="LexicalTheme.Default">
+        <LexicalTabIndent MaxIndent="2" />
+    </LexicalEditor>
+
+    <LexicalEditor @ref="_tabPlain"
+                   Id="editor-tab-plain"
+                   CssClass="harness-tab-plain"
+                   Theme="LexicalTheme.Default" />
+    @* The indent level is read from the editor state rather than a CSS side effect:
+       "the block's indent is 1" is the actual claim, and it does not move with styling. *@
+    <div>
+        <button id="btn-tab-indent-of" @onclick="ReadTabIndent">Indent (bound)</button>
+        <button id="btn-tab-capped-of" @onclick="ReadCappedIndent">Indent (capped)</button>
+        <button id="btn-tab-plain-of" @onclick="ReadPlainIndent">Indent (plain)</button>
+    </div>
+    <p>Tab indent: <span id="tab-indent">@_tabIndentLevel</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _tabIndent;
+    private LexicalEditor? _tabCapped;
+    private LexicalEditor? _tabPlain;
+    private string _tabIndentLevel = "";
+
+    private Task ReadTabIndent() => ReadIndentLevel(_tabIndent);
+
+    private Task ReadCappedIndent() => ReadIndentLevel(_tabCapped);
+
+    private Task ReadPlainIndent() => ReadIndentLevel(_tabPlain);
+
+    /// <summary>Reports the first block's indent level, straight out of the editor state.</summary>
+    private async Task ReadIndentLevel(LexicalEditor? editor)
+    {
+        if (editor is null)
+        {
+            return;
+        }
+
+        using var document = System.Text.Json.JsonDocument.Parse(
+            await editor.GetEditorStateJsonAsync());
+        var children = document.RootElement.GetProperty("root").GetProperty("children");
+        var level = children.GetArrayLength() == 0
+            ? -1
+            : children[0].TryGetProperty("indent", out var indent) ? indent.GetInt32() : 0;
+        _tabIndentLevel = level < 0 ? "none" : level.ToString();
+    }
+}

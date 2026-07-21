@@ -1,0 +1,143 @@
+@page "/harness/marks"
+
+<PageTitle>Harness — marks</PageTitle>
+
+<h1>Marks</h1>
+
+<section>
+    <h2>Marks — app-owned ids over spans of text</h2>
+    @* editor-marks-notify wires both callbacks (opt-in interop); editor-marks-quiet
+       wires neither, so wrapping and removing still work from C# while JS never calls
+       back. Mark ids are minted here, by the app — the library never generates one. *@
+    <LexicalEditor @ref="_marksNotify"
+                   Id="editor-marks-notify"
+                   CssClass="harness-marks-notify"
+                   Theme="LexicalTheme.Default"
+                   OnContentChanged="OnMarksContent"
+                   OnSelectionChanged="OnMarksSelection">
+        <LexicalMarks @ref="_marksNotifyExt"
+                      OnMarkClicked="OnMarkClicked"
+                      OnActiveMarksChanged="OnActiveMarksChanged" />
+        @* The selection-hover "add comment" affordance: an app button beside the
+           built-in format ones. It quotes LexicalSelectionState.Text — captured when
+           the selection was made, so the quote survives the button's own click. *@
+        <LexicalFloatingToolbar>
+            <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+            <button type="button" id="btn-mark-comment" @onclick="CommentOnSelection">Comment</button>
+        </LexicalFloatingToolbar>
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-mark-wrap-a" @onclick="@(() => WrapMark("mark-a"))">Mark A</button>
+        <button id="btn-mark-wrap-b" @onclick="@(() => WrapMark("mark-b"))">Mark B</button>
+        <button id="btn-mark-ids" @onclick="ListMarkIds">List ids</button>
+        <button id="btn-mark-ids-sel" @onclick="ListMarkIdsAtSelection">Ids at selection</button>
+        <button id="btn-mark-remove-a" @onclick="@(() => RemoveMark("mark-a", false))">Remove A</button>
+        <button id="btn-mark-remove-a-silent" @onclick="@(() => RemoveMark("mark-a", true))">Remove A (silent)</button>
+        <button id="btn-mark-active" @onclick="@(() => SetActiveMark("mark-a"))">Activate A</button>
+    </div>
+    <p>Mark clicked: <span id="mark-clicked">@_markClicked</span></p>
+    <p>Mark active push: <span id="mark-active">@_markActive</span></p>
+    <p>Mark ids: <span id="mark-ids">@_markIds</span></p>
+    <p>Mark ids at selection: <span id="mark-ids-selection">@_markIdsAtSelection</span></p>
+    <p>Mark wrap result: <span id="mark-wrap-result">@_markWrapResult</span></p>
+    <p>Mark remove count: <span id="mark-remove-count">@_markRemoveCount</span></p>
+    <p>Marks content-change count: <span id="marks-change-count">@_marksChangeCount</span></p>
+    <p>Comment quote: <span id="mark-comment-quote">@_markCommentQuote</span></p>
+
+    <LexicalEditor @ref="_marksQuiet"
+                   Id="editor-marks-quiet"
+                   CssClass="harness-marks-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalMarks @ref="_marksQuietExt" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-mark-quiet-wrap" @onclick="WrapQuietMark">Mark (quiet)</button>
+    </div>
+</section>
+
+@code {
+    private LexicalEditor? _marksNotify;
+    private LexicalEditor? _marksQuiet;
+    private LexicalMarks? _marksNotifyExt;
+    private LexicalMarks? _marksQuietExt;
+    private string _markClicked = "";
+    private string _markActive = "";
+    private string _markIds = "";
+    private string _markIdsAtSelection = "";
+    private string _markWrapResult = "";
+    private int _markRemoveCount;
+    private int _marksChangeCount;
+    private string _marksSelectionText = "";
+    private string _markCommentQuote = "";
+
+    private void OnMarksContent(LexicalContent content) => _marksChangeCount++;
+
+    private void OnMarksSelection(LexicalSelectionState state) => _marksSelectionText = state.Text;
+
+    // The comment affordance: mark the span and keep the quote the selection carried.
+    private async Task CommentOnSelection()
+    {
+        _markCommentQuote = _marksSelectionText;
+        if (_marksNotifyExt is not null)
+        {
+            _markWrapResult =
+                (await _marksNotifyExt.WrapSelectionInMarkAsync("mark-comment")).ToString();
+        }
+    }
+
+    private void OnMarkClicked(IReadOnlyList<string> ids) => _markClicked = string.Join(",", ids);
+
+    private void OnActiveMarksChanged(IReadOnlyList<string> ids) =>
+        _markActive = string.Join(",", ids);
+
+    // The id is minted here, by the app — that is the whole contract.
+    private async Task WrapMark(string markId)
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markWrapResult = (await _marksNotifyExt.WrapSelectionInMarkAsync(markId)).ToString();
+        }
+    }
+
+    private async Task WrapQuietMark()
+    {
+        if (_marksQuietExt is not null)
+        {
+            await _marksQuietExt.WrapSelectionInMarkAsync("quiet-mark");
+        }
+    }
+
+    private async Task ListMarkIds()
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markIds = string.Join(",", await _marksNotifyExt.GetMarkIdsAsync());
+        }
+    }
+
+    private async Task ListMarkIdsAtSelection()
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markIdsAtSelection =
+                string.Join(",", await _marksNotifyExt.GetMarkIdsAtSelectionAsync());
+        }
+    }
+
+    private async Task RemoveMark(string markId, bool silent)
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markRemoveCount = await _marksNotifyExt.RemoveMarkAsync(markId, silent);
+        }
+    }
+
+    private async Task SetActiveMark(string markId)
+    {
+        if (_marksNotifyExt is not null)
+        {
+            await _marksNotifyExt.SetActiveMarkAsync(markId);
+        }
+    }
+}

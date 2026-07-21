@@ -11,10 +11,15 @@ public class ModuleFunctionTests : HarnessTestBase
 {
     public ModuleFunctionTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/core";
+
+    protected override string ReadySelector =>
+        "#editor-disposable[data-lexical-editor='true']";
+
     [Fact] // create
     public async Task Create_MountsEditableLexicalSurface()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await Expect(page.Locator("#editor-main")).ToHaveAttributeAsync("data-lexical-editor", "true");
         await Expect(page.Locator("#editor-main")).ToHaveAttributeAsync("contenteditable", "true");
@@ -23,7 +28,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // getText
     public async Task GetText_ReturnsCurrentContent()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "hello getText");
         await page.ClickAsync("#btn-get");
@@ -34,7 +39,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // setText
     public async Task SetText_ReplacesDomContent_AndGetTextReflectsIt()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "will be replaced");
         await page.ClickAsync("#btn-set");
@@ -48,7 +53,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // setEditable
     public async Task SetEditable_TogglesContentEditable_ViaReadOnlyParam()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var toggle = page.Locator("#editor-toggle");
 
         await Expect(toggle).ToHaveAttributeAsync("contenteditable", "true");
@@ -63,7 +68,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // dispose
     public async Task Dispose_RemovesEditor_WithoutErrors_AndCanReAdd()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await Expect(page.Locator("#editor-disposable")).ToHaveCountAsync(1);
@@ -81,7 +86,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // create keys instances by Id
     public async Task InstancesAreKeyedById_NoCrossTalk()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await page.ClickAsync("#btn-set"); // main <- "Set via C#"
         await TypeAsync(page, "#editor-nohistory", "different content");
@@ -93,7 +98,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // getHtml
     public async Task GetHtml_SerializesContentToHtml()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "hello html");
         await page.ClickAsync("#btn-get-html");
@@ -106,7 +111,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // setHtml
     public async Task SetHtml_ReplacesContentFromHtml()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "will be replaced");
         await page.ClickAsync("#btn-set-html");
@@ -121,7 +126,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // getMarkdown
     public async Task GetMarkdown_SerializesContentToMarkdown()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "hello markdown");
         await page.ClickAsync("#btn-get-markdown");
@@ -132,7 +137,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // setMarkdown
     public async Task SetMarkdown_ReplacesContentFromMarkdown()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "will be replaced");
         await page.ClickAsync("#btn-set-markdown");
@@ -145,7 +150,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // getEditorStateJson
     public async Task GetEditorStateJson_SerializesCanonicalState()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "json state");
         await page.ClickAsync("#btn-get-json");
@@ -158,7 +163,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // setEditorStateJson (round-trips with getEditorStateJson)
     public async Task SetEditorStateJson_RestoresCapturedState()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "restore me");
         await page.ClickAsync("#btn-get-json"); // capture current state
@@ -175,7 +180,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // setEditorStateJson(silent): app-driven content, so no echo and no undo step
     public async Task SilentSetEditorStateJson_DoesNotRaiseTheContentChannel()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "restore me");
         await page.ClickAsync("#btn-get-json"); // capture current state
@@ -204,7 +209,7 @@ public class ModuleFunctionTests : HarnessTestBase
     [Fact] // a silent restore merges into history: undo skips it, landing on the overwrite
     public async Task SilentSetEditorStateJson_AddsNoUndoStep()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, "#editor-main", "restore me");
         await page.ClickAsync("#btn-get-json");

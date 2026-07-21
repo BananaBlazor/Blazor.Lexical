@@ -1,0 +1,65 @@
+@page "/harness/callbacks"
+
+@* The JS -> .NET content channel in each of its payload modes. *@
+
+<PageTitle>Harness — callbacks</PageTitle>
+
+<h1>Callbacks</h1>
+
+<MainEditorSection />
+
+<NotifyEditorSection />
+
+<section>
+    <h2>Content payload — SignalOnly (dirty signal without the document)</h2>
+    @* The same opt-in channel as .harness-notify, but carrying no body: the callback
+       fires with an empty LexicalContent and LastContent stays null. *@
+    <LexicalEditor @ref="_signal"
+                   Id="editor-signal"
+                   CssClass="harness-signal"
+                   ContentPayload="LexicalContentPayload.SignalOnly"
+                   OnContentChanged="OnSignalContent" />
+    <div>
+        <button id="btn-signal-last" @onclick="ReadSignalLast">Read LastContentText</button>
+    </div>
+    <p>Signal count: <span id="signal-count">@_signalCount</span></p>
+    <p>Signal arg length: <span id="signal-arg-length">@_signalArgLength</span></p>
+    <p>Signal last: <span id="signal-last">@_signalLast</span></p>
+</section>
+
+<section>
+    <h2>Content payload — a format-carrying push (HTML, one crossing)</h2>
+    @* The subscriber declares HTML, so the document is serialized JS-side inside the
+       debounce and arrives ready to use — no plain-text push followed by a getHtml
+       round trip. The format rides along on the value. *@
+    <LexicalEditor Id="editor-payload-html"
+                   CssClass="harness-payload-html"
+                   ContentPayload="LexicalContentPayload.Html"
+                   OnContentChanged="OnHtmlPayload" />
+    <p>HTML payload format: <span id="payload-html-format">@_htmlPayloadFormat</span></p>
+    <p>HTML payload: <span id="payload-html-text">@_htmlPayloadText</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _signal;
+    private int _signalCount;
+    private int _signalArgLength = -1;
+    private string _signalLast = "";
+    private string _htmlPayloadFormat = "";
+    private string _htmlPayloadText = "";
+
+    private void OnSignalContent(LexicalContent content)
+    {
+        _signalCount++;
+        _signalArgLength = content.Text.Length;
+    }
+
+    private void OnHtmlPayload(LexicalContent content)
+    {
+        _htmlPayloadFormat = content.Format.ToString();
+        _htmlPayloadText = content.Text;
+    }
+
+    private void ReadSignalLast() =>
+        _signalLast = _signal?.LastContent is { } c ? c.Text : "(null)";
+}

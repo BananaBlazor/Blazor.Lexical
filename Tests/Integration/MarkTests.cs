@@ -13,6 +13,11 @@ public class MarkTests : HarnessTestBase
 {
     public MarkTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/marks";
+
+    protected override string ReadySelector =>
+        "#editor-marks-quiet[data-lexical-editor='true']";
+
     private const string NotifyEditor = "#editor-marks-notify";
     private const string QuietEditor = "#editor-marks-quiet";
 
@@ -39,7 +44,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // the whole point: a selection becomes a <mark> carrying the app's id
     public async Task WrapSelection_CreatesAMarkNode()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, QuietEditor, "hello marked world");
         await SelectRangeAsync(page, QuietEditor, 6, 6);
@@ -61,7 +66,7 @@ public class MarkTests : HarnessTestBase
     [Fact]
     public async Task FloatingToolbarAppButton_MarksTheSelection_AndKeepsItsQuote()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello quoted world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -75,7 +80,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // invariant #1: a decorative highlighter performs zero JS→.NET calls
     public async Task Marks_DoNoInterop_WhenNoCallbackIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await TypeAsync(page, QuietEditor, "hello marked world");
@@ -93,7 +98,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // the id round-trips unchanged: the library never mints or rewrites one
     public async Task GetMarkIds_ReturnsTheAppsOwnIds()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -107,7 +112,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // overlapping wraps split the text and MERGE the id sets rather than replacing
     public async Task OverlappingMarks_MergeTheirIds()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "one two three four");
         // "one two" then "two three" — the overlap is the word "two".
@@ -131,7 +136,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // the caret's marks reach C# — several of them where marks overlap
     public async Task GetMarkIdsAtSelection_ReturnsEveryCoveringMark()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -147,7 +152,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // clicking inside a mark reaches the opt-in C# handler
     public async Task MarkClick_InvokesDotNet_WhenHandlerIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -162,7 +167,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // removing unwraps the node, leaving the text behind
     public async Task RemoveMark_UnwrapsTheNode_AndKeepsTheText()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -180,7 +185,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // a silent removal must not raise the content channel (app-driven cleanup)
     public async Task SilentRemove_DoesNotRaiseTheContentChannel()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -203,7 +208,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // the active decoration is DOM-only — it never touches the document
     public async Task SetActiveMark_DecoratesWithoutChangingTheDocument()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);
@@ -231,7 +236,7 @@ public class MarkTests : HarnessTestBase
     [Fact] // the mark node participates in the editor's own serialization
     public async Task MarkNode_SurvivesAnEditorStateRoundTrip()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeAsync(page, NotifyEditor, "hello marked world");
         await SelectRangeAsync(page, NotifyEditor, 6, 6);

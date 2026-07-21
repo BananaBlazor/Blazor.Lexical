@@ -17,6 +17,11 @@ public class TocTests : HarnessTestBase
 {
     public TocTests(HarnessFixture fx) : base(fx) { }
 
+    protected override string Route => "harness/toc";
+
+    protected override string ReadySelector =>
+        "#editor-toc-quiet[data-lexical-editor='true']";
+
     private const string NotifyEditor = "#editor-toc-notify";
     private const string QuietEditor = "#editor-toc-quiet";
 
@@ -50,7 +55,7 @@ public class TocTests : HarnessTestBase
     [Fact] // headings get ids stamped onto the rendered DOM — the point of the feature
     public async Task Toc_StampsAnchorIdsOntoHeadings()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, QuietEditor);
 
@@ -63,7 +68,7 @@ public class TocTests : HarnessTestBase
     [Fact] // the anchors are DOM-only: they must not appear in the serialized document
     public async Task Toc_DoesNotChangeTheSerializedDocument()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, QuietEditor);
 
@@ -81,7 +86,7 @@ public class TocTests : HarnessTestBase
     [Fact] // the JS renderer builds a nested list into the host's element
     public async Task Toc_RendersANestedListIntoTheTarget()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, QuietEditor);
 
@@ -96,7 +101,7 @@ public class TocTests : HarnessTestBase
     [Fact] // invariant #1: the quiet editor's outline runs with zero interop
     public async Task Toc_DoesNoInterop_WhenNoCallbackIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var errors = CaptureErrors(page);
 
         await TypeOutlineAsync(page, QuietEditor);
@@ -111,7 +116,7 @@ public class TocTests : HarnessTestBase
     [Fact] // the opt-in half: the tree reaches C#, nesting intact
     public async Task Toc_PushesTheTree_WhenOnTocChangedIsWired()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, NotifyEditor);
 
@@ -124,7 +129,7 @@ public class TocTests : HarnessTestBase
     [Fact] // the same model rendered by Blazor, from the pushed tree
     public async Task TocList_RendersThePushedModel()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, NotifyEditor);
         await Expect(page.Locator("#toc-count")).ToHaveTextAsync("1");
@@ -138,7 +143,7 @@ public class TocTests : HarnessTestBase
     [Fact] // typing that leaves the outline alone must not push at all (the signature gate)
     public async Task Toc_DoesNotPush_WhenOnlyBodyTextChanges()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, NotifyEditor);
         await Expect(page.Locator("#toc-count")).ToHaveTextAsync("1");
@@ -158,7 +163,7 @@ public class TocTests : HarnessTestBase
     [Fact] // the pull API returns the same tree the push carries
     public async Task GetTocAsync_ReturnsTheCurrentOutline()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, NotifyEditor);
         await Expect(page.Locator("#toc-count")).ToHaveTextAsync("1");
@@ -171,7 +176,7 @@ public class TocTests : HarnessTestBase
     [Fact] // scrolling to a known anchor resolves; the return value says so
     public async Task ScrollToAnchorAsync_ResolvesAKnownAnchor()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
 
         await TypeOutlineAsync(page, NotifyEditor);
         await Expect(page.Locator("#toc-count")).ToHaveTextAsync("1");
@@ -183,7 +188,7 @@ public class TocTests : HarnessTestBase
     [Fact] // clicking a rendered item scrolls its heading into view, without navigating
     public async Task Toc_ItemClick_ScrollsWithoutNavigating()
     {
-        var page = await Fx.OpenHarnessAsync();
+        var page = await OpenAsync();
         var url = page.Url;
 
         await TypeOutlineAsync(page, QuietEditor);

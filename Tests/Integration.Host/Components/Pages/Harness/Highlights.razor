@@ -1,0 +1,99 @@
+@page "/harness/highlights"
+
+<PageTitle>Harness — highlights</PageTitle>
+
+<h1>Highlights</h1>
+
+<section>
+    <h2>Highlights — text found by its content, painted without touching the document</h2>
+    @* Deliberately repetitive content: "the lazy dog" appears in both paragraphs, so the
+       prefix/suffix disambiguation and the ambiguity verdict both have something to bite
+       on, and a quote spanning the paragraph break exercises the block-boundary
+       normalization. No callbacks exist on this extension at all — highlights are a
+       one-way street — so this editor also proves the zero-JS→.NET path. *@
+    <LexicalEditor @ref="_highlightsEditor"
+                   Id="editor-highlights"
+                   CssClass="harness-highlights"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromHtml(HighlightHtml)">
+        <LexicalHighlights @ref="_highlightsExt" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-hl-plain" @onclick="@(() => HighlightQuote(new LexicalTextQuote("the lazy dog")))">Highlight (no context)</button>
+        <button id="btn-hl-context" @onclick="@(() => HighlightQuote(new LexicalTextQuote("the lazy dog", "jumps over", ". A second")))">Highlight (context)</button>
+        <button id="btn-hl-missing" @onclick="@(() => HighlightQuote(new LexicalTextQuote("a unicorn")))">Highlight (missing)</button>
+        @* Crosses the paragraph break: only matches if the block boundary normalizes to
+           a single space rather than joining "dog." to "A second". *@
+        <button id="btn-hl-cross" @onclick="@(() => HighlightQuote(new LexicalTextQuote("dog. A second")))">Highlight (across blocks)</button>
+        <button id="btn-hl-string" @onclick="HighlightString">Highlight (string overload)</button>
+        <button id="btn-hl-all" @onclick="HighlightAll">Highlight all 'fox'</button>
+        <button id="btn-hl-scroll" @onclick="ScrollToHighlight">Scroll to</button>
+        <button id="btn-hl-clear" @onclick="@(() => ClearHighlights(LexicalHighlights.DefaultHighlightId))">Clear default</button>
+        <button id="btn-hl-clear-all" @onclick="@(() => ClearHighlights(null))">Clear all</button>
+    </div>
+    <p>Highlight result: <span id="hl-result">@_highlightResult</span></p>
+    <p>Highlight all count: <span id="hl-count">@_highlightCount</span></p>
+    <p>Highlight scroll result: <span id="hl-scroll-result">@_highlightScrollResult</span></p>
+</section>
+
+@code {
+    // "the lazy dog" twice and "fox" twice, either side of a paragraph break.
+    private const string HighlightHtml =
+        "<p>The quick brown fox jumps over the lazy dog.</p>"
+        + "<p>A second paragraph mentions the lazy dog again, well after the fox.</p>";
+
+    // The id the find-all button paints under, so "clear default" leaves it alone and
+    // "clear all" does not.
+    private const string SearchHighlightId = "search";
+
+    private LexicalEditor? _highlightsEditor;
+    private LexicalHighlights? _highlightsExt;
+    private string _highlightResult = "";
+    private int _highlightCount;
+    private string _highlightScrollResult = "";
+
+    private async Task HighlightQuote(LexicalTextQuote quote)
+    {
+        if (_highlightsExt is not null)
+        {
+            _highlightResult = (await _highlightsExt.HighlightTextAsync(quote)).ToString();
+        }
+    }
+
+    private async Task HighlightString()
+    {
+        if (_highlightsExt is not null)
+        {
+            _highlightResult = (await _highlightsExt.HighlightTextAsync("quick brown fox")).ToString();
+        }
+    }
+
+    private async Task HighlightAll()
+    {
+        if (_highlightsExt is not null)
+        {
+            _highlightCount = await _highlightsExt.HighlightAllAsync("fox", SearchHighlightId);
+        }
+    }
+
+    private async Task ScrollToHighlight()
+    {
+        if (_highlightsExt is not null)
+        {
+            _highlightScrollResult = (await _highlightsExt.ScrollToHighlightAsync()).ToString();
+        }
+    }
+
+    private async Task ClearHighlights(string? highlightId)
+    {
+        if (_highlightsExt is not null)
+        {
+            await _highlightsExt.ClearHighlightsAsync(highlightId);
+            // A readback the test can wait on: a click returns before the async handler
+            // has round-tripped to JS, so "nothing is painted" needs something to
+            // sequence against or it passes before the clear has happened.
+            _highlightResult = $"cleared:{highlightId ?? "all"}";
+        }
+    }
+}

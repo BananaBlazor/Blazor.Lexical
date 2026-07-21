@@ -1,0 +1,50 @@
+@page "/harness/stats"
+
+<PageTitle>Harness — stats</PageTitle>
+
+<h1>Stats</h1>
+
+<section>
+    <h2>Stats — word/character counts written to the page and pushed to .NET</h2>
+    <LexicalEditor @ref="_statsNotify"
+                   Id="editor-stats-notify"
+                   CssClass="harness-stats-notify"
+                   Theme="LexicalTheme.Default">
+        <LexicalStats @ref="_statsNotifyExt"
+                      TargetSelector="#stats-target-notify"
+                      Template="{words}w/{characters}c"
+                      OnStatsChanged="OnStatsChanged" />
+    </LexicalEditor>
+    <p>Stats target: <span id="stats-target-notify"></span></p>
+    <p>Stats push: <span id="stats-push">@_statsPush</span></p>
+    <div>
+        <button id="btn-stats-get" @onclick="GetStats">Get stats</button>
+    </div>
+    <p>Stats get result: <span id="stats-get-result">@_statsGetResult</span></p>
+
+    <LexicalEditor Id="editor-stats-quiet"
+                   CssClass="harness-stats-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalStats TargetSelector="#stats-target-quiet" Template="{words} words" />
+    </LexicalEditor>
+    <p>Stats quiet target: <span id="stats-target-quiet"></span></p>
+</section>
+
+@code {
+    private LexicalEditor? _statsNotify;
+    private LexicalStats? _statsNotifyExt;
+    private string _statsPush = "";
+    private string _statsGetResult = "";
+
+    private void OnStatsChanged(LexicalDocumentStats stats) =>
+        _statsPush = $"{stats.Words}|{stats.Characters}|{stats.Paragraphs}|{stats.ReadingMinutes}";
+
+    private async Task GetStats()
+    {
+        if (_statsNotifyExt is not null)
+        {
+            var stats = await _statsNotifyExt.GetStatsAsync();
+            _statsGetResult = $"{stats.Words}|{stats.CharactersNoSpaces}";
+        }
+    }
+}

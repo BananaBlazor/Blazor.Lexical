@@ -1,0 +1,121 @@
+@page "/harness/mentions"
+
+<PageTitle>Harness — mentions</PageTitle>
+
+<h1>Mentions</h1>
+
+<section>
+    <h2>Mentions — @@ typeahead (provider + OnSelected) and # freeform highlight</h2>
+    @* The @@ editor wires a fake provider and OnSelected (opt-in interop) plus a
+       content callback so the silent-refresh test can prove refresh does not notify.
+       The # editor is freeform-only (no provider): pure-JS hashtag highlighting. *@
+    <LexicalEditor @ref="_mentionPeople"
+                   Id="editor-mention-people"
+                   CssClass="harness-mention-people"
+                   Placeholder="Type a mention…"
+                   OnContentChanged="OnMentionContent"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator"
+                        Color="#1877e8"
+                        Provider="ResolvePeople"
+                        OnSelected="OnMentionSelected" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-mention-list" @onclick="GetMentionList">List mentions</button>
+        <button id="btn-mention-refresh" @onclick="RefreshMentionName">Rename first mention</button>
+    </div>
+    <p>Mention selected: <span id="mention-selected">@_mentionSelected</span></p>
+    <p>Mention list: <span id="mention-list">@_mentionList</span></p>
+    <p>Mention refresh count: <span id="mention-refresh-count">@_mentionRefreshCount</span></p>
+    <p>Mention content-change count: <span id="mention-change-count">@_mentionChangeCount</span></p>
+
+    <LexicalEditor Id="editor-mention-hashtag"
+                   CssClass="harness-mention-hashtag"
+                   Placeholder="Type #tags…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="#" Color="#e8b800" Freeform="true" />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Mentions — a provider slower than its QueryTimeout</h2>
+    @* Proves the loading affordance and the soft timeout: the menu shows
+       data-lexical-mention-loading while the query is in flight, then closes when the
+       provider blows the deadline instead of stranding the session. *@
+    <LexicalEditor Id="editor-mention-slow"
+                   CssClass="harness-mention-slow"
+                   Placeholder="Type a mention…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator"
+                        Color="#1877e8"
+                        Provider="ResolveSlowly"
+                        QueryTimeout="@TimeSpan.FromMilliseconds(600)" />
+    </LexicalEditor>
+</section>
+
+@code {
+    // The mention initiator, bound rather than inlined so the "@" isn't parsed as Razor.
+    private const string AtInitiator = "@";
+
+    private LexicalEditor? _mentionPeople;
+    private string _mentionSelected = "";
+    private string _mentionList = "";
+    private int _mentionRefreshCount;
+    private int _mentionChangeCount;
+
+    // A fixed directory the fake provider searches — stands in for a GAL/host lookup.
+    private static readonly MentionItem[] People =
+    [
+        new("1", "Luke Skywalker", "/u/luke", "Jedi"),
+        new("2", "Leia Organa", "/u/leia", "General"),
+        new("3", "Han Solo", "/u/han", "Smuggler"),
+    ];
+
+    // A provider that never answers in time — the QueryTimeout must close the picker.
+    private static async Task<IEnumerable<MentionItem>> ResolveSlowly(string query)
+    {
+        await Task.Delay(5000);
+        return People;
+    }
+
+    private Task<IEnumerable<MentionItem>> ResolvePeople(string query)
+    {
+        var matches = People.Where(p =>
+            p.Text.Contains(query, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult<IEnumerable<MentionItem>>(matches);
+    }
+
+    private void OnMentionContent(LexicalContent content) => _mentionChangeCount++;
+
+    private void OnMentionSelected(LexicalMentionSelected selected) =>
+        _mentionSelected = $"{selected.Text}|{selected.Id}";
+
+    private async Task GetMentionList()
+    {
+        if (_mentionPeople is not null)
+        {
+            var mentions = await _mentionPeople.GetMentionsAsync();
+            _mentionList = string.Join(
+                ",", mentions.Select(m => $"{m.Text}|{m.Value}|{m.Initiator}"));
+        }
+    }
+
+    // Discovers the config id + value of the first mention, then renames every
+    // occurrence of that value. The rename is silent — it must not bump the
+    // content-change count above.
+    private async Task RefreshMentionName()
+    {
+        if (_mentionPeople is null)
+        {
+            return;
+        }
+        var mentions = await _mentionPeople.GetMentionsAsync();
+        var first = mentions.FirstOrDefault();
+        if (first is not null)
+        {
+            _mentionRefreshCount = await _mentionPeople.RefreshMentionsByValueAsync(
+                first.ConfigId, first.Value, "Luke S. (renamed)", "/u/luke-renamed");
+        }
+    }
+}

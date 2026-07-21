@@ -1,0 +1,53 @@
+@page "/harness/tables"
+
+<PageTitle>Harness — tables</PageTitle>
+
+<h1>Tables</h1>
+
+<section>
+    <h2>Tables — insert picker, slash /table, in-cell action menu (pure JS, zero interop)</h2>
+    @* No callbacks wired: proves table insert + in-cell editing are entirely
+       client-side. The picker, slash item, and action menu drive the @lexical/table
+       plugin without any .NET round-trip. *@
+    <LexicalEditor @ref="_tables"
+                   Id="editor-tables"
+                   CssClass="harness-tables"
+                   Placeholder="Insert a table via the toolbar or /table…"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+        <LexicalSlashMenu />
+        @* Declared *after* the toolbar and slash menu on purpose: it proves the
+           ExtensionsChanged re-render, i.e. that chrome declared above <LexicalTables/>
+           still picks the feature up. *@
+        <LexicalTables />
+        <LexicalTableEditor />
+    </LexicalEditor>
+
+    @* Direct C# insert (the opt-in programmatic path), driving the same editor. *@
+    <div>
+        <button id="btn-insert-table" @onclick="InsertTableFmt">Insert 2×3 table</button>
+        <button id="btn-tables-get-html" @onclick="GetTablesHtml">Get HTML</button>
+    </div>
+    <p>Tables HTML result: <span id="tables-html-result">@_tablesHtmlResult</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _tables;
+    private string _tablesHtmlResult = "";
+
+    private async Task InsertTableFmt()
+    {
+        if (_tables is not null)
+        {
+            await _tables.InsertTableAsync(2, 3);
+        }
+    }
+
+    private async Task GetTablesHtml()
+    {
+        if (_tables is not null)
+        {
+            _tablesHtmlResult = await _tables.GetHtmlAsync();
+        }
+    }
+}
