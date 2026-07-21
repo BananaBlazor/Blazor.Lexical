@@ -31,6 +31,7 @@
   --blazor-lexical-mark-bg: rgb(255, 212, 0);           /* marked (highlighted) spans */
   --blazor-lexical-mark-overlap-bg: rgb(255, 160, 0);   /* … where two marks overlap */
   --blazor-lexical-mark-active-outline: rgb(33, 111, 219);
+  --blazor-lexical-highlight-bg: rgb(255, 235, 130);    /* <LexicalHighlights> default set */
   --blazor-lexical-hr-color: rgb(206, 208, 212);        /* horizontal rule line */
   --blazor-lexical-toc-indent: 0.9rem;                  /* per-level outline indent */
   --blazor-lexical-toc-active: rgb(33, 111, 219);
@@ -486,6 +487,16 @@
 
 .blazor-lexical__mark[data-lexical-mark-active] {
   border-bottom-color: var(--blazor-lexical-mark-active-outline);
+}
+
+/* Highlights (<LexicalHighlights>). Painted with the CSS Custom Highlight API, so there
+   is no element and no class to target — the selector is the registered highlight name,
+   which is `blazor-lexical-` + the app's highlight id. Only the default id is styled
+   here; an app using several sets (AI suggestions vs. reviewer, spelling vs. structure)
+   declares one rule per id of its own. ::highlight() only honours a handful of
+   properties — background-color, color, text-decoration — by design. */
+::highlight(blazor-lexical-default) {
+  background-color: var(--blazor-lexical-highlight-bg);
 }
 
 /* Horizontal rule: a thematic break. Clicking one selects it (so Delete removes it),

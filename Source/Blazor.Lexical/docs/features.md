@@ -1,7 +1,7 @@
-# Built-in features: tables, mentions, TOC, marks, stats, horizontal rule, tab indent, block gutter
+# Built-in features: tables, mentions, TOC, marks, highlights, stats, horizontal rule, tab indent, block gutter
 
 Read this before changing anything under `Extensions/` or the matching `js/src/*.ts`
-(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
+(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `highlights.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
 `registerBlockGutters` in `overlays.ts`). The DOM markers and command tokens these features use are in
 [js-contract.md](js-contract.md); the contract they ride is in [extensions.md](extensions.md).
 
@@ -133,6 +133,52 @@ The handler returns `false`, so it observes the click and never swallows it.
 from the update listener; it changes neither the document nor the undo stack.
 `RemoveMarkAsync(silent: true)` runs under `[silentUpdateTag, 'history-merge']` for
 app-driven cleanup.
+
+## Highlights
+
+`js/src/highlights.ts` + `Extensions/Highlights/`. The counterpart to marks, and the
+distinction is worth holding onto: **a mark is a node the app knows the position of and
+wants to keep; a highlight is a decoration the app describes by its text and throws away.**
+Highlights exist for the anchor problem — "an AI reviewer quoted this sentence, find it and
+light it up" — where the caller has words, not a position.
+
+**Nothing is inserted.** Painting is the CSS Custom Highlight API
+(`CSS.highlights.set(name, new Highlight(...ranges))`), which styles live DOM `Range`s from
+the stylesheet. No node ⇒ no serialization surface, no schema change; no `editor.update()`
+⇒ no undo step, no dirty document, and no need for the silent-update tag; no DOM mutation
+⇒ nothing for the reconciler to collide with. It is also the only mechanism that spans
+block boundaries *and* survives a click, which a native selection does not — and surviving
+a click is the requirement, since the point is to leave suggestions up while the user
+works. Consequently there is **no `LexicalTheme` key**: there is no element to hang a class
+on. Styling is `::highlight(blazor-lexical-<id>)`, one rule per app-chosen id, which is how
+several sets (AI vs. reviewer, spelling vs. structure) get different colours. Ids must be
+valid CSS identifiers.
+
+**Queries are stored, not ranges.** Reconciliation replaces DOM nodes, so every stored
+`Range` goes stale on the next edit. A highlight therefore keeps its *query* and
+re-resolves against the live DOM from a debounced update listener (~50 ms). That is also
+what makes the anchor follow its text as the document is edited around it, and what makes
+a highlight disappear when its words are deleted and return on undo.
+
+**Matching normalizes whitespace on both sides** — every run of spaces, newlines, and
+implied block boundaries collapses to one space (`BLOCK_TAGS` in `highlights.ts` drives the
+boundary part). Without it, prose quotes would fail against a DOM carrying indentation,
+inter-block newlines, and words split across text nodes by a bold run or a mark.
+
+**Prefix/suffix disambiguate, they never gate.** Every occurrence is scored by how much
+surrounding context it reproduces and the best wins *even at zero* — an anchor has to
+survive edits nearby, and demanding an exact prefix+suffix match would drop the highlight
+the moment a neighbouring word changed (this is the TextQuoteSelector contract). A tie on
+the winning score is reported as `MatchedAmbiguously`: painted, but known to be weak.
+
+Registration is document-global (`CSS.highlights` is keyed by name, not by element), so the
+module-scope registry unions the ranges every editor instance contributed under a name.
+Two editors on one page highlighting the same id both paint, and disposing one does not
+blank the other.
+
+**Selection is deliberately not here.** A `SelectTextAsync` belongs with the core selection
+push (`LexicalSelectionState`), not in this extension — selection is document state, a
+highlight is not.
 
 ## Document statistics
 

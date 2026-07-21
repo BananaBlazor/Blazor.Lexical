@@ -64,10 +64,12 @@ import * as mentionsRuntime from './mentions';
 // The same static-in-core tier as mentions, for the same reason: each of these is
 // well under a couple of kilobytes and needs nothing that isn't already bundled
 // (toc/stats: `lexical` + `@lexical/rich-text`; marks: `@lexical/mark`, ~2kb and
-// node-registering). Making any of them a lazy chunk later is a one-line change
+// node-registering; highlights: nothing at all beyond types). Making any of them a
+// lazy chunk later is a one-line change
 // here — swap the static import for a literal `import()`, mirroring './table'.
 import tocRuntime from './toc';
 import marksRuntime from './marks';
+import highlightsRuntime from './highlights';
 import statsRuntime from './stats';
 import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
 import tabIndentRuntime from './tabindent';
@@ -779,6 +781,8 @@ export async function create(
           factory = tocRuntime;
         } else if (desc.builtIn === 'marks') {
           factory = marksRuntime;
+        } else if (desc.builtIn === 'highlights') {
+          factory = highlightsRuntime;
         } else if (desc.builtIn === 'stats') {
           factory = statsRuntime;
         } else if (desc.builtIn === 'hr') {

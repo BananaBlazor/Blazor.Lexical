@@ -36,7 +36,7 @@ Hard constraints. Violating one needs an explicit, deliberate decision.
 |---|---|
 | Command tokens, overlay markers, bundling/chunks, update tags, initial-content ordering | `docs/js-contract.md` |
 | Extension contract, editor plumbing, `setup`, adding a push channel | `docs/extensions.md` |
-| Built-in features: tables, mentions, TOC, marks, stats, horizontal rule, tab indent, block gutter | `docs/features.md` |
+| Built-in features: tables, mentions, TOC, marks, highlights, stats, horizontal rule, tab indent, block gutter | `docs/features.md` |
 | *Why* the invariants above exist — read when a rule looks arbitrary | `docs/architecture.md` |
 
 ## Public API surface

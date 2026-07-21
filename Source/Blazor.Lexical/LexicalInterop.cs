@@ -223,6 +223,29 @@ internal sealed class TabIndentExtensionOptionsDto
 }
 
 /// <summary>
+/// One highlight request on its way to the highlights built-in — the flattened
+/// <see cref="LexicalTextQuote"/> plus the id it paints under. Mirrored JS-side by the
+/// object <c>highlights.ts</c>'s <c>invoke</c> destructures.
+/// </summary>
+internal sealed class HighlightRequestDto
+{
+    /// <summary>The highlight set this belongs to (its <c>::highlight()</c> name).</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>The text to find. Whitespace is normalized on both sides before matching.</summary>
+    public string Exact { get; set; } = string.Empty;
+
+    /// <summary>Text expected immediately before <see cref="Exact"/>; disambiguates only.</summary>
+    public string? Prefix { get; set; }
+
+    /// <summary>Text expected immediately after <see cref="Exact"/>; disambiguates only.</summary>
+    public string? Suffix { get; set; }
+
+    /// <summary>Whether to scroll the match into view.</summary>
+    public bool Scroll { get; set; }
+}
+
+/// <summary>
 /// Wire model for the selection-state object pushed from JS via
 /// <c>OnSelectionChangedInternal</c>. Deserialized with the source-generated
 /// context, then projected into the public <see cref="LexicalSelectionState"/>
@@ -278,6 +301,7 @@ internal sealed class LexicalSelectionStateDto
 [JsonSerializable(typeof(TabIndentExtensionOptionsDto))]
 [JsonSerializable(typeof(LexicalDocumentStats))]
 [JsonSerializable(typeof(LexicalBlockRef))]
+[JsonSerializable(typeof(HighlightRequestDto[]))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(string[]))]
 internal partial class LexicalJsonSerializerContext : JsonSerializerContext

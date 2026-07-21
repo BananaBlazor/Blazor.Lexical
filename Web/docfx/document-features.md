@@ -119,6 +119,83 @@ document nor the undo stack. `RemoveMarkAsync(id, silent: true)` is for cleanup 
 performs (a resolved thread, a cleared search) — it adds no undo step and does not raise
 `OnContentChanged`, so the user is never asked to undo something they did not do.
 
+## Highlights
+
+`<LexicalHighlights />` lights up text you can only describe by its **content**. Where a
+mark needs to know where the span is, a highlight goes and finds it:
+
+```razor
+<LexicalEditor Theme="LexicalTheme.Default">
+    <LexicalHighlights @ref="_highlights" />
+</LexicalEditor>
+
+@code {
+    private LexicalHighlights? _highlights;
+
+    private async Task ShowSuggestion(AiComment comment)
+    {
+        var result = await _highlights!.HighlightTextAsync(
+            new LexicalTextQuote(comment.Quote, comment.Prefix, comment.Suffix),
+            highlightId: "ai");
+
+        if (result == LexicalTextAnchorResult.NotFound) { comment.Orphaned = true; }
+    }
+}
+```
+
+| Method | Does |
+|---|---|
+| `HighlightTextAsync(quote, id, scroll)` | Finds the quote and paints it; reports how well it anchored |
+| `HighlightTextAsync(text, id, scroll)` | The same, for when you have only the words |
+| `HighlightAllAsync(text, id)` | Paints *every* occurrence, returning the count — find-all |
+| `ClearHighlightsAsync(id)` | Clears that set, or all of them with `null` |
+| `ScrollToHighlightAsync(id)` | Scrolls the first one into view; `false` if nothing is anchored |
+
+### Highlights are not in the document
+
+Nothing is inserted. Highlights are painted with the browser's CSS Custom Highlight API, so
+they add no node, serialize into nothing, create no undo step and never mark the document
+dirty. Unlike a selection they survive the user clicking elsewhere and can span several
+blocks — which is what makes them usable for review UI the user keeps working alongside.
+
+Reach for **marks** when the annotation must survive a save; reach for **highlights** when
+it must not.
+
+### Anchoring, and what `Prefix`/`Suffix` are for
+
+`LexicalTextQuote` is the W3C `TextQuoteSelector` shape. Whitespace is normalized before
+matching, so a quote written as prose matches a document whose words are split across
+paragraphs, bold runs or marks.
+
+Context **disambiguates; it never rejects.** Every occurrence of `Exact` is scored by how
+much of the surrounding context it reproduces and the best one wins, even when nothing
+matched — an anchor has to survive the document being edited around it. So the verdict has
+three values, and the third is the useful one:
+
+| Result | Means |
+|---|---|
+| `Matched` | One occurrence was the clear best match |
+| `MatchedAmbiguously` | Painted, but several occurrences fit equally well — a weak anchor |
+| `NotFound` | The text is not in the document; nothing was painted |
+
+Highlights then **follow their text**: the anchor is re-resolved after every edit, so a
+highlight stays on its sentence as the paragraph above it grows, vanishes if the quoted
+words are deleted, and comes back on undo.
+
+### Colours are per id
+
+Each `highlightId` paints under the CSS highlight name `blazor-lexical-<id>`, so several
+sets coexist and are styled independently:
+
+```css
+::highlight(blazor-lexical-ai)       { background-color: #fef08a; }
+::highlight(blazor-lexical-reviewer) { background-color: #bfdbfe; }
+```
+
+The bundled stylesheet styles only the default id. There is no `LexicalTheme` key here —
+a highlight is not a node, so there is no element to put a class on. Ids must be valid CSS
+identifiers.
+
 ## Document statistics
 
 `<LexicalStats />` counts words, characters, and paragraphs, and estimates reading time.
