@@ -1,8 +1,9 @@
 name: Deploy demo + docs to GitHub Pages
 
+# Manual only. Publishing the site is a deliberate act, not a side effect of
+# landing a commit on main — run it from the Actions tab when the demo/docs are
+# ready to go live.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

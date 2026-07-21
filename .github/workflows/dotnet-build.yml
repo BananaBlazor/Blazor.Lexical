@@ -60,9 +60,15 @@ jobs:
           --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
 
       # Playwright drives real browsers; the install script is emitted next to the
-      # test assembly by the Microsoft.Playwright package during build.
+      # test assembly by the Microsoft.Playwright package during build. Build output
+      # is redirected by Directory.Build.props to .build/<platform>/<project>/bin/...,
+      # so locate the script instead of guessing the path, and fail loudly if the
+      # build didn't produce it.
       - name: Install Playwright browsers
-        run: pwsh Tests/Integration/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+        run: |
+          SCRIPT=$(find .build -type f -path '*Tests.Integration*/Release/*' -name playwright.ps1 | head -n1)
+          test -n "$SCRIPT" || { echo "::error::playwright.ps1 not found under .build/"; exit 1; }
+          pwsh "$SCRIPT" install --with-deps chromium
 
       - name: Integration tests
         run: >-

@@ -67,8 +67,14 @@ jobs:
       - name: Unit tests
         run: dotnet test Tests/UnitTests/Tests.UnitTests.csproj -c Release --no-build
 
+      # Build output is redirected by Directory.Build.props to
+      # .build/<platform>/<project>/bin/..., so locate the install script rather
+      # than guessing the path.
       - name: Install Playwright browsers
-        run: pwsh Tests/Integration/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+        run: |
+          SCRIPT=$(find .build -type f -path '*Tests.Integration*/Release/*' -name playwright.ps1 | head -n1)
+          test -n "$SCRIPT" || { echo "::error::playwright.ps1 not found under .build/"; exit 1; }
+          pwsh "$SCRIPT" install --with-deps chromium
 
       - name: Integration tests
         run: dotnet test Tests/Integration/Tests.Integration.csproj -c Release --no-build
