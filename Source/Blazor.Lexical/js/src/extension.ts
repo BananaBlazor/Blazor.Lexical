@@ -123,10 +123,42 @@ export interface LexicalExtensionContext {
 /** What an extension's factory returns. Every member is optional. */
 export interface LexicalExtensionModule {
   /**
+   * A unique name for this module, conventionally namespaced to its author
+   * (`acme/badge`; the built-ins use `blazor-lexical/…`). Optional, but naming your
+   * module is what lets the host report a collision against something other than a
+   * URL — and what makes {@link conflictsWith} usable by anyone else.
+   *
+   * Two loaded modules claiming the same name is an authoring error: the second is
+   * logged and skipped.
+   *
+   * Same field, same meaning as `name` on Lexical's own `defineExtension`.
+   */
+  name?: string;
+
+  /**
+   * Names of modules that must not be loaded alongside this one — for extensions
+   * whose functionality overlaps destructively (two that both bind the same key, or
+   * both claim the same node type).
+   *
+   * Same field, same meaning as `conflictsWith` on Lexical's own `defineExtension`,
+   * with one deliberate difference: upstream refuses to build the editor at all,
+   * whereas here the *later* of the two modules is logged and skipped and the editor
+   * comes up regardless. A broken extension never takes the editor down.
+   */
+  conflictsWith?: ReadonlyArray<string>;
+
+  /**
    * Custom node classes to register with `createEditor`. Read once, before the
    * editor is created — nodes cannot be added later.
+   *
+   * May be a thunk (`() => [MyNode]`) as well as a plain array, matching Lexical's
+   * own `nodes` field, so a node list copied from an upstream extension works as-is.
+   *
+   * A node whose `getType()` is already claimed — by a core node or by an earlier
+   * extension — is a collision the editor cannot resolve, so the offending module is
+   * logged and skipped rather than left to fail inside `createEditor`.
    */
-  nodes?: ReadonlyArray<Klass<LexicalNode>>;
+  nodes?: ReadonlyArray<Klass<LexicalNode>> | (() => ReadonlyArray<Klass<LexicalNode>>);
 
   /**
    * Theme fragment for the extension's own nodes, merged into the editor's
@@ -137,7 +169,12 @@ export interface LexicalExtensionModule {
    * **Namespace your keys to your extension** (`badge`, `badgeSelected`) and never
    * touch a core one (`paragraph`, `heading`, `link`, …). The host wins every
    * collision — its `Theme` is applied over these fragments — so a core key here is
-   * silently ignored at best and fights another extension at worst.
+   * silently ignored at best and fights another extension at worst. A key already
+   * claimed by *another extension* is warned about, since neither of them can be the
+   * intended owner.
+   *
+   * Fragments are merged **deeply**, so contributing `{ heading: { h7: '…' } }` adds
+   * to a nested group rather than replacing it.
    */
   theme?: Record<string, unknown>;
 

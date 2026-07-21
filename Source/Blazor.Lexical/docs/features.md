@@ -1,8 +1,8 @@
-# Built-in features: tables, mentions, TOC, marks, stats, block gutter
+# Built-in features: tables, mentions, TOC, marks, stats, horizontal rule, tab indent, block gutter
 
 Read this before changing anything under `Extensions/` or the matching `js/src/*.ts`
-(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `stats.ts`, and `registerBlockGutters` in
-`overlays.ts`). The DOM markers and command tokens these features use are in
+(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
+`registerBlockGutters` in `overlays.ts`). The DOM markers and command tokens these features use are in
 [js-contract.md](js-contract.md); the contract they ride is in [extensions.md](extensions.md).
 
 ## Tables (lazy chunk + chrome gating)
@@ -137,6 +137,30 @@ app-driven cleanup.
 nodes, its own debounced tick, and skipped entirely when the computed tuple is unchanged.
 Same dual surface as the TOC — `TargetSelector` + `Template` writes a formatted line
 client-side (zero interop), `OnStatsChanged` pushes `LexicalDocumentStats`.
+
+## Horizontal rule
+
+`js/src/hr.ts` + `Extensions/HorizontalRule/`. A `DecoratorNode` rendering `<hr>`, ported
+from `@lexical/extension` so the `"horizontalrule"` type and the `hr` / `hrSelected` theme
+keys match upstream and documents round-trip with other Lexical apps. Inserted by the
+`hr:insert` token (toolbar button and slash item, both gated on
+`HasExtension<LexicalHorizontalRule>()`) or `InsertAsync()` from C#. Clicking a rule puts
+it in a node selection — which is what makes Delete/Backspace meaningful and what
+`hrSelected` styles — painted by an update listener rather than upstream's signals.
+Zero interop. Opt-in, so an `<hr>` in HTML loaded into an editor without the extension is
+dropped, the same trade tables make.
+
+## Tab indentation
+
+`js/src/tabindent.ts` + `Extensions/TabIndent/`. A port of upstream's
+`registerTabIndentation`: Tab/Shift+Tab indent and outdent blocks, `MaxIndent` caps the
+depth, and a caret mid-text still inserts a tab. No node, no theme, no interop —
+behaviour only, which is the shape the contract has to accommodate.
+
+**Opt-in for accessibility, not taste.** Binding Tab inside the editor takes it away from
+keyboard navigation and traps focus; Lexical's own docs discourage the behaviour for that
+reason. It is a component rather than an editor flag so that enabling it is a deliberate
+act, and the C# doc comment says so.
 
 ## Block gutters (the per-block hover rails)
 

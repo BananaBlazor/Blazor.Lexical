@@ -37,6 +37,8 @@ public class LexicalThemeTests
             MentionHighlight = "mh",
             Mark = "mk",
             MarkOverlap = "mko",
+            Hr = "hr",
+            HrSelected = "hrs",
         };
 
         var json = Serialize(theme);
@@ -49,6 +51,9 @@ public class LexicalThemeTests
         // MarkNode reads config.theme.mark / .markOverlap — the keys @lexical/mark uses.
         Assert.Equal("mk", (string?)json["mark"]);
         Assert.Equal("mko", (string?)json["markOverlap"]);
+        // HorizontalRuleNode reads config.theme.hr / .hrSelected — Lexical's own keys.
+        Assert.Equal("hr", (string?)json["hr"]);
+        Assert.Equal("hrs", (string?)json["hrSelected"]);
         Assert.Equal("h1", (string?)json["heading"]!["h1"]);
         Assert.Equal("h3", (string?)json["heading"]!["h3"]);
         Assert.Equal("ul", (string?)json["list"]!["ul"]);
@@ -86,6 +91,8 @@ public class LexicalThemeTests
         Assert.Equal("blazor-lexical__mention-highlight", theme.MentionHighlight);
         Assert.Equal("blazor-lexical__mark", theme.Mark);
         Assert.Equal("blazor-lexical__mark--overlap", theme.MarkOverlap);
+        Assert.Equal("blazor-lexical__hr", theme.Hr);
+        Assert.Equal("blazor-lexical__hr--selected", theme.HrSelected);
         Assert.Equal("blazor-lexical__h1", theme.Heading.H1);
         Assert.Equal("blazor-lexical__h6", theme.Heading.H6);
         Assert.Equal("blazor-lexical__ul", theme.List.Ul);

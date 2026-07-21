@@ -28,9 +28,24 @@ contract.
   their place in `nodes[]`. There is **one** JS→.NET extension entry point and **one**
   `DotNetObjectReference`.
 - **Theme fragments**: a module may return `theme: { … }`, merged pre-`createEditor` with
-  the **host winning** (`{ ...extensionFragments, ...(options.theme ?? {}) }`). Keys are
-  namespaced to the extension (`badge`, never `paragraph`). Typed `LexicalTheme` stays
-  **core-only**.
+  the **host winning**. Merging is **deep** (`deepThemeMerge` in `index.ts`, mirroring the
+  semantics of `deepThemeMergeInPlace` in `@lexical/extension`, which that package does not
+  export — hence reimplemented, prototype-pollution guard included), so a host theme setting
+  `heading.h1` overrides that key instead of replacing the group. Keys are namespaced to the
+  extension (`badge`, never `paragraph`); an extension↔extension key clash is **warned**
+  about (host↔extension is silent — host winning is the design). Typed `LexicalTheme` stays
+  **core-only**, except where the extension ships in-box (`Mark`, `Hr`, …).
+- **Upstream vocabulary**: `name`, `conflictsWith` and a thunk-or-array `nodes` are the same
+  fields, with the same meanings, as Lexical's own `defineExtension` — so an extension
+  written against `@lexical/extension` ports mechanically. See `architecture.md`, "Why we
+  borrow from `@lexical/extension` but don't build on it", for what we deliberately did not
+  take and why.
+- **Collision handling**: the loader rejects a module whole — it never registers half of one
+  — on a duplicate `name`, a `conflictsWith` match in either direction, or a node whose
+  `getType()` is already claimed by a core node or an earlier extension. That last one is
+  the load-bearing check: two classes sharing a type throws *inside* `createEditor` and
+  would otherwise take the editor down. Upstream refuses to build the editor in all three
+  cases; **we log and skip the later module**, per the invariant below.
 - **`setup` is the whole environment**: `options`, `lexical` and `utils` (the host's own
   module namespaces), `invokeDotNet`/`notifyDotNet`/`canInvokeDotNet`, `silentUpdateTag`.
   Anything an extension would otherwise import or hardcode belongs here.

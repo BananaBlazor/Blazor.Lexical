@@ -352,6 +352,93 @@
 </section>
 
 <section>
+    <h2>Horizontal rule — an opt-in node, inserted by command token or from C#</h2>
+    @* editor-hr carries the extension; editor-hr-absent deliberately does NOT, which is
+       what proves the hr:insert token is an inert no-op rather than an error when the
+       node was never registered. *@
+    @* The token buttons live INSIDE the editor: the delegated dispatcher is bound to the
+       editor root, so a data-lexical-command button outside it would never fire. *@
+    <LexicalEditor @ref="_hrEditor"
+                   Id="editor-hr"
+                   CssClass="harness-hr"
+                   Theme="LexicalTheme.Default">
+        <button id="btn-hr-insert" type="button" data-lexical-command="hr:insert">Rule</button>
+        <LexicalHorizontalRule @ref="_hrExt" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-hr-insert-cs" @onclick="InsertRuleFromCSharp">Rule (C#)</button>
+        <button id="btn-hr-get-html" @onclick="GetHrHtml">Get HTML</button>
+        <button id="btn-hr-set-html" @onclick="SetHrHtml">Set HTML</button>
+    </div>
+    <p>HR html: <span id="hr-html">@_hrHtml</span></p>
+
+    <LexicalEditor Id="editor-hr-absent"
+                   CssClass="harness-hr-absent"
+                   Theme="LexicalTheme.Default">
+        <button id="btn-hr-absent-insert" type="button" data-lexical-command="hr:insert">Rule</button>
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Tab indent — opt-in Tab/Shift+Tab block indentation</h2>
+    @* editor-tab-indent binds Tab; editor-tab-plain does not, which is the invariant that
+       matters: an editor that did not ask for it must leave Tab to the browser. *@
+    <LexicalEditor @ref="_tabIndent"
+                   Id="editor-tab-indent"
+                   CssClass="harness-tab-indent"
+                   Theme="LexicalTheme.Default">
+        <LexicalTabIndent />
+    </LexicalEditor>
+
+    <LexicalEditor @ref="_tabCapped"
+                   Id="editor-tab-capped"
+                   CssClass="harness-tab-capped"
+                   Theme="LexicalTheme.Default">
+        <LexicalTabIndent MaxIndent="2" />
+    </LexicalEditor>
+
+    <LexicalEditor @ref="_tabPlain"
+                   Id="editor-tab-plain"
+                   CssClass="harness-tab-plain"
+                   Theme="LexicalTheme.Default" />
+    @* The indent level is read from the editor state rather than a CSS side effect:
+       "the block's indent is 1" is the actual claim, and it does not move with styling. *@
+    <div>
+        <button id="btn-tab-indent-of" @onclick="ReadTabIndent">Indent (bound)</button>
+        <button id="btn-tab-capped-of" @onclick="ReadCappedIndent">Indent (capped)</button>
+        <button id="btn-tab-plain-of" @onclick="ReadPlainIndent">Indent (plain)</button>
+    </div>
+    <p>Tab indent: <span id="tab-indent">@_tabIndentLevel</span></p>
+</section>
+
+<section>
+    <h2>Extension hardening — colliding modules are skipped, the editor survives</h2>
+    @* Three editors, each loading a pair of consumer extension modules that collide in a
+       different way. In every case the SECOND module must be skipped with a console error
+       while the editor stays alive and typeable — the whole point of failing soft. *@
+    <LexicalEditor Id="editor-collide-name"
+                   CssClass="harness-collide-name"
+                   Theme="LexicalTheme.Default">
+        <HarnessCollider Variant="name-a" />
+        <HarnessCollider Variant="name-b" />
+    </LexicalEditor>
+
+    <LexicalEditor Id="editor-collide-nodetype"
+                   CssClass="harness-collide-nodetype"
+                   Theme="LexicalTheme.Default">
+        <HarnessCollider Variant="node-a" />
+        <HarnessCollider Variant="node-b" />
+    </LexicalEditor>
+
+    <LexicalEditor Id="editor-collide-declared"
+                   CssClass="harness-collide-declared"
+                   Theme="LexicalTheme.Default">
+        <HarnessCollider Variant="conflict-a" />
+        <HarnessCollider Variant="conflict-b" />
+    </LexicalEditor>
+</section>
+
+<section>
     <h2>Block gutter — composable per-block rails</h2>
     @* editor-gutter-notify carries TWO rails, proving they coexist: a left rail with the
        two built-in JS-driven items, and a right rail with host actions. OnBlockHovered is
@@ -569,6 +656,15 @@
     private string _signalLast = "";
     private string _notifyLast = "";
 
+    private LexicalEditor? _hrEditor;
+    private LexicalHorizontalRule? _hrExt;
+    private string _hrHtml = "";
+
+    private LexicalEditor? _tabIndent;
+    private LexicalEditor? _tabCapped;
+    private LexicalEditor? _tabPlain;
+    private string _tabIndentLevel = "";
+
     private LexicalEditor? _tocNotify;
     private LexicalToc? _tocNotifyExt;
     private IReadOnlyList<LexicalTocEntry> _tocEntries = [];
@@ -710,6 +806,53 @@
 
     private void OnStatsChanged(LexicalDocumentStats stats) =>
         _statsPush = $"{stats.Words}|{stats.Characters}|{stats.Paragraphs}|{stats.ReadingMinutes}";
+
+    private Task ReadTabIndent() => ReadIndentLevel(_tabIndent);
+
+    private Task ReadCappedIndent() => ReadIndentLevel(_tabCapped);
+
+    private Task ReadPlainIndent() => ReadIndentLevel(_tabPlain);
+
+    /// <summary>Reports the first block's indent level, straight out of the editor state.</summary>
+    private async Task ReadIndentLevel(LexicalEditor? editor)
+    {
+        if (editor is null)
+        {
+            return;
+        }
+
+        using var document = System.Text.Json.JsonDocument.Parse(
+            await editor.GetEditorStateJsonAsync());
+        var children = document.RootElement.GetProperty("root").GetProperty("children");
+        var level = children.GetArrayLength() == 0
+            ? -1
+            : children[0].TryGetProperty("indent", out var indent) ? indent.GetInt32() : 0;
+        _tabIndentLevel = level < 0 ? "none" : level.ToString();
+    }
+
+    private async Task InsertRuleFromCSharp()
+    {
+        if (_hrExt is not null)
+        {
+            await _hrExt.InsertAsync();
+        }
+    }
+
+    private async Task GetHrHtml()
+    {
+        if (_hrEditor is not null)
+        {
+            _hrHtml = await _hrEditor.GetHtmlAsync();
+        }
+    }
+
+    private async Task SetHrHtml()
+    {
+        if (_hrEditor is not null)
+        {
+            await _hrEditor.SetHtmlAsync("<p>above</p><hr><p>below</p>");
+        }
+    }
 
     private async Task GetStats()
     {

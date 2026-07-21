@@ -157,6 +157,54 @@ The mechanics are in [extensions.md](extensions.md); the consumer-facing guide i
   own markers, or use the `@onclick` escape hatch.
 - **A broken extension is logged and skipped.** It never takes the editor down.
 
+## Why we borrow from `@lexical/extension` but don't build on it
+
+Lexical ships its own extension system — `defineExtension` + `buildEditorFromExtensions`
+in `@lexical/extension`, with a dependency graph, config merging, conflict detection and
+`@preact/signals-core` reactivity. Our contract predates using it and turned out to be a
+near-subset, arrived at independently. We deliberately do not adopt the builder, and the
+reasons are worth keeping because the question recurs:
+
+- **It would cost the no-toolchain property.** `Samples/Extensions.Badge` is hand-written
+  ESM: no npm, no bundler, no `import 'lexical'` — everything arrives through `setup`.
+  Requiring `defineExtension` means the symbol has to be resolvable at author time, which
+  is strictly more ceremony than returning an object literal.
+- **It solves none of the hard part.** Most of `extension.ts` is the .NET bridge —
+  `invokeDotNet`/`notifyDotNet`/`canInvokeDotNet`, the `HasInvokeHandler` gate, `invoke`,
+  `silentUpdateTag`, per-instance dispose. `@lexical/extension` has nothing to say about
+  any of it; it would sit underneath and we would still write all of it.
+- **`buildEditorFromExtensions` wants to own editor creation,** and our ordering inside
+  `create()` is load-bearing (see [js-contract.md](js-contract.md), "Initial content
+  ordering").
+- **Our factory is a factory for a reason.** `(setup) => module`, not a static object,
+  because `setup` carries per-instance interop handles a module-level constant cannot.
+
+What we *do* take is vocabulary and parts. Where our contract already had a concept,
+it now uses upstream's name and meaning — `name`, `conflictsWith`, `nodes` accepting a
+thunk — so an extension written against `@lexical/extension` ports mechanically instead
+of being rewritten, and a Lexical author reads our contract as a dialect rather than an
+invention. Theme fragments merge with upstream `deepThemeMergeInPlace` semantics
+(reimplemented, since that helper is internal to the package). The horizontal-rule node
+and the tab-indentation handler are ports of upstream's, keeping the `"horizontalrule"`
+node type and the `hr`/`hrSelected` theme keys so documents and themes interoperate.
+
+**One divergence is deliberate**: upstream *throws* on a name clash or a declared
+conflict and refuses to build the editor. We log and skip the offending module, because
+"a broken extension never takes the editor down" outranks it here.
+
+Two practical notes for anyone revisiting this:
+
+- `@preact/signals-core` is **already in our bundle**, transitively — `@lexical/rich-text`,
+  `history`, `list`, `link` and `html` all depend on `@lexical/extension`. Its weight is
+  not an argument for or against anything we do.
+- Importing from `@lexical/extension` directly *is* costly for a different reason: under
+  our `--splitting` esbuild build its barrel does not tree-shake, so one symbol drags
+  `LexicalBuilder`, `ExtensionRep` and every bundled Extension into a shared chunk
+  (measured ~25kb). That is why `hr.ts` and `tabindent.ts` port ~170 lines instead of
+  importing them. The cost of the port is losing *command identity* — our
+  `INSERT_HORIZONTAL_RULE_COMMAND` is a different object from upstream's — while node
+  type and serialization still interoperate.
+
 ## Lazy loading: how tables stay out of the bundle
 
 Tables are a **lazily-loaded chunk**, declared in markup like any other extension via

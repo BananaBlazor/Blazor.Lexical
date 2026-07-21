@@ -69,6 +69,8 @@ import * as mentionsRuntime from './mentions';
 import tocRuntime from './toc';
 import marksRuntime from './marks';
 import statsRuntime from './stats';
+import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
+import tabIndentRuntime from './tabindent';
 // Consumer extension contract — types only (see extension.ts), so this import is
 // erased and the external modules stay entirely outside our bundle.
 import type {
@@ -88,6 +90,56 @@ type TableModule = typeof import('./table');
 // so an app-driven touch-up never marks the document dirty. The mention refresh is the
 // built-in user; extensions reach the same tag through `setup.silentUpdateTag`.
 import { SILENT_UPDATE_TAG } from './tags';
+
+// The nodes every editor registers, so HTML/Markdown round-trips carry headings,
+// quotes, lists and links — not just plain paragraphs. Everything else, the table,
+// mention and horizontal-rule nodes included, arrives through the extension contract.
+// Named here (rather than inline in createEditor) because the extension loader also
+// needs their types, to catch an extension claiming one of them.
+const CORE_NODES: ReadonlyArray<Klass<LexicalNode>> = [
+  HeadingNode,
+  QuoteNode,
+  ListNode,
+  ListItemNode,
+  LinkNode,
+  AutoLinkNode,
+];
+
+// Keys that must never be merged: assigning or recursing through them can mutate the
+// prototype chain. Theme fragments can originate in JSON (the C# `Theme` travels as
+// one), and `JSON.parse('{"__proto__": {…}}')` would otherwise leak into
+// Object.prototype and affect every object on the page.
+const UNSAFE_THEME_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Recursively merges theme `source` into `target` in place, `source` winning on leaf
+ * collisions. Mirrors the semantics of `deepThemeMergeInPlace` in `@lexical/extension`
+ * (which is internal to that package, hence reimplemented rather than imported).
+ *
+ * Deep rather than `Object.assign` so that contributing one key of a nested group —
+ * `{ heading: { h1 } }` over `{ heading: { h1, h2 } }` — adds to the group instead of
+ * replacing it, which a shallow spread would do silently.
+ */
+function deepThemeMerge(target: unknown, source: unknown): unknown {
+  if (
+    target !== null &&
+    source !== null &&
+    typeof target === 'object' &&
+    typeof source === 'object' &&
+    !Array.isArray(source)
+  ) {
+    const targetObj = target as Record<string, unknown>;
+    const sourceObj = source as Record<string, unknown>;
+    for (const key in sourceObj) {
+      if (UNSAFE_THEME_KEYS.has(key) || !Object.prototype.hasOwnProperty.call(sourceObj, key)) {
+        continue;
+      }
+      targetObj[key] = deepThemeMerge(targetObj[key], sourceObj[key]);
+    }
+    return target;
+  }
+  return source;
+}
 
 /** A .NET object reference that can receive [JSInvokable] callbacks. */
 interface DotNetObjectReference {
@@ -483,6 +535,11 @@ function runCommandToken(
       tableModule.insertTableWithDimensions(editor, rows, cols);
       break;
     }
+    case 'hr':
+      // No module handle needed, unlike `table:`: with the horizontal-rule extension
+      // not declared nothing has registered a handler and the dispatch is a no-op.
+      editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined);
+      break;
     case 'clear-formatting':
       clearFormattingOnEditor(editor);
       break;
@@ -683,6 +740,14 @@ export async function create(
   const extensionModules = new Map<string, LexicalExtensionModule>();
   const extensionNodes: Array<Klass<LexicalNode>> = [];
   const extensionTheme: Record<string, unknown> = {};
+  // Bookkeeping for the three ways two extensions can collide. Each is an authoring
+  // error we can name precisely here, and each would otherwise surface as something
+  // far less obvious — a duplicate node type throws inside createEditor and takes the
+  // whole editor down, and a duplicate theme key just silently wins.
+  const claimedNames = new Map<string, string>();
+  const claimedNodeTypes = new Map<string, string>(CORE_NODES.map((k) => [k.getType(), 'core']));
+  const claimedThemeKeys = new Map<string, string>();
+  const declaredConflicts: Array<{ owner: string; conflictsWith: ReadonlyArray<string> }> = [];
   const descriptors = (options.extensions ?? []).filter((d) => d.builtIn || d.moduleUrl);
   if (descriptors.length > 0) {
     // Hand extensions the host's own Lexical runtime: their node classes must extend
@@ -708,6 +773,10 @@ export async function create(
           factory = marksRuntime;
         } else if (desc.builtIn === 'stats') {
           factory = statsRuntime;
+        } else if (desc.builtIn === 'hr') {
+          factory = hrRuntime;
+        } else if (desc.builtIn === 'tabIndent') {
+          factory = tabIndentRuntime;
         } else if (desc.builtIn) {
           console.error(`[Blazor.Lexical] unknown built-in extension '${desc.builtIn}'`);
           continue;
@@ -737,12 +806,84 @@ export async function create(
           silentUpdateTag: SILENT_UPDATE_TAG,
         };
         const module = factory(setup);
+        const label = module.name ?? desc.builtIn ?? desc.moduleUrl ?? desc.id;
+
+        // --- Collision checks, before anything of this module is accepted. ---
+        // Each rejects the *later* module whole rather than merging half of it: a
+        // module whose nodes were dropped would be live but broken, which is worse
+        // than absent. Upstream (@lexical/extension) refuses to build the editor at
+        // all in these cases; we log and skip, because a bad extension must never
+        // take the editor down with it.
+
+        if (module.name !== undefined && claimedNames.has(module.name)) {
+          console.error(
+            `[Blazor.Lexical] extension '${label}' skipped: the name '${module.name}' is ` +
+              `already used by '${claimedNames.get(module.name)}'. Extension names must be unique.`,
+          );
+          continue;
+        }
+
+        const conflict = declaredConflicts.find(
+          (d) => module.name !== undefined && d.conflictsWith.includes(module.name),
+        );
+        if (conflict !== undefined) {
+          console.error(
+            `[Blazor.Lexical] extension '${label}' skipped: '${conflict.owner}' declares it ` +
+              `as conflicting.`,
+          );
+          continue;
+        }
+        const conflictsWithLoaded = (module.conflictsWith ?? []).filter((n) => claimedNames.has(n));
+        if (conflictsWithLoaded.length > 0) {
+          console.error(
+            `[Blazor.Lexical] extension '${label}' skipped: it declares a conflict with ` +
+              `already-loaded ${conflictsWithLoaded.map((n) => `'${n}'`).join(', ')}.`,
+          );
+          continue;
+        }
+
+        // `nodes` may be a thunk, matching Lexical's own `nodes` field.
+        const nodes = typeof module.nodes === 'function' ? module.nodes() : (module.nodes ?? []);
+        const duplicateType = nodes
+          .map((klass) => klass.getType())
+          .find((type) => claimedNodeTypes.has(type));
+        if (duplicateType !== undefined) {
+          console.error(
+            `[Blazor.Lexical] extension '${label}' skipped: node type '${duplicateType}' is ` +
+              `already registered by '${claimedNodeTypes.get(duplicateType)}'. Two node classes ` +
+              `cannot share a getType().`,
+          );
+          continue;
+        }
+
+        // --- Accepted: claim its names, nodes and theme keys. ---
+        if (module.name !== undefined) {
+          claimedNames.set(module.name, label);
+        }
+        if (module.conflictsWith !== undefined) {
+          declaredConflicts.push({ owner: label, conflictsWith: module.conflictsWith });
+        }
+        for (const klass of nodes) {
+          claimedNodeTypes.set(klass.getType(), label);
+        }
         extensionModules.set(desc.id, module);
-        extensionNodes.push(...(module.nodes ?? []));
-        // Theme fragments for the extension's own nodes. Merged in declaration order,
-        // so a later extension overrides an earlier one on a shared key — and the host
-        // overrides them all below.
-        Object.assign(extensionTheme, module.theme);
+        extensionNodes.push(...nodes);
+
+        // Theme fragments for the extension's own nodes, merged deeply and in
+        // declaration order — the host overrides them all below. Two extensions
+        // claiming the same key is warned about rather than skipped: unlike a node
+        // type it is only a styling conflict, and the module is otherwise fine.
+        for (const key of Object.keys(module.theme ?? {})) {
+          const owner = claimedThemeKeys.get(key);
+          if (owner !== undefined) {
+            console.warn(
+              `[Blazor.Lexical] extensions '${owner}' and '${label}' both define the theme key ` +
+                `'${key}'; '${label}' wins. Namespace theme keys to your extension.`,
+            );
+          }
+          claimedThemeKeys.set(key, label);
+        }
+        deepThemeMerge(extensionTheme, module.theme);
       } catch (error) {
         // A broken extension must not take the editor down with it.
         console.error(
@@ -758,20 +899,14 @@ export async function create(
     // Extension theme fragments first, the host's theme over them: an extension names
     // the classes for its own nodes, and the host always gets the last word — which is
     // also why extensions are told to namespace their keys rather than touch core ones.
-    theme: { ...extensionTheme, ...(options.theme ?? {}) },
+    // Deep, so a host theme that sets `heading.h1` overrides that one key instead of
+    // replacing the whole heading group.
+    theme: deepThemeMerge(extensionTheme, options.theme ?? {}) as EditorThemeClasses,
     // Register the rich-text, list, and link nodes so HTML/Markdown round-trips
     // carry headings, quotes, lists, and links — not just plain paragraphs.
     // Everything else — the table and mention nodes included — arrives through the
     // extension contract above.
-    nodes: [
-      HeadingNode,
-      QuoteNode,
-      ListNode,
-      ListItemNode,
-      LinkNode,
-      AutoLinkNode,
-      ...extensionNodes,
-    ],
+    nodes: [...CORE_NODES, ...extensionNodes],
     onError: (error) => {
       // Surface Lexical internal errors to the browser console rather than
       // swallowing them; there is no .NET channel for these in v1.

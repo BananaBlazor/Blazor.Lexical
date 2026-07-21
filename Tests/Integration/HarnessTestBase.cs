@@ -17,6 +17,20 @@ public abstract class HarnessTestBase
         await page.Keyboard.TypeAsync(text);
     }
 
+    /// <summary>
+    /// Collects console errors raised while the page <i>loads</i> — including anything the
+    /// editor logs during <c>create()</c>, which <see cref="CaptureErrors"/> misses because
+    /// the harness has already booted by the time a test can attach.
+    /// </summary>
+    protected static async Task<List<string>> CaptureErrorsFromLoadAsync(IPage page)
+    {
+        var errors = CaptureErrors(page);
+        await page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.NetworkIdle });
+        await page.Locator("#editor-main[data-lexical-editor='true']")
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        return errors;
+    }
+
     /// <summary>Collects browser console errors + page errors for the page's lifetime.</summary>
     protected static List<string> CaptureErrors(IPage page)
     {

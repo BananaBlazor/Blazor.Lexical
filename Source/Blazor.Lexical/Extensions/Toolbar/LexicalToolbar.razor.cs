@@ -56,12 +56,23 @@ public partial class LexicalToolbar : ComponentBase, IDisposable
     /// <summary>Whether the table controls should render (tables present and not hidden).</summary>
     private bool ShowTableControls => ShowTable && (Editor?.HasExtension<LexicalTables>() ?? false);
 
+    /// <summary>
+    /// Show the insert-horizontal-rule button (default true). Only rendered when the
+    /// editor nests a <see cref="LexicalHorizontalRule"/> extension, since the command
+    /// is inert without the rule node registered.
+    /// </summary>
+    [Parameter] public bool ShowHorizontalRule { get; set; } = true;
+
+    /// <summary>Whether the rule button should render (extension present and not hidden).</summary>
+    private bool ShowHorizontalRuleControl =>
+        ShowHorizontalRule && (Editor?.HasExtension<LexicalHorizontalRule>() ?? false);
+
     /// <inheritdoc />
     protected override void OnInitialized()
     {
-        // The table answer only settles once the editor freezes its extension set, which
-        // is after this toolbar has already rendered — and <LexicalTables/> may even be
-        // declared below us. Re-render when the editor says the set changed.
+        // The table and rule answers only settle once the editor freezes its extension
+        // set, which is after this toolbar has already rendered — and the extensions may
+        // even be declared below us. Re-render when the editor says the set changed.
         if (Editor is not null)
         {
             Editor.ExtensionsChanged += OnExtensionsChanged;

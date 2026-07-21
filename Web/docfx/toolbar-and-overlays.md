@@ -64,6 +64,8 @@ Buttons declare a command token that JS interprets. The built-in tokens:
 - `align:{left|center|right|justify}`
 - `link:{toggle|remove}`
 - `table:insert[:RxC]` (e.g. `table:3x4`)
+- `hr:insert` — inserts a horizontal rule. Does nothing unless the editor nests
+  `<LexicalHorizontalRule />`.
 - `clear-formatting`
 
 The enums model these tokens, so custom chrome doesn't have to spell them out — use

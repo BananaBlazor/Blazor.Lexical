@@ -112,6 +112,9 @@ export default function badgeExtension(setup) {
   }
 
   return {
+    // Unique and namespaced: this is what the editor names if another extension
+    // collides with this one, and what someone else's conflictsWith would target.
+    name: 'samples/badge',
     // Read before createEditor — this is the only window for custom nodes.
     nodes: [BadgeNode],
 

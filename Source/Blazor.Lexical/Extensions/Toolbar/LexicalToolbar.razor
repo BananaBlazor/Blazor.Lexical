@@ -33,10 +33,17 @@
         {
             <LexicalHyperlink />
         }
-        @if (ShowTableControls)
+        @if (ShowTableControls || ShowHorizontalRuleControl)
         {
             <div class="blazor-lexical__toolbar-group">
-                <LexicalTableButton />
+                @if (ShowTableControls)
+                {
+                    <LexicalTableButton />
+                }
+                @if (ShowHorizontalRuleControl)
+                {
+                    <LexicalCommandButton Command="hr:insert" Title="Insert divider">—</LexicalCommandButton>
+                }
             </div>
         }
     }

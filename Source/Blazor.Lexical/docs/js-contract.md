@@ -19,6 +19,10 @@ changing the bundle, the command tokens, or any overlay.
 - `table.ts` — table node runtime, in-cell action menu, insert grid picker. Lazy chunk.
 - `markdown.ts` — lazily `import()`ed `@lexical/markdown`, keeping it and
   `@lexical/code-core` out of core.
+- `hr.ts` — horizontal rule. Static in core (~1 kb). Ports upstream's `HorizontalRuleNode`
+  and adds a non-signal selection painter; see `architecture.md` for why it is a port.
+- `tabindent.ts` — Tab/Shift+Tab block indentation. Static in core, behaviour only (no
+  node, no theme). Also a port of upstream's `registerTabIndentation`.
 - `extension.ts` — the consumer extension contract. **Types only**, imported with
   `import type` so it never lands in the bundle.
 - `tags.ts` — shared update tags, its own module so producers and consumers of a tag never
@@ -65,6 +69,9 @@ Buttons declare a token; JS (`runCommandToken` / `updateToolbarDom` / `isCommand
   `[data-lexical-link-editor]` popup.
 - `table:insert[:RxC]` — default 3×3 with header row; `table:3x4` sets size. Used by the
   slash menu; the toolbar grid picker inserts directly, not via this token. No active state.
+- `hr:insert` — dispatches `INSERT_HORIZONTAL_RULE_COMMAND`. Needs no module handle (unlike
+  `table:`): without `<LexicalHorizontalRule>` nothing has registered a handler, so the
+  token is a silent no-op. No active state.
 - `clear-formatting`
 
 Style via `[data-lexical-active]` / `[data-lexical-disabled]` in

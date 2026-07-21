@@ -78,6 +78,22 @@ public sealed class LexicalTheme
     public string? MarkOverlap { get; set; }
 
     /// <summary>
+    /// Class for a horizontal rule — the <c>&lt;hr&gt;</c> node
+    /// <see cref="LexicalHorizontalRule"/> contributes. Named <c>hr</c> on the wire, the
+    /// same key Lexical's own horizontal-rule node reads, so a theme written for another
+    /// Lexical app carries over.
+    /// </summary>
+    public string? Hr { get; set; }
+
+    /// <summary>
+    /// Class added <i>alongside</i> <see cref="Hr"/> while a rule is selected (a rule is
+    /// selected by clicking it, which is what lets Delete remove it). Give it a visible
+    /// treatment — an outline or tinted background — since a bare <c>&lt;hr&gt;</c> has
+    /// no text to show a selection on.
+    /// </summary>
+    public string? HrSelected { get; set; }
+
+    /// <summary>
     /// The theme whose class names are styled by the bundled <c>blazor-lexical.css</c>,
     /// giving formatting a sensible default appearance out of the box.
     /// </summary>
@@ -90,6 +106,8 @@ public sealed class LexicalTheme
         MentionHighlight = "blazor-lexical__mention-highlight",
         Mark = "blazor-lexical__mark",
         MarkOverlap = "blazor-lexical__mark--overlap",
+        Hr = "blazor-lexical__hr",
+        HrSelected = "blazor-lexical__hr--selected",
         Table = "blazor-lexical__table",
         TableCell = "blazor-lexical__table-cell",
         TableCellHeader = "blazor-lexical__table-cell-header",

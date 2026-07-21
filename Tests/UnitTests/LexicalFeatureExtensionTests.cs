@@ -156,12 +156,61 @@ public class LexicalFeatureExtensionTests
         Assert.True(stats.ToDto().HasInvokeHandler);
     }
 
+    // --- Horizontal rule -------------------------------------------------
+
+    [Fact]
+    public void HorizontalRule_is_a_built_in_module_with_no_options()
+    {
+        var dto = new LexicalHorizontalRule().ToDto();
+
+        Assert.Equal("hr", dto.BuiltIn);
+        Assert.Null(dto.Options);
+    }
+
+    [Fact] // inserting a rule is a JS command; nothing calls back into .NET
+    public void HorizontalRule_reports_no_invoke_handler()
+    {
+        Assert.False(new LexicalHorizontalRule().ToDto().HasInvokeHandler);
+    }
+
+    // --- Tab indent ------------------------------------------------------
+
+    [Fact]
+    public void TabIndent_is_a_built_in_module()
+    {
+        Assert.Equal("tabIndent", new LexicalTabIndent().ToDto().BuiltIn);
+    }
+
+    [Fact]
+    public void TabIndent_options_carry_the_indent_cap()
+    {
+        var options = Options(new LexicalTabIndent { MaxIndent = 5 });
+
+        Assert.Equal(5, options.GetProperty("maxIndent").GetInt32());
+    }
+
+    [Fact] // no cap is the default, and null is omitted rather than sent
+    public void TabIndent_options_omit_an_unset_cap()
+    {
+        var options = Options(new LexicalTabIndent());
+
+        Assert.False(options.TryGetProperty("maxIndent", out _));
+    }
+
+    [Fact] // rebinding Tab is a keyboard-behavior change, never a .NET round trip
+    public void TabIndent_reports_no_invoke_handler()
+    {
+        Assert.False(new LexicalTabIndent().ToDto().HasInvokeHandler);
+    }
+
     // --- Single-instance -------------------------------------------------
 
     [Theory] // a duplicate would register nodes and listeners twice, so it fails loudly
     [InlineData(typeof(LexicalToc))]
     [InlineData(typeof(LexicalMarks))]
     [InlineData(typeof(LexicalStats))]
+    [InlineData(typeof(LexicalHorizontalRule))]
+    [InlineData(typeof(LexicalTabIndent))]
     public void A_second_instance_in_one_editor_throws(Type extensionType)
     {
         var editor = new LexicalEditor();

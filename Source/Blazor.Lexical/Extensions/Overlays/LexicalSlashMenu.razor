@@ -27,14 +27,19 @@
         {
             <LexicalSlashItem Command="table:insert" Label="Table" Keywords="table grid rows columns cells" />
         }
+        @if (Editor?.HasExtension<LexicalHorizontalRule>() ?? false)
+        {
+            <LexicalSlashItem Command="hr:insert" Label="Divider" Keywords="divider horizontal rule line separator break hr" />
+        }
     }
 </div>
 
 @code {
     /// <summary>
     /// The editor this menu lives in, supplied by <see cref="LexicalEditor"/>'s
-    /// cascade. Used to include the <c>/table</c> item only when the editor nests a
-    /// <see cref="LexicalTables"/> extension.
+    /// cascade. Used to include the items whose extensions are optional — the table
+    /// item only when the editor nests a <see cref="LexicalTables"/> extension, the
+    /// divider only with a <see cref="LexicalHorizontalRule"/>.
     /// </summary>
     [CascadingParameter] public LexicalEditor? Editor { get; set; }
 
@@ -64,9 +69,9 @@
 
     /// <summary>
     /// The menu items. When omitted, a default set (paragraph, H1–H3, bulleted and
-    /// numbered lists, quote, and — when the editor enables tables — a table) is
-    /// shown. Supply your own <see cref="LexicalSlashItem"/> entries to change the
-    /// options or add custom insert actions.
+    /// numbered lists, quote, plus a table and a divider when the editor enables those
+    /// extensions) is shown. Supply your own <see cref="LexicalSlashItem"/> entries to
+    /// change the options or add custom insert actions.
     /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 

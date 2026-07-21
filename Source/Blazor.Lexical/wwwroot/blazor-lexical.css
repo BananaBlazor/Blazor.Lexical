@@ -31,6 +31,7 @@
   --blazor-lexical-mark-bg: rgb(255, 212, 0);           /* marked (highlighted) spans */
   --blazor-lexical-mark-overlap-bg: rgb(255, 160, 0);   /* … where two marks overlap */
   --blazor-lexical-mark-active-outline: rgb(33, 111, 219);
+  --blazor-lexical-hr-color: rgb(206, 208, 212);        /* horizontal rule line */
   --blazor-lexical-toc-indent: 0.9rem;                  /* per-level outline indent */
   --blazor-lexical-toc-active: rgb(33, 111, 219);
 }
@@ -485,6 +486,21 @@
 
 .blazor-lexical__mark[data-lexical-mark-active] {
   border-bottom-color: var(--blazor-lexical-mark-active-outline);
+}
+
+/* Horizontal rule: a thematic break. Clicking one selects it (so Delete removes it),
+   which needs a visible treatment of its own — an <hr> has no text to highlight. */
+.blazor-lexical__hr {
+  background-color: var(--blazor-lexical-hr-color);
+  border: none;
+  height: 1px;
+  margin: 1.5em 0;
+  padding: 0;
+}
+
+.blazor-lexical__hr--selected {
+  outline: 2px solid var(--blazor-lexical-accent);
+  outline-offset: 3px;
 }
 
 /* Mention picker: a floating list of provider candidates, built by JS at the caret. */

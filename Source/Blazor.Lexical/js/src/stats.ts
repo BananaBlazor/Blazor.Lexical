@@ -85,6 +85,7 @@ export default function statsExtension(setup: LexicalExtensionSetup): LexicalExt
   let signature = '';
 
   return {
+    name: 'blazor-lexical/stats',
     register: ({ editor }) => {
       let debounce: ReturnType<typeof setTimeout> | undefined;
 

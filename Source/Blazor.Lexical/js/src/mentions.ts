@@ -915,6 +915,7 @@ export default function mentionsExtension(
 ): LexicalExtensionModule {
   const configs = (setup.options as MentionsOptionsDto | undefined)?.configs ?? [];
   return {
+    name: 'blazor-lexical/mentions',
     nodes: mentionNodes,
     register: ({ editor, root, content }) =>
       registerMentions(editor, root, content, configs, setup.invokeDotNet),

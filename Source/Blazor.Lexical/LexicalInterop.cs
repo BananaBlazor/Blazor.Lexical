@@ -213,6 +213,16 @@ internal sealed class StatsExtensionOptionsDto
 }
 
 /// <summary>
+/// Options payload for the tab-indent extension, mirrored by the JS
+/// <c>TabIndentOptionsDto</c>.
+/// </summary>
+internal sealed class TabIndentExtensionOptionsDto
+{
+    /// <summary>Maximum indent depth, or null for no cap.</summary>
+    public int? MaxIndent { get; set; }
+}
+
+/// <summary>
 /// Wire model for the selection-state object pushed from JS via
 /// <c>OnSelectionChangedInternal</c>. Deserialized with the source-generated
 /// context, then projected into the public <see cref="LexicalSelectionState"/>
@@ -262,6 +272,7 @@ internal sealed class LexicalSelectionStateDto
 [JsonSerializable(typeof(TocExtensionOptionsDto))]
 [JsonSerializable(typeof(LexicalTocEntry[]))]
 [JsonSerializable(typeof(StatsExtensionOptionsDto))]
+[JsonSerializable(typeof(TabIndentExtensionOptionsDto))]
 [JsonSerializable(typeof(LexicalDocumentStats))]
 [JsonSerializable(typeof(LexicalBlockRef))]
 [JsonSerializable(typeof(string))]

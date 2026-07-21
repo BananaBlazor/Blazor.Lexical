@@ -394,6 +394,7 @@ export function registerTablePicker(
  */
 export default function tableExtension(): LexicalExtensionModule {
   return {
+    name: 'blazor-lexical/table',
     nodes: tableNodes,
     register({ editor, root, content }) {
       const cleanups = [registerTable(editor)];

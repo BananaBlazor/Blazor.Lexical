@@ -119,6 +119,7 @@ export default function badgeExtension(setup) {
   const $createBadgeNode = (text) => $applyNodeReplacement(new BadgeNode(text));
 
   return {
+    name: 'my-extensions/badge',        // unique; used when reporting collisions
     nodes: [BadgeNode],                 // registered with createEditor
 
     register(ctx) {                     // called after the editor exists
@@ -172,11 +173,51 @@ register(ctx) {
 }
 ```
 
+The full set of members your factory may return:
+
+| Member | Purpose |
+|--------|---------|
+| `name` | A unique, namespaced name (`acme/badge`). Optional but recommended — it is what the editor names in a collision message, and what someone else's `conflictsWith` can refer to. |
+| `nodes` | Node classes to register, as an array **or** a thunk (`() => [MyNode]`). Read once, before the editor exists. |
+| `theme` | Theme fragment for your nodes (see §3d). |
+| `conflictsWith` | Names of modules that must not load alongside yours. |
+| `register(ctx)` | Wire commands, listeners and DOM handlers; return a teardown. |
+| `invoke(method, args)` | Handle calls from your C# half. |
+
 Types for the whole contract ship with the library:
 
 ```
 _content/Blazor.Lexical/blazor-lexical-extension.d.ts
 ```
+
+### Porting from `@lexical/extension`
+
+If you already have an extension written against Lexical's own
+[`@lexical/extension`](https://lexical.dev/docs/api/modules/lexical_extension), the parts
+that overlap use **the same names and the same meanings**: `name`, `conflictsWith`,
+`nodes` (array or thunk), `theme`, and a `register` that returns a teardown. Moving one
+across is usually a matter of wrapping it in the factory and taking your Lexical bindings
+from `setup.lexical`:
+
+```js
+export default function myExtension(setup) {
+  const { $getSelection, TextNode } = setup.lexical;   // not `import 'lexical'`
+  // …the body of your defineExtension({...}) object…
+  return { name: 'acme/thing', nodes: [ThingNode], register: (ctx) => /* … */ };
+}
+```
+
+What does **not** carry over is the parts of upstream's model this library does not have:
+`dependencies` / `peerDependencies`, `config` / `mergeConfig`, the `init` / `build` /
+`afterRegistration` phases, and the signal-based `state` argument. Per-instance
+configuration arrives as `setup.options` from your C# half instead, and there is no
+dependency graph — extensions are independent and ordered by declaration.
+
+One behavioural difference worth knowing: on a name clash, a declared conflict, or two
+node classes sharing a `getType()`, upstream throws and the editor is not built. Here the
+offending module is logged to the console and skipped, and **the editor comes up anyway** —
+a broken extension never takes the editor down with it. Check the console if an extension
+seems not to have loaded.
 
 ## 3. Interop is opt-in
 
@@ -262,8 +303,11 @@ hardcoding a class, which is what lets a host restyle your node without forking 
 **Namespace your keys to your extension** (`badge`, `badgeSelected`) and never touch a
 core one (`paragraph`, `heading`, `link`, …). The host wins every collision — its
 `Theme` is applied *over* the fragments — so a core key is silently ignored at best and
-fights another extension at worst. The typed C# `LexicalTheme` stays core-only;
-extension keys never enter it.
+fights another extension at worst; two *extensions* claiming one key is warned about on
+the console. The typed C# `LexicalTheme` stays core-only; extension keys never enter it.
+
+Fragments merge deeply, so contributing a single key of a nested group adds to it rather
+than replacing the group.
 
 ## 3b. Slow data must degrade gracefully
 

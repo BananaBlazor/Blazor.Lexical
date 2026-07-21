@@ -356,6 +356,7 @@ export default function tocExtension(setup: LexicalExtensionSetup): LexicalExten
   let runtime: ReturnType<typeof registerToc> | null = null;
 
   return {
+    name: 'blazor-lexical/toc',
     register: ({ editor, content }) => {
       runtime = registerToc(editor, content, options, setup);
       return () => {
