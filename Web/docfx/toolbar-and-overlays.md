@@ -46,7 +46,10 @@ same command dispatch as the toolbar — the overlays add no interop of their ow
 - `<LexicalFloatingToolbar />` — appears above a non-empty text selection.
 - `<LexicalSlashMenu>` — a typeahead list opened by typing `/` at the start of a line;
   populate it with `<LexicalSlashItem>` entries.
-- `<LexicalDragHandle />` — a left-gutter grip + "insert" button on hover.
+- `<LexicalBlockGutter>` — a per-block hover rail. Fill it with `<LexicalDragHandle />`
+  (drag to reorder), `<LexicalAddBlockButton />` ("+"), and/or your own
+  `<LexicalGutterButton>`; several rails per editor are fine. See
+  [Document features](document-features.md).
 - `<LexicalLinkEditor />` — a floating link editor popup.
 - `<LexicalTableEditor />` — an in-cell action menu (requires `<LexicalTables />`).
 

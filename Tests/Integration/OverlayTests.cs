@@ -114,17 +114,20 @@ public class OverlayTests : HarnessTestBase
         await Expect(page.Locator("#editor-overlays blockquote")).ToHaveCountAsync(0);
     }
 
-    [Fact] // the drag handle appears in the gutter when the pointer is over a block
-    public async Task DragHandle_AppearsOnHover()
+    // The drag grip and the "+" are items in a <LexicalBlockGutter>, so the rail is what
+    // reveals on hover. The behaviour asserted below is unchanged from when they were one
+    // self-contained overlay — only the markup they live in is.
+    [Fact] // the rail appears in the gutter when the pointer is over a block
+    public async Task BlockGutter_AppearsOnHover()
     {
         var page = await Fx.OpenHarnessAsync();
-        var handle = page.Locator(".harness-overlays .blazor-lexical__drag-handle");
+        var rail = page.Locator(".harness-overlays .blazor-lexical__block-gutter");
 
         await TypeAsync(page, "#editor-overlays", "hover target");
-        await Expect(handle).Not.ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(rail).Not.ToHaveAttributeAsync("data-lexical-visible", "");
 
         await page.Locator("#editor-overlays p").First.HoverAsync();
-        await Expect(handle).ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(rail).ToHaveAttributeAsync("data-lexical-visible", "");
     }
 
     [Fact] // the "+" add-block button inserts a paragraph below and opens the slash menu
@@ -137,11 +140,39 @@ public class OverlayTests : HarnessTestBase
         await TypeAsync(page, "#editor-overlays", "first block");
         await Expect(editor.Locator("p")).ToHaveCountAsync(1);
 
-        // Hover to bind the handle to the block, then click "+".
+        // Hover to bind the rail to the block, then click "+".
         await editor.Locator("p").First.HoverAsync();
         await page.Locator(".harness-overlays [data-lexical-add-block]").ClickAsync();
 
         await Expect(editor.Locator("p")).ToHaveCountAsync(2);
         await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+    }
+
+    [Fact] // the grip still reorders blocks now that it is delegated from the root
+    public async Task DragGrip_ReordersBlocks()
+    {
+        var page = await Fx.OpenHarnessAsync();
+        var editor = page.Locator("#editor-overlays");
+
+        await TypeAsync(page, "#editor-overlays", "alpha");
+        await page.Keyboard.PressAsync("Enter");
+        await page.Keyboard.TypeAsync("beta");
+        await Expect(editor.Locator("p")).ToHaveCountAsync(2);
+
+        // Bind the rail to the second block, then drag its grip above the first.
+        var second = editor.Locator("p").Nth(1);
+        await second.HoverAsync();
+        var grip = page.Locator(".harness-overlays [data-lexical-drag-grip]");
+        var first = editor.Locator("p").First;
+        var box = await first.BoundingBoxAsync();
+
+        await grip.HoverAsync();
+        await page.Mouse.DownAsync();
+        // Two moves: HTML5 drag needs a move to start the drag before the target move.
+        await page.Mouse.MoveAsync(box!.X + box.Width / 2, box.Y + 2, new() { Steps = 8 });
+        await page.Mouse.MoveAsync(box.X + box.Width / 2, box.Y + 2, new() { Steps = 4 });
+        await page.Mouse.UpAsync();
+
+        await Expect(editor.Locator("p").First).ToHaveTextAsync("beta");
     }
 }

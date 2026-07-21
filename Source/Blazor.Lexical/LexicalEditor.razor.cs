@@ -152,6 +152,8 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     private bool _appliedReadOnly;
     private bool _notifyContent;
     private bool _notifySelection;
+    private bool _notifyBlockHover;
+    private readonly List<LexicalBlockGutter> _blockGutters = [];
     private LexicalContentPayload _contentPayload = LexicalContentPayload.Text;
     private readonly List<LexicalMention> _mentions = [];
     private readonly List<LexicalExtension> _extensions = [];
@@ -220,6 +222,24 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
 
     /// <summary>Removes a child <see cref="LexicalMention"/> config. Not part of the public API.</summary>
     internal void UnregisterMention(LexicalMention mention) => _mentions.Remove(mention);
+
+    /// <summary>
+    /// Registers a child <see cref="LexicalBlockGutter"/>. Gutters are overlays, not
+    /// <see cref="LexicalExtension"/>s, so several are allowed — a left rail and a right
+    /// rail, or two stacked on one side. The editor keeps them all because the hover
+    /// channel is armed if <i>any</i> of them wants it, and the push then fans out to
+    /// every one. Not part of the public API.
+    /// </summary>
+    internal void RegisterBlockGutter(LexicalBlockGutter gutter)
+    {
+        if (!_blockGutters.Contains(gutter))
+        {
+            _blockGutters.Add(gutter);
+        }
+    }
+
+    /// <summary>Removes a child <see cref="LexicalBlockGutter"/>. Not part of the public API.</summary>
+    internal void UnregisterBlockGutter(LexicalBlockGutter gutter) => _blockGutters.Remove(gutter);
 
     /// <summary>
     /// Registers a child <see cref="LexicalExtension"/>. Called from the extension's
@@ -295,6 +315,7 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
         // With neither subscribed, JS performs no interop at all.
         _notifyContent = OnContentChanged.HasDelegate;
         _notifySelection = OnSelectionChanged.HasDelegate;
+        _notifyBlockHover = _blockGutters.Any(g => g.WantsHoverPush);
         _contentPayload = ContentPayload;
 
         var createOptions = new LexicalCreateOptions
@@ -307,6 +328,7 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
             {
                 Content = _notifyContent,
                 Selection = _notifySelection,
+                BlockHover = _notifyBlockHover,
                 ContentPayload = _contentPayload.ToJsToken(),
             },
             // One descriptor list for both tiers: the library's own features first (so
@@ -380,17 +402,21 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
         // the content channel's payload mode changed.
         var content = OnContentChanged.HasDelegate;
         var selection = OnSelectionChanged.HasDelegate;
+        var blockHover = _blockGutters.Any(g => g.WantsHoverPush);
         if (content != _notifyContent
             || selection != _notifySelection
+            || blockHover != _notifyBlockHover
             || ContentPayload != _contentPayload)
         {
             _notifyContent = content;
             _notifySelection = selection;
+            _notifyBlockHover = blockHover;
             _contentPayload = ContentPayload;
             var flags = new LexicalNotifyFlags
             {
                 Content = content,
                 Selection = selection,
+                BlockHover = blockHover,
                 ContentPayload = _contentPayload.ToJsToken(),
             };
             var flagsElement = JsonSerializer.SerializeToElement(
@@ -809,6 +835,35 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
         {
             ContentChanged?.Invoke(content);
             await OnContentChanged.InvokeAsync(content);
+        }
+    }
+
+    /// <summary>
+    /// JS interop entry point — invoked from the JS glue when the pointer moves onto a
+    /// different top-level block, for hosts that placed a <see cref="LexicalBlockGutter"/>
+    /// and wired its callback; not part of the public API. It must be <c>public</c> for
+    /// <c>[JSInvokable]</c> dispatch, so it is hidden from IntelliSense. Do not call it
+    /// directly.
+    /// </summary>
+    [JSInvokable]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async Task OnBlockHoveredInternal(string? json)
+    {
+        if (_blockGutters.Count == 0)
+        {
+            return;
+        }
+        var block = string.IsNullOrEmpty(json)
+            ? null
+            : JsonSerializer.Deserialize(
+                json, LexicalJsonSerializerContext.Default.LexicalBlockRef);
+
+        // One crossing, fanned out to every gutter: they all sit beside the same block, so
+        // a second channel per rail would carry identical payloads. Iterate a copy — a
+        // handler may dispose a gutter (a rail shown conditionally on the block type).
+        foreach (var gutter in _blockGutters.ToArray())
+        {
+            await gutter.NotifyBlockHoveredAsync(block);
         }
     }
 

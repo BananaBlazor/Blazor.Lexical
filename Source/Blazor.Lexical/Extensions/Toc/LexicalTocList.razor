@@ -1,0 +1,72 @@
+@namespace Blazor.Lexical
+
+@* Presentational renderer for a heading outline. NOT an extension and not tied to an
+   editor — it takes a model and draws it, so it can be placed anywhere on the page
+   (a sidebar, a drawer, another component entirely) without the @ref/cascade ordering
+   hazard a sibling Editor="..." parameter would bring.
+
+   Feed it LexicalToc.Entries (via OnTocChanged) when you want the outline in C#. The
+   markup deliberately matches what LexicalToc's JS renderer emits, so both paths are
+   styled by the same blazor-lexical.css rules. *@
+
+@if (Entries.Count > 0)
+{
+    @RenderLevel(Entries, true)
+}
+
+@code {
+    /// <summary>
+    /// The outline to render — typically <see cref="LexicalToc.Entries"/>, or whatever
+    /// the <see cref="LexicalToc.OnTocChanged"/> callback last handed you. Empty (the
+    /// default) renders nothing at all.
+    /// </summary>
+    [Parameter] public IReadOnlyList<LexicalTocEntry> Entries { get; set; } = [];
+
+    /// <summary>
+    /// Optional custom content for each entry, replacing the default
+    /// <c>&lt;a href="#anchor"&gt;</c>. Nested children are still rendered by this
+    /// component, so a template only has to draw the one entry it is handed.
+    /// </summary>
+    [Parameter] public RenderFragment<LexicalTocEntry>? ItemTemplate { get; set; }
+
+    /// <summary>
+    /// Fires when an entry is clicked. Wiring it suppresses the default fragment
+    /// navigation, so the host decides what a click means (scrolling the editor with
+    /// <see cref="LexicalToc.ScrollToAnchorAsync"/>, routing, opening a drawer…).
+    /// </summary>
+    [Parameter] public EventCallback<LexicalTocEntry> OnItemClick { get; set; }
+
+    /// <summary>Extra CSS class(es) applied to the outermost list.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>
+    /// Renders one level of the outline, recursing into each entry's children.
+    /// <paramref name="outermost"/> is what keeps <see cref="CssClass"/> on the top-level
+    /// list only, rather than repeating it down every nested one.
+    /// </summary>
+    private RenderFragment RenderLevel(IReadOnlyList<LexicalTocEntry> entries, bool outermost) =>
+        @<ol class="@(outermost ? $"blazor-lexical__toc {CssClass}" : "blazor-lexical__toc")">
+            @foreach (var entry in entries)
+            {
+                <li>
+                    @if (ItemTemplate is not null)
+                    {
+                        @ItemTemplate(entry)
+                    }
+                    else
+                    {
+                        <a href="@($"#{entry.AnchorId}")"
+                           data-lexical-toc-item
+                           data-lexical-toc-anchor="@entry.AnchorId"
+                           data-lexical-toc-level="@entry.Level"
+                           @onclick="@(() => OnItemClick.InvokeAsync(entry))"
+                           @onclick:preventDefault="OnItemClick.HasDelegate">@entry.Text</a>
+                    }
+                    @if (entry.Children.Count > 0)
+                    {
+                        @RenderLevel(entry.Children, false)
+                    }
+                </li>
+            }
+        </ol>;
+}

@@ -28,6 +28,11 @@
   --blazor-lexical-code-bg: rgb(240, 242, 245);
   --blazor-lexical-radius: 10px;
   --blazor-lexical-content-font-size: 16px;
+  --blazor-lexical-mark-bg: rgb(255, 212, 0);           /* marked (highlighted) spans */
+  --blazor-lexical-mark-overlap-bg: rgb(255, 160, 0);   /* … where two marks overlap */
+  --blazor-lexical-mark-active-outline: rgb(33, 111, 219);
+  --blazor-lexical-toc-indent: 0.9rem;                  /* per-level outline indent */
+  --blazor-lexical-toc-active: rgb(33, 111, 219);
 }
 
 /* The editor root is the card: a white, rounded surface. The toolbar (rendered
@@ -366,7 +371,6 @@
 .blazor-lexical__floating-toolbar,
 .blazor-lexical__slash-menu,
 .blazor-lexical__mention-menu,
-.blazor-lexical__drag-handle,
 .blazor-lexical__link-editor,
 .blazor-lexical__table-menu,
 .blazor-lexical__drop-line {
@@ -381,7 +385,6 @@
 .blazor-lexical__floating-toolbar[data-lexical-visible],
 .blazor-lexical__slash-menu[data-lexical-visible],
 .blazor-lexical__mention-menu[data-lexical-visible],
-.blazor-lexical__drag-handle[data-lexical-visible],
 .blazor-lexical__link-editor[data-lexical-visible],
 .blazor-lexical__table-menu[data-lexical-visible] {
   visibility: visible;
@@ -465,6 +468,25 @@
   font-weight: 500;
 }
 
+/* Mark nodes (<LexicalMarks>). A mark carries an ARRAY of app-owned ids, so a span
+   inside two marks gets --overlap alongside the base class — the overlap has to read
+   as deliberate rather than as one slightly-different highlight. [data-lexical-mark-active]
+   is JS-set decoration (SetActiveMarkAsync), never document state. */
+.blazor-lexical__mark {
+  background-color: var(--blazor-lexical-mark-bg);
+  border-bottom: 2px solid transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.blazor-lexical__mark--overlap {
+  background-color: var(--blazor-lexical-mark-overlap-bg);
+}
+
+.blazor-lexical__mark[data-lexical-mark-active] {
+  border-bottom-color: var(--blazor-lexical-mark-active-outline);
+}
+
 /* Mention picker: a floating list of provider candidates, built by JS at the caret. */
 .blazor-lexical__mention-menu {
   display: flex;
@@ -538,16 +560,10 @@
   }
 }
 
-/* Drag handle: sits in the left content gutter reserved by the 46px padding. */
-.blazor-lexical__drag-handle {
-  display: flex;
-  align-items: center;
-  gap: 0.05rem;
-  height: 1.5rem;
-}
-
-.blazor-lexical__drag-add,
-.blazor-lexical__drag-grip {
+/* Block-gutter items: the drag grip, the "+" button, and any <LexicalGutterButton>.
+   One shape for all of them, so a host button sits flush with the built-ins — the same
+   deal the toolbar primitives get. */
+.blazor-lexical__gutter-item {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -562,7 +578,7 @@
   line-height: 1;
 }
 
-.blazor-lexical__drag-add {
+.blazor-lexical__gutter-btn {
   cursor: pointer;
 }
 
@@ -570,8 +586,7 @@
   cursor: grab;
 }
 
-.blazor-lexical__drag-add:hover,
-.blazor-lexical__drag-grip:hover {
+.blazor-lexical__gutter-item:hover {
   background: var(--blazor-lexical-btn-hover);
   color: inherit;
 }
@@ -787,3 +802,74 @@
   margin: 4px 2px;
   background: var(--blazor-lexical-divider);
 }
+
+/* ------------------------------------------------------------------ */
+/* Table of contents (<LexicalToc> / <LexicalTocList>).                */
+/* One stylesheet for both paths: the JS renderer and the C# component  */
+/* emit the same nested <ol>/<a data-lexical-toc-item> markup.          */
+/* The outline usually lives OUTSIDE the editor root, so it declares    */
+/* its own variables rather than inheriting the editor's.               */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__toc {
+  --blazor-lexical-toc-indent: 0.9rem;
+  --blazor-lexical-toc-active: rgb(33, 111, 219);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Nested levels indent; the level attribute is there for hosts that want to key off
+   the absolute depth (a jumped level, h1 → h3) rather than the nesting. */
+.blazor-lexical__toc .blazor-lexical__toc {
+  padding-left: var(--blazor-lexical-toc-indent);
+}
+
+.blazor-lexical__toc a {
+  display: block;
+  padding: 2px 0;
+  color: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blazor-lexical__toc a:hover {
+  text-decoration: underline;
+}
+
+/* Scrollspy: JS marks the heading currently at the top of the scroll container. */
+.blazor-lexical__toc a[data-lexical-toc-active] {
+  color: var(--blazor-lexical-toc-active);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ */
+/* Block gutter (<LexicalBlockGutter>).                                */
+/* Host-authored content floated beside the hovered block by JS, on     */
+/* the side named by data-lexical-block-gutter-side.                    */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__block-gutter {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-height: 1.5rem;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.blazor-lexical__block-gutter[data-lexical-visible] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* No side-specific offsets: JS measures each rail and computes its exact left, which
+   is what lets several rails on one side stack instead of overlapping. */

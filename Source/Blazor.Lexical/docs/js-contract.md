@@ -6,9 +6,16 @@ changing the bundle, the command tokens, or any overlay.
 ## Module layout
 
 - `index.ts` — bootstrap, `create()`, toolbar dispatch, exports.
-- `overlays.ts` — floating toolbar, slash menu, drag handle, link editor.
+- `overlays.ts` — floating toolbar, slash menu, block gutters (the per-block hover rails,
+  including the drag grip and "+"), link editor.
 - `mentions.ts` — mention nodes, typeahead, freeform highlight. Static in core (~4 kb
   gzipped), activated when configs exist.
+- `toc.ts` — heading outline: slugs, DOM-only anchor stamping, optional `<ol>` renderer,
+  scrollspy. Static in core (needs only `lexical` + `@lexical/rich-text`).
+- `marks.ts` — the `@lexical/mark` MarkNode plus wrap/remove/query/decorate. Static in
+  core (+1.5 kb gzipped measured, package included) — the mentions precedent, not the
+  table one.
+- `stats.ts` — word/character/paragraph counts and reading time. Static in core.
 - `table.ts` — table node runtime, in-cell action menu, insert grid picker. Lazy chunk.
 - `markdown.ts` — lazily `import()`ed `@lexical/markdown`, keeping it and
   `@lexical/code-core` out of core.
@@ -17,8 +24,10 @@ changing the bundle, the command tokens, or any overlay.
 - `tags.ts` — shared update tags, its own module so producers and consumers of a tag never
   import each other (a cycle that would drag the core entry into any lazy chunk).
 
-`mentions.ts` and `table.ts` both **default-export a `LexicalExtensionFactory`**, so
-`create()` loads them through the same contract as a consumer extension.
+`mentions.ts`, `table.ts`, `toc.ts`, `marks.ts` and `stats.ts` all **default-export a
+`LexicalExtensionFactory`**, so `create()` loads them through the same contract as a
+consumer extension — resolved by the closed `builtIn` switch
+(`'table' | 'mentions' | 'toc' | 'marks' | 'stats'`).
 
 ## Bundling
 
@@ -66,16 +75,36 @@ Style via `[data-lexical-active]` / `[data-lexical-disabled]` in
 Blazor authors the markup as `ChildContent`; `overlays.ts` only positions and drives it.
 Each overlay **activates by marker presence** — `create()` scans the root once and wires
 behavior only if the marker exists. Overlay buttons are ordinary `data-lexical-command`
-markup, so the overlays add **no interop of their own**.
+markup, so the overlays add **no interop of their own** — with the single, still-opt-in
+exception of the block gutter's hover push (below).
 
 - `data-lexical-floating-toolbar` — shown above a non-empty selection.
 - `data-lexical-slash-menu` — typeahead opened by `/`; items carry
   `data-lexical-slash-item` + `data-lexical-slash-keywords`; JS sets
   `data-lexical-slash-active` and deletes the `/query` text before the command runs. An
   item without a `data-lexical-command` (a C# `OnSelect`) is the only slash interop.
-- `data-lexical-drag-handle` — left-gutter handle; `data-lexical-drag-grip` (`draggable`)
-  reorders via node moves, `data-lexical-add-block` inserts a paragraph + `/`. JS owns a
-  `data-lexical-drop-line` indicator.
+- `data-lexical-block-gutter` — a per-block hover **rail**. `registerBlockGutters` scans
+  with `querySelectorAll` and drives **all** of them from one registration: one
+  `trackHoveredBlock` hit-test, one `data-lexical-drop-line`, one delegated drag/click
+  pair on the root. Each rail floats beside the hovered block on the side named by
+  `data-lexical-block-gutter-position` (`left-inside` | `left-outside` | `right-inside` |
+  `right-outside`, default `right-inside`). `*-inside` anchors to the text column — the
+  content box inset by its own padding — and is clamped to the card; `*-outside` anchors
+  to the card edge and hangs into the page. Rails sharing a position stack outward in DOM
+  order, measured from `getBoundingClientRect().width` (which is why they hide with
+  `visibility`, not `display`). Each carries
+  `data-lexical-visible` plus `data-lexical-block-key` / `data-lexical-block-index` /
+  `data-lexical-block-type`. Rails stay visible for a short **grace window** after the pointer leaves the editor
+  (cancelled when it arrives on a rail), which is what makes their buttons reachable at
+  all: the gutter gap — and the whole page, for an `outside` rail — is not part of the
+  root, so travelling to a rail fires the root's `mouseleave`. Hiding on that event
+  directly makes a rail vanish mid-journey.
+
+  Rail **items** are just markup, delegated from the root so they work in whichever rail
+  they sit in: `data-lexical-drag-grip` (`draggable`, `<LexicalDragHandle>`) reorders via
+  node moves, `data-lexical-add-block` (`<LexicalAddBlockButton>`) inserts a paragraph +
+  `/`. Anything else is the host's own `@onclick` markup (invariant 4) — typically
+  `<LexicalGutterButton>`, which shares the `blazor-lexical__gutter-item` shape.
 - `data-lexical-link-editor` — shows `[data-lexical-link-view]` (preview anchor +
   `[data-lexical-link-edit]` + a `link:remove` button) while the caret is in a link, and
   `[data-lexical-link-edit-form]` (`[data-lexical-link-input]` + cancel/confirm) when
@@ -96,6 +125,24 @@ lives in the toolbar, not the editable surface, but is still scanned from the ro
 
 Overlays must be present at `create()` time; conditionally-added overlays aren't rescanned
 in v1.
+
+## Push channels
+
+`notify` carries one flag per JS→.NET channel, each derived from a `.HasDelegate` on the
+C# side and mirrored in `setNotifications` so it can be armed after `create()`:
+
+| Flag | `[JSInvokable]` | Armed by |
+|---|---|---|
+| `content` | `OnContentChangedInternal` | `LexicalEditor.OnContentChanged` |
+| `selection` | `OnSelectionChangedInternal` | `LexicalEditor.OnSelectionChanged` |
+| `blockHover` | `OnBlockHoveredInternal` | `LexicalBlockGutter.OnBlockHovered`, or any `LexicalGutterButton` in a rail |
+
+`blockHover` is the only overlay-owned channel. It is deduped by node key — one crossing
+per *block*, not per mousemove — and carries the whole `LexicalBlockRef`, so a subscriber
+never needs a follow-up call. There is **one** crossing regardless of how many rails the
+editor has: the editor fans the payload out to every `LexicalBlockGutter`, since they all
+sit beside the same block. Extensions never ride these: they push over their own
+id-routed extension channel (see [extensions.md](extensions.md)).
 
 ## Update tags
 

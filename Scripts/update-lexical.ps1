@@ -26,35 +26,30 @@ $ErrorActionPreference = 'Stop'
 $jsDir = (Resolve-Path (Join-Path $PSScriptRoot '..' 'Source' 'Blazor.Lexical' 'js')).Path
 $pkgPath = Join-Path $jsDir 'package.json'
 
-# Every @lexical/* package plus lexical itself is released in lockstep, so pin
-# them all to the same version. Keep this list in sync with the dependencies in
-# Source/Blazor.Lexical/js/package.json.
+$pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+
+# Every @lexical/* package plus lexical itself is released in lockstep, so pin them
+# all to the same version. The family is DISCOVERED from package.json rather than
+# listed here — the same thing Scripts/lexical-version.mjs does when it enforces
+# lockstep. A hardcoded list silently misses a package added later (which is exactly
+# how @lexical/text, and then @lexical/mark, got left behind), and the publish gate
+# would then fail the next build with no obvious cause.
 $lexicalPackages = @(
-    'lexical',
-    '@lexical/rich-text',
-    '@lexical/history',
-    '@lexical/html',
-    '@lexical/markdown',
-    '@lexical/list',
-    '@lexical/link',
-    '@lexical/table',
-    '@lexical/selection',
-    '@lexical/utils'
+    $pkg.dependencies.PSObject.Properties.Name |
+        Where-Object { $_ -eq 'lexical' -or $_ -like '@lexical/*' } |
+        Sort-Object
 )
 
-$pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+if ($lexicalPackages.Count -eq 0) {
+    throw "No 'lexical'/'@lexical/*' dependencies found in $pkgPath."
+}
 
 # Remember the Lexical minor we are moving away from, so we can reset the package
 # serial when a new Lexical-minor line begins (see Version.props).
 $oldVersion = $pkg.dependencies.lexical
 foreach ($name in $lexicalPackages) {
-    if ($pkg.dependencies.PSObject.Properties.Name -contains $name) {
-        Write-Host "  $name : $($pkg.dependencies.$name) -> $Version"
-        $pkg.dependencies.$name = $Version
-    }
-    else {
-        Write-Warning "package.json has no dependency '$name' — skipping."
-    }
+    Write-Host "  $name : $($pkg.dependencies.$name) -> $Version"
+    $pkg.dependencies.$name = $Version
 }
 
 ($pkg | ConvertTo-Json -Depth 32) | Set-Content $pkgPath -Encoding utf8

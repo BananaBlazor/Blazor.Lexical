@@ -69,6 +69,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The extension descriptor (ToDto) and the editor's registration methods are
+         internal by design — they are plumbing, not SDK. The unit tests assert on them
+         directly (the opt-in interop gate, the option payloads, single-instance
+         enforcement), which is exactly the seam InternalsVisibleTo is for. -->
+    <InternalsVisibleTo Include="Tests.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Dev-only JS build inputs; not shipped and not compiled by MSBuild. -->
     <None Remove="js\**" />
     <Content Remove="js\**" />
@@ -102,11 +110,24 @@
   <!-- Regenerate the bundle only when it is missing or its sources changed
        (Inputs/Outputs make this incremental — it does not run on every build).
        build-js.ps1 installs npm packages first when node_modules is absent, and
-       clears stale chunks before esbuild. The entry file is the incremental
-       Output; the hashed chunks are produced alongside it. -->
-  <Target Name="BuildLexicalJsBundle" BeforeTargets="BeforeBuild;ResolveStaticWebAssetsInputs" Inputs="@(LexicalJsSource);$(LexicalJsDir)\package.json" Outputs="$(LexicalBundlePath)">
+       clears stale chunks before esbuild.
+
+       The incremental Output is a stamp in THIS build tree's obj, not the bundle
+       itself. That matters because the bundle is generated into the shared source
+       wwwroot while build trees are per-platform (.build/{vs,win,wsl} — see
+       Directory.Build.props). Keyed on the bundle, a build in one tree would refresh
+       the shared .mjs and leave every *other* tree's static web asset manifest holding
+       the old fingerprint + integrity: the browser then fetches the new bundle, the
+       SRI hash no longer matches, and it is blocked with a "Failed to find a valid
+       digest in the 'integrity' attribute" error that points at nothing obvious.
+       A per-tree stamp makes each tree re-run esbuild once after a source change, which
+       refreshes its own manifest. esbuild is deterministic, so the rebuild is a no-op
+       for content — it costs ~60ms and buys immunity to that trap. -->
+  <Target Name="BuildLexicalJsBundle" BeforeTargets="BeforeBuild;ResolveStaticWebAssetsInputs" Inputs="@(LexicalJsSource);$(LexicalJsDir)\package.json" Outputs="$(IntermediateOutputPath)lexical-bundle.stamp">
     <Message Importance="high" Text="Blazor.Lexical: (re)generating wwwroot\blazor-lexical.mjs (+ chunks) from js\src ..." />
     <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(LexicalBuildScript)&quot;" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Touch Files="$(IntermediateOutputPath)lexical-bundle.stamp" AlwaysCreate="true" />
   </Target>
 
   <!-- Register the generated entry + hashed chunks as static web assets. Always

@@ -16,15 +16,21 @@
    - <LexicalToolbar/> is the fixed toolbar (buttons dispatch commands in JS).
    - <LexicalFloatingToolbar/> pops above the current text selection.
    - <LexicalSlashMenu/> opens when you type "/" at the start of a line.
-   - <LexicalDragHandle/> shows a grip + "+" in the left gutter on hover.
+   - <LexicalBlockGutter/> is a per-block hover rail; there are two below — a left one
+     inside the card holding the built-in "+" and drag grip, and a right one hanging
+     outside it holding our own bookmark button.
    - <LexicalTableEditor/> floats an action menu inside the caret's table cell.
    - <LexicalMention/> configs enable @-mentions and #-hashtags (see below).
+   - <LexicalToc/> stamps a slug id on every heading and renders the outline beside it.
+   - <LexicalMarks/> attaches this page's own ids to spans of text.
+   - <LexicalStats/> writes live counts under the editor.
    None of the overlays add any JS↔.NET interop — they position Blazor-authored
    markup in JS and reuse the same data-lexical-command dispatch as the toolbar.
    Insert a table from the toolbar's "Insert ▾" grid picker or the "/table" item.
    InitialContent preloads the sample document inside create(), so it is there on the
    first paint — no @ref, no OnReady round-trip, and no flash of an empty editor.
    The "Reload sample" button below shows the imperative path (SetHtmlAsync). *@
+<div class="demo-editor-row">
 <LexicalEditor @ref="_editor"
                Placeholder="@PlaceholderText"
                Theme="LexicalTheme.Default"
@@ -33,7 +39,28 @@
     <LexicalToolbar />
     <LexicalFloatingToolbar />
     <LexicalLinkEditor />
-    <LexicalDragHandle />
+    @* The playground-style left rail, composed from its two built-in items. Both are
+       pure markup driven in JS — no interop. *@
+    <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+        <LexicalAddBlockButton />
+        <LexicalDragHandle />
+    </LexicalBlockGutter>
+    @* The outline renders into #demo-outline entirely client-side, AND pushes the
+       model to C# (because OnTocChanged is wired) for the Blazor-rendered copy. *@
+    <LexicalToc TargetSelector="#demo-outline"
+                AnchorPrefix="demo-"
+                MaxLevel="3"
+                OnTocChanged="e => _outline = e" />
+    @* Highlight ids are minted by this page — the library never invents one. *@
+    <LexicalMarks @ref="_marks" OnMarkClicked="OnMarkClicked" />
+    <LexicalStats TargetSelector="#demo-stats"
+                  Template="{words} words · {characters} characters · {readingMinutes} min read" />
+    @* A second rail, hanging OUTSIDE the card on the right, holding an app-specific
+       action. LexicalGutterButton hands the handler the block it is beside, so there is
+       no @ref bookkeeping. *@
+    <LexicalBlockGutter Position="LexicalGutterPosition.RightOutside">
+        <LexicalGutterButton OnClick="BookmarkBlock" Title="Bookmark">🔖</LexicalGutterButton>
+    </LexicalBlockGutter>
     @* Tables are an extension: declaring it is what loads the ~90kb @lexical/table
        chunk and lights up the toolbar picker, the "/table" item, and the action menu. *@
     <LexicalTables />
@@ -61,15 +88,32 @@
     </LexicalSlashMenu>
 </LexicalEditor>
 
-<div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+    @* Two views of the same outline: the one JS renders (client-side, real "#anchor"
+       hrefs) and the one Blazor renders from the pushed model. LexicalTocList takes
+       data rather than an editor, so it can sit anywhere on the page. *@
+    <aside class="demo-outline">
+        <h2>Outline (rendered by JS)</h2>
+        <nav id="demo-outline"></nav>
+        <h2>Outline (rendered by Blazor)</h2>
+        <LexicalTocList Entries="_outline" />
+    </aside>
+</div>
+
+<p id="demo-stats" class="demo-stats"></p>
+
+<div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
     <button class="btn btn-primary" @onclick="SetText">Set text</button>
     <button class="btn btn-secondary" @onclick="GetText">Get text</button>
     <button class="btn btn-secondary" @onclick="LoadSample">Reload sample</button>
+    <button class="btn btn-secondary" @onclick="HighlightSelection">Highlight selection</button>
+    <button class="btn btn-secondary" @onclick="ClearHighlights">Clear highlights</button>
 </div>
 
 <p style="margin-top: 1rem;"><strong>Get text result:</strong> <span id="get-result">@_getResult</span></p>
 <p><strong>Live change:</strong> <span id="change-result">@_changeResult</span></p>
 <p><strong>Last mention picked:</strong> <span id="mention-result">@_mentionResult</span></p>
+<p><strong>Highlight:</strong> <span id="mark-result">@_markResult</span></p>
+<p><strong>Bookmarked:</strong> <span id="block-result">@_blockResult</span></p>
 
 <h2 style="margin-top: 2.5rem;">Extensions</h2>
 
@@ -103,6 +147,12 @@
 
 @code {
     private LexicalEditor? _editor;
+    private LexicalMarks? _marks;
+    private IReadOnlyList<LexicalTocEntry> _outline = [];
+    private string _markResult = "";
+    private string _blockResult = "";
+    private int _nextHighlight = 1;
+    private readonly List<string> _highlights = [];
     private BadgeExtension? _badge;
     private string _badgeResult = "";
     private int _badgeCount;
@@ -133,11 +183,21 @@
     // #hashtags are plain text that the freeform config highlights live on load.
     private string SampleHtml =>
         $"""
+        <h1>Blazor.Lexical</h1>
         <p>Welcome to the <strong>Blazor.Lexical</strong> demo. This paragraph mentions
         {Mention("ada", "@Ada Lovelace")} and tags a couple of topics like #blazor and #lexical.</p>
+        <h2>Mentions and hashtags</h2>
         <p>Try it yourself: type <code>@</code> to search the directory (for example
         {Mention("grace", "@Grace Hopper")} or @alan), then keep writing with #hashtags
         such as #richtext or #webassembly — they highlight as you type.</p>
+        <h2>Outline and highlights</h2>
+        <p>The headings here drive the two outlines beside the editor, and each one has a
+        slug id — so this link to <a href="#demo-mentions-and-hashtags">#demo-mentions-and-hashtags</a>
+        works from anywhere on the page. Rename a heading and both outlines follow.</p>
+        <h3>Marks</h3>
+        <p>Select some of this text and press “Highlight selection”: the mark is keyed by an
+        id <em>this page</em> mints, which is what makes marks useful for comments. Overlap
+        two of them and the shared span carries both ids.</p>
         """;
 
     // Builds one preloaded @-mention span matching the "@" config's DOM shape.
@@ -216,6 +276,53 @@
             _badgeCount = await _badge.CountBadgesAsync();
         }
     }
+
+    // Mark ids are the APP's, not the library's: this page mints them, stores them, and
+    // is the only thing that knows what they mean.
+    private async Task HighlightSelection()
+    {
+        if (_marks is null)
+        {
+            return;
+        }
+        var id = $"highlight-{_nextHighlight}";
+        if (await _marks.WrapSelectionInMarkAsync(id))
+        {
+            _highlights.Add(id);
+            _nextHighlight++;
+            _markResult = $"added {id}";
+        }
+        else
+        {
+            _markResult = "select some text first";
+        }
+    }
+
+    private async Task ClearHighlights()
+    {
+        if (_marks is null)
+        {
+            return;
+        }
+        foreach (var id in _highlights)
+        {
+            await _marks.RemoveMarkAsync(id);
+        }
+        _highlights.Clear();
+        _markResult = "cleared";
+    }
+
+    // Several ids arrive when highlights overlap — a span belongs to every mark
+    // covering it.
+    private void OnMarkClicked(IReadOnlyList<string> ids) =>
+        _markResult = $"clicked {string.Join(" + ", ids)}";
+
+    // A gutter button is handed the block it is beside. Index (not NodeKey) is the
+    // durable half of that reference.
+    private void BookmarkBlock(LexicalBlockRef? block) =>
+        _blockResult = block is null
+            ? "(no block hovered)"
+            : $"block {block.Index} ({block.BlockType}): {block.TextPreview}";
 
     // Escape-hatch slash action: insert today's date at the caret via the cascaded
     // editor. This runs after JS has removed the "/query" trigger text.

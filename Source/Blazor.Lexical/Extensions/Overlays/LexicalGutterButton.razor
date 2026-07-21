@@ -1,0 +1,51 @@
+@namespace Blazor.Lexical
+@implements IDisposable
+
+@* A host-action button for a <LexicalBlockGutter> — the gutter's answer to a toolbar's
+   <button @onclick>. It carries the built-in rail styling and hands the hovered block
+   straight to the handler, so the common case needs no @ref and no manual bookkeeping:
+
+     <LexicalBlockGutter>
+         <LexicalGutterButton OnClick="Comment" Title="Comment on this block">💬</LexicalGutterButton>
+     </LexicalBlockGutter>
+
+   Unlike <LexicalDragHandle> and <LexicalAddBlockButton> — which are pure markup driven
+   entirely in JS — this one runs C#, so it is invariant 4's escape hatch and rides the
+   ordinary Blazor @onclick. Placing one also arms the hover channel, since a handler that
+   is told which block it is acting on is the only useful kind. *@
+<button type="button"
+        class="blazor-lexical__gutter-item blazor-lexical__gutter-btn @CssClass"
+        title="@Title"
+        aria-label="@Title"
+        @onclick="Clicked"
+        @onclick:preventDefault="true">
+    @ChildContent
+</button>
+
+@code {
+    /// <summary>The gutter this button sits in, supplied by its cascade.</summary>
+    [CascadingParameter] private LexicalBlockGutter? Gutter { get; set; }
+
+    /// <summary>The button's content — a glyph, an icon, or whatever you like.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Fires when the button is clicked, carrying the block the rail is currently beside
+    /// (<c>null</c> only if the pointer left the content between the hover and the click).
+    /// </summary>
+    [Parameter] public EventCallback<LexicalBlockRef?> OnClick { get; set; }
+
+    /// <summary>Tooltip / accessible label for the button.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) applied to the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Gutter?.RegisterButton(this);
+
+    /// <inheritdoc />
+    public void Dispose() => Gutter?.UnregisterButton(this);
+
+    private Task Clicked() => OnClick.InvokeAsync(Gutter?.HoveredBlock);
+}

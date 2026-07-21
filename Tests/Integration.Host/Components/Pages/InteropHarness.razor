@@ -124,7 +124,11 @@
                    Theme="LexicalTheme.Default">
         <LexicalFloatingToolbar />
         <LexicalSlashMenu />
-        <LexicalDragHandle />
+        @* The playground-style left rail, composed from its two items. *@
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+            <LexicalAddBlockButton />
+            <LexicalDragHandle />
+        </LexicalBlockGutter>
     </LexicalEditor>
 </section>
 
@@ -235,6 +239,158 @@
                    Theme="LexicalTheme.Default">
         <BadgeExtension Label="Quiet" />
     </LexicalEditor>
+</section>
+
+<section>
+    <h2>TOC — heading outline, rendered by JS and pushed to .NET</h2>
+    @* Paired like .harness-format / .harness-notify:
+
+         * editor-toc-notify wires OnTocChanged AND a render target, so both surfaces
+           run: JS builds #toc-target-notify and the model reaches C#.
+         * editor-toc-quiet renders into #toc-target-quiet with no callback at all —
+           the anchors and the list still appear, with zero JS→.NET calls. *@
+    <LexicalEditor @ref="_tocNotify"
+                   Id="editor-toc-notify"
+                   CssClass="harness-toc-notify"
+                   Theme="LexicalTheme.Default">
+        <LexicalToc @ref="_tocNotifyExt"
+                    TargetSelector="#toc-target-notify"
+                    MaxLevel="3"
+                    AnchorPrefix="n-"
+                    OnTocChanged="OnTocChanged" />
+    </LexicalEditor>
+    <nav id="toc-target-notify"></nav>
+    <p>TOC count: <span id="toc-count">@_tocCount</span></p>
+    <p>TOC push count: <span id="toc-push-count">@_tocPushCount</span></p>
+    <p>TOC flat: <span id="toc-flat">@_tocFlat</span></p>
+
+    @* The same model, rendered by Blazor instead of by JS. *@
+    <LexicalTocList Entries="_tocEntries" CssClass="harness-toc-list" />
+
+    <div>
+        <button id="btn-toc-get" @onclick="GetToc">Get TOC</button>
+        <button id="btn-toc-scroll" @onclick="ScrollToFirstAnchor">Scroll to first</button>
+    </div>
+    <p>TOC get result: <span id="toc-get-result">@_tocGetResult</span></p>
+    <p>TOC scroll result: <span id="toc-scroll-result">@_tocScrollResult</span></p>
+
+    <LexicalEditor Id="editor-toc-quiet"
+                   CssClass="harness-toc-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalToc TargetSelector="#toc-target-quiet" AnchorPrefix="q-" />
+    </LexicalEditor>
+    <nav id="toc-target-quiet"></nav>
+</section>
+
+<section>
+    <h2>Marks — app-owned ids over spans of text</h2>
+    @* editor-marks-notify wires both callbacks (opt-in interop); editor-marks-quiet
+       wires neither, so wrapping and removing still work from C# while JS never calls
+       back. Mark ids are minted here, by the app — the library never generates one. *@
+    <LexicalEditor @ref="_marksNotify"
+                   Id="editor-marks-notify"
+                   CssClass="harness-marks-notify"
+                   Theme="LexicalTheme.Default"
+                   OnContentChanged="OnMarksContent">
+        <LexicalMarks @ref="_marksNotifyExt"
+                      OnMarkClicked="OnMarkClicked"
+                      OnActiveMarksChanged="OnActiveMarksChanged" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-mark-wrap-a" @onclick="@(() => WrapMark("mark-a"))">Mark A</button>
+        <button id="btn-mark-wrap-b" @onclick="@(() => WrapMark("mark-b"))">Mark B</button>
+        <button id="btn-mark-ids" @onclick="ListMarkIds">List ids</button>
+        <button id="btn-mark-ids-sel" @onclick="ListMarkIdsAtSelection">Ids at selection</button>
+        <button id="btn-mark-remove-a" @onclick="@(() => RemoveMark("mark-a", false))">Remove A</button>
+        <button id="btn-mark-remove-a-silent" @onclick="@(() => RemoveMark("mark-a", true))">Remove A (silent)</button>
+        <button id="btn-mark-active" @onclick="@(() => SetActiveMark("mark-a"))">Activate A</button>
+    </div>
+    <p>Mark clicked: <span id="mark-clicked">@_markClicked</span></p>
+    <p>Mark active push: <span id="mark-active">@_markActive</span></p>
+    <p>Mark ids: <span id="mark-ids">@_markIds</span></p>
+    <p>Mark ids at selection: <span id="mark-ids-selection">@_markIdsAtSelection</span></p>
+    <p>Mark wrap result: <span id="mark-wrap-result">@_markWrapResult</span></p>
+    <p>Mark remove count: <span id="mark-remove-count">@_markRemoveCount</span></p>
+    <p>Marks content-change count: <span id="marks-change-count">@_marksChangeCount</span></p>
+
+    <LexicalEditor @ref="_marksQuiet"
+                   Id="editor-marks-quiet"
+                   CssClass="harness-marks-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalMarks @ref="_marksQuietExt" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-mark-quiet-wrap" @onclick="WrapQuietMark">Mark (quiet)</button>
+    </div>
+</section>
+
+<section>
+    <h2>Stats — word/character counts written to the page and pushed to .NET</h2>
+    <LexicalEditor @ref="_statsNotify"
+                   Id="editor-stats-notify"
+                   CssClass="harness-stats-notify"
+                   Theme="LexicalTheme.Default">
+        <LexicalStats @ref="_statsNotifyExt"
+                      TargetSelector="#stats-target-notify"
+                      Template="{words}w/{characters}c"
+                      OnStatsChanged="OnStatsChanged" />
+    </LexicalEditor>
+    <p>Stats target: <span id="stats-target-notify"></span></p>
+    <p>Stats push: <span id="stats-push">@_statsPush</span></p>
+    <div>
+        <button id="btn-stats-get" @onclick="GetStats">Get stats</button>
+    </div>
+    <p>Stats get result: <span id="stats-get-result">@_statsGetResult</span></p>
+
+    <LexicalEditor Id="editor-stats-quiet"
+                   CssClass="harness-stats-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalStats TargetSelector="#stats-target-quiet" Template="{words} words" />
+    </LexicalEditor>
+    <p>Stats quiet target: <span id="stats-target-quiet"></span></p>
+</section>
+
+<section>
+    <h2>Block gutter — composable per-block rails</h2>
+    @* editor-gutter-notify carries TWO rails, proving they coexist: a left rail with the
+       two built-in JS-driven items, and a right rail with host actions. OnBlockHovered is
+       wired on the right one only, so the fan-out and the per-rail arming are both
+       exercised. editor-gutter-quiet places a rail with no callback and no
+       LexicalGutterButton — it reveals and its plain @onclick button works with zero
+       JS→.NET calls. *@
+    <LexicalEditor @ref="_gutterNotify"
+                   Id="editor-gutter-notify"
+                   CssClass="harness-gutter-notify"
+                   Theme="LexicalTheme.Default">
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside" CssClass="harness-gutter-left">
+            <LexicalAddBlockButton />
+            <LexicalDragHandle />
+        </LexicalBlockGutter>
+        @* Deliberately OUTSIDE the card: that is the layout the hover grace window has to
+           survive, since travelling to it crosses page pixels the editor root does not own. *@
+        <LexicalBlockGutter @ref="_gutterNotifyExt"
+                            Position="LexicalGutterPosition.RightOutside"
+                            CssClass="harness-gutter-right"
+                            OnBlockHovered="OnBlockHovered">
+            <button id="btn-gutter-action" type="button" @onclick="GutterAction">★</button>
+            @* The typed item: it is handed the block itself, no @ref bookkeeping. *@
+            <LexicalGutterButton OnClick="GutterTypedAction" CssClass="harness-gutter-typed">☆</LexicalGutterButton>
+        </LexicalBlockGutter>
+    </LexicalEditor>
+    <p>Gutter hovered: <span id="gutter-hovered">@_gutterHovered</span></p>
+    <p>Gutter hover count: <span id="gutter-hover-count">@_gutterHoverCount</span></p>
+    <p>Gutter action: <span id="gutter-action">@_gutterAction</span></p>
+    <p>Gutter typed action: <span id="gutter-typed-action">@_gutterTypedAction</span></p>
+
+    <LexicalEditor Id="editor-gutter-quiet"
+                   CssClass="harness-gutter-quiet"
+                   Theme="LexicalTheme.Default">
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+            <button id="btn-gutter-quiet-action" type="button" @onclick="GutterQuietAction">☆</button>
+        </LexicalBlockGutter>
+    </LexicalEditor>
+    <p>Gutter quiet action: <span id="gutter-quiet-action">@_gutterQuietAction</span></p>
 </section>
 
 <section>
@@ -412,6 +568,178 @@
     private int _signalArgLength = -1;
     private string _signalLast = "";
     private string _notifyLast = "";
+
+    private LexicalEditor? _tocNotify;
+    private LexicalToc? _tocNotifyExt;
+    private IReadOnlyList<LexicalTocEntry> _tocEntries = [];
+    private int _tocCount;
+    private int _tocPushCount;
+    private string _tocFlat = "";
+    private string _tocGetResult = "";
+    private string _tocScrollResult = "";
+
+    private LexicalEditor? _marksNotify;
+    private LexicalEditor? _marksQuiet;
+    private LexicalMarks? _marksNotifyExt;
+    private LexicalMarks? _marksQuietExt;
+    private string _markClicked = "";
+    private string _markActive = "";
+    private string _markIds = "";
+    private string _markIdsAtSelection = "";
+    private string _markWrapResult = "";
+    private int _markRemoveCount;
+    private int _marksChangeCount;
+
+    private LexicalEditor? _statsNotify;
+    private LexicalStats? _statsNotifyExt;
+    private string _statsPush = "";
+    private string _statsGetResult = "";
+
+    private LexicalEditor? _gutterNotify;
+    private LexicalBlockGutter? _gutterNotifyExt;
+    private string _gutterHovered = "";
+    private int _gutterHoverCount;
+    private string _gutterAction = "";
+    private string _gutterTypedAction = "";
+    private string _gutterQuietAction = "";
+
+    // --- TOC ------------------------------------------------------------
+
+    // The push carries the whole tree, so nothing here needs a follow-up call.
+    private void OnTocChanged(IReadOnlyList<LexicalTocEntry> entries)
+    {
+        _tocEntries = entries;
+        _tocCount = entries.Count;
+        _tocPushCount++;
+        _tocFlat = string.Join(",", Flatten(entries).Select(e => $"{e.Level}:{e.AnchorId}"));
+    }
+
+    /// <summary>Depth-first walk, so a test can assert nesting from one flat string.</summary>
+    private static IEnumerable<LexicalTocEntry> Flatten(IReadOnlyList<LexicalTocEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            yield return entry;
+            foreach (var child in Flatten(entry.Children))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private async Task GetToc()
+    {
+        if (_tocNotifyExt is not null)
+        {
+            var entries = await _tocNotifyExt.GetTocAsync();
+            _tocGetResult = string.Join(",", Flatten(entries).Select(e => e.AnchorId));
+        }
+    }
+
+    private async Task ScrollToFirstAnchor()
+    {
+        if (_tocNotifyExt is not null)
+        {
+            var first = _tocEntries.FirstOrDefault();
+            _tocScrollResult = first is null
+                ? "(none)"
+                : (await _tocNotifyExt.ScrollToAnchorAsync(first.AnchorId)).ToString();
+        }
+    }
+
+    // --- Marks ----------------------------------------------------------
+
+    private void OnMarksContent(LexicalContent content) => _marksChangeCount++;
+
+    private void OnMarkClicked(IReadOnlyList<string> ids) => _markClicked = string.Join(",", ids);
+
+    private void OnActiveMarksChanged(IReadOnlyList<string> ids) =>
+        _markActive = string.Join(",", ids);
+
+    // The id is minted here, by the app — that is the whole contract.
+    private async Task WrapMark(string markId)
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markWrapResult = (await _marksNotifyExt.WrapSelectionInMarkAsync(markId)).ToString();
+        }
+    }
+
+    private async Task WrapQuietMark()
+    {
+        if (_marksQuietExt is not null)
+        {
+            await _marksQuietExt.WrapSelectionInMarkAsync("quiet-mark");
+        }
+    }
+
+    private async Task ListMarkIds()
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markIds = string.Join(",", await _marksNotifyExt.GetMarkIdsAsync());
+        }
+    }
+
+    private async Task ListMarkIdsAtSelection()
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markIdsAtSelection =
+                string.Join(",", await _marksNotifyExt.GetMarkIdsAtSelectionAsync());
+        }
+    }
+
+    private async Task RemoveMark(string markId, bool silent)
+    {
+        if (_marksNotifyExt is not null)
+        {
+            _markRemoveCount = await _marksNotifyExt.RemoveMarkAsync(markId, silent);
+        }
+    }
+
+    private async Task SetActiveMark(string markId)
+    {
+        if (_marksNotifyExt is not null)
+        {
+            await _marksNotifyExt.SetActiveMarkAsync(markId);
+        }
+    }
+
+    // --- Stats ----------------------------------------------------------
+
+    private void OnStatsChanged(LexicalDocumentStats stats) =>
+        _statsPush = $"{stats.Words}|{stats.Characters}|{stats.Paragraphs}|{stats.ReadingMinutes}";
+
+    private async Task GetStats()
+    {
+        if (_statsNotifyExt is not null)
+        {
+            var stats = await _statsNotifyExt.GetStatsAsync();
+            _statsGetResult = $"{stats.Words}|{stats.CharactersNoSpaces}";
+        }
+    }
+
+    // --- Block gutter ---------------------------------------------------
+
+    private void OnBlockHovered(LexicalBlockRef? block)
+    {
+        _gutterHovered = block is null ? "(none)" : $"{block.Index}|{block.BlockType}";
+        _gutterHoverCount++;
+    }
+
+    // An ordinary Blazor @onclick inside the gutter — invariant 4's escape hatch. It
+    // reads HoveredBlock for the block it acts on.
+    private void GutterAction() =>
+        _gutterAction = _gutterNotifyExt?.HoveredBlock is { } block
+            ? $"{block.Index}|{block.TextPreview}"
+            : "(no block)";
+
+    // The typed item is handed the block directly — no @ref, no HoveredBlock read.
+    private void GutterTypedAction(LexicalBlockRef? block) =>
+        _gutterTypedAction = block is null ? "(no block)" : $"{block.Index}|{block.BlockType}";
+
+    private void GutterQuietAction() => _gutterQuietAction = "clicked";
 
     // Initial content, one constant per format. Each carries a distinct marker string
     // so a test can tell which format actually loaded.

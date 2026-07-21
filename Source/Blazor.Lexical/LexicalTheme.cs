@@ -64,6 +64,20 @@ public sealed class LexicalTheme
     public string? MentionHighlight { get; set; }
 
     /// <summary>
+    /// Class for a marked (highlighted) span — the node <see cref="LexicalMarks"/>
+    /// contributes. Rendered as a <c>&lt;mark&gt;</c>, so the default style is a tinted
+    /// background carrying the app's own mark id.
+    /// </summary>
+    public string? Mark { get; set; }
+
+    /// <summary>
+    /// Class added <i>alongside</i> <see cref="Mark"/> when a span carries more than one
+    /// mark id — two comment threads over the same words, say. Use it to make the overlap
+    /// visible (a deeper tint, an underline) rather than letting two marks read as one.
+    /// </summary>
+    public string? MarkOverlap { get; set; }
+
+    /// <summary>
     /// The theme whose class names are styled by the bundled <c>blazor-lexical.css</c>,
     /// giving formatting a sensible default appearance out of the box.
     /// </summary>
@@ -74,6 +88,8 @@ public sealed class LexicalTheme
         Link = "blazor-lexical__link",
         Mention = "blazor-lexical__mention",
         MentionHighlight = "blazor-lexical__mention-highlight",
+        Mark = "blazor-lexical__mark",
+        MarkOverlap = "blazor-lexical__mark--overlap",
         Table = "blazor-lexical__table",
         TableCell = "blazor-lexical__table-cell",
         TableCellHeader = "blazor-lexical__table-cell-header",

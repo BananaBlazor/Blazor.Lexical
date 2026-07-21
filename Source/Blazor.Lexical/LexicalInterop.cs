@@ -158,6 +158,58 @@ internal sealed class LexicalNotifyFlags
 
     /// <summary>Push selection formatting state (<c>OnSelectionChangedInternal</c>).</summary>
     public bool Selection { get; set; }
+
+    /// <summary>
+    /// Push the hovered top-level block (<c>OnBlockHoveredInternal</c>). Armed only when a
+    /// <see cref="LexicalBlockGutter"/> is present <i>and</i> its
+    /// <see cref="LexicalBlockGutter.OnBlockHovered"/> is wired.
+    /// </summary>
+    public bool BlockHover { get; set; }
+}
+
+/// <summary>
+/// The TOC built-in's <c>GetOptions()</c> payload — the mirror of the JS
+/// <c>TocOptionsDto</c>. Everything here is per-instance configuration; the outline model
+/// itself travels the other way, over the extension channel.
+/// </summary>
+internal sealed class TocExtensionOptionsDto
+{
+    /// <summary>CSS selector of the element the outline is rendered into; null ⇒ none.</summary>
+    public string? TargetSelector { get; set; }
+
+    /// <summary>Shallowest heading level to include (1 = h1).</summary>
+    public int MinLevel { get; set; } = 1;
+
+    /// <summary>Deepest heading level to include (3 = h3).</summary>
+    public int MaxLevel { get; set; } = 3;
+
+    /// <summary>Prepended to every generated anchor, so two editors can't collide.</summary>
+    public string? AnchorPrefix { get; set; }
+
+    /// <summary>Mark the item for the heading at the top of the scroll container.</summary>
+    public bool ScrollSpy { get; set; } = true;
+
+    /// <summary>Scroll smoothly when an item is clicked.</summary>
+    public bool SmoothScroll { get; set; } = true;
+
+    /// <summary>Place the caret in the heading when an item is clicked.</summary>
+    public bool FocusOnClick { get; set; }
+}
+
+/// <summary>
+/// The stats built-in's <c>GetOptions()</c> payload — the mirror of the JS
+/// <c>StatsOptionsDto</c>.
+/// </summary>
+internal sealed class StatsExtensionOptionsDto
+{
+    /// <summary>CSS selector of the element the formatted line is written into; null ⇒ none.</summary>
+    public string? TargetSelector { get; set; }
+
+    /// <summary>Template for that line; <c>{words}</c> and friends are substituted.</summary>
+    public string? Template { get; set; }
+
+    /// <summary>Reading speed used for the reading-time estimate.</summary>
+    public int WordsPerMinute { get; set; } = 200;
 }
 
 /// <summary>
@@ -207,6 +259,13 @@ internal sealed class LexicalSelectionStateDto
 [JsonSerializable(typeof(ExtensionDescriptorDto))]
 [JsonSerializable(typeof(MentionItem[]))]
 [JsonSerializable(typeof(LexicalMentionRef[]))]
+[JsonSerializable(typeof(TocExtensionOptionsDto))]
+[JsonSerializable(typeof(LexicalTocEntry[]))]
+[JsonSerializable(typeof(StatsExtensionOptionsDto))]
+[JsonSerializable(typeof(LexicalDocumentStats))]
+[JsonSerializable(typeof(LexicalBlockRef))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(string[]))]
 internal partial class LexicalJsonSerializerContext : JsonSerializerContext
 {
 }

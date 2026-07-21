@@ -1,0 +1,123 @@
+@namespace Blazor.Lexical
+@implements IDisposable
+
+@* A per-block hover rail. Rendered as ChildContent inside <LexicalEditor>, it stays
+   hidden until the pointer moves over a block, then JS floats it beside that block
+   (marker: data-lexical-block-gutter) and stamps the block's key, index and element type
+   onto the container so host markup can style or read them.
+
+   It is a CONTAINER, the way <LexicalToolbar> is: what goes in it is a list of items,
+   each addable on its own. The built-ins are pure markup driven in JS —
+   <LexicalDragHandle> (drag to reorder) and <LexicalAddBlockButton> ("+") — and
+   <LexicalGutterButton> (or any plain <button @onclick>) runs your own C#.
+
+     <LexicalEditor>
+         <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+             <LexicalAddBlockButton />
+             <LexicalDragHandle />
+         </LexicalBlockGutter>
+         <LexicalBlockGutter>
+             <LexicalGutterButton OnClick="Comment">💬</LexicalGutterButton>
+         </LexicalBlockGutter>
+     </LexicalEditor>
+
+   Several rails per editor are fine; same-side ones stack outward from the text in
+   declaration order. They share one hover hit-test and one drop-line indicator, so the
+   cost is per editor, not per rail.
+
+   Pushing the hovered block to .NET is opt-in: with no OnBlockHovered delegate and no
+   <LexicalGutterButton>, this does zero JS→.NET calls. *@
+<CascadingValue Value="this" IsFixed="true">
+    <div class="blazor-lexical__block-gutter @CssClass"
+         data-lexical-block-gutter
+         data-lexical-block-gutter-position="@PositionToken">
+        @ChildContent
+    </div>
+</CascadingValue>
+
+@code {
+    /// <summary>The editor this gutter belongs to, supplied by <see cref="LexicalEditor"/>'s cascade.</summary>
+    [CascadingParameter] private LexicalEditor? Editor { get; set; }
+
+    /// <summary>
+    /// The rail's items, in order — <see cref="LexicalDragHandle"/>,
+    /// <see cref="LexicalAddBlockButton"/>, <see cref="LexicalGutterButton"/>, or any
+    /// markup of your own.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Where this rail floats — which margin, and whether it sits inside the editor card
+    /// or hangs off it. Defaults to <see cref="LexicalGutterPosition.RightInside"/>; the
+    /// playground-style grip and "+" rail conventionally goes
+    /// <see cref="LexicalGutterPosition.LeftInside"/>. Rails sharing a position stack
+    /// outward from their anchor edge in declaration order.
+    /// </summary>
+    [Parameter] public LexicalGutterPosition Position { get; set; } = LexicalGutterPosition.RightInside;
+
+    /// <summary>Extra CSS class(es) applied to the rail container.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>
+    /// Fires when the pointer moves onto a different block, carrying that block — and with
+    /// <c>null</c> when it leaves the content entirely. Deduped by node key and debounced
+    /// JS-side, so it is one crossing per block, not per mouse move.
+    /// <para>
+    /// You do not need this to write a <see cref="LexicalGutterButton"/>: that hands its
+    /// handler the block already. Wire it when you want to react to the hover itself.
+    /// </para>
+    /// </summary>
+    [Parameter] public EventCallback<LexicalBlockRef?> OnBlockHovered { get; set; }
+
+    /// <summary>
+    /// The block this rail is currently beside, or <c>null</c>. Populated whenever the
+    /// hover channel is armed — i.e. when <see cref="OnBlockHovered"/> is wired or the
+    /// rail holds at least one <see cref="LexicalGutterButton"/>.
+    /// </summary>
+    public LexicalBlockRef? HoveredBlock { get; private set; }
+
+    private readonly List<LexicalGutterButton> _buttons = [];
+
+    /// <summary>The wire token JS reads off the marker; mirrors the JS `GutterPosition`.</summary>
+    private string PositionToken => Position switch
+    {
+        LexicalGutterPosition.LeftInside => "left-inside",
+        LexicalGutterPosition.LeftOutside => "left-outside",
+        LexicalGutterPosition.RightOutside => "right-outside",
+        _ => "right-inside",
+    };
+
+    /// <summary>
+    /// Whether the hovered-block push should be armed for this rail. A
+    /// <see cref="LexicalGutterButton"/> counts: it is handed the block on click, and a
+    /// per-block button that cannot tell which block it is on would be useless. Not part
+    /// of the public API.
+    /// </summary>
+    internal bool WantsHoverPush => OnBlockHovered.HasDelegate || _buttons.Count > 0;
+
+    /// <summary>Registers a child <see cref="LexicalGutterButton"/>. Not part of the public API.</summary>
+    internal void RegisterButton(LexicalGutterButton button)
+    {
+        if (!_buttons.Contains(button))
+        {
+            _buttons.Add(button);
+        }
+    }
+
+    /// <summary>Removes a child <see cref="LexicalGutterButton"/>. Not part of the public API.</summary>
+    internal void UnregisterButton(LexicalGutterButton button) => _buttons.Remove(button);
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Editor?.RegisterBlockGutter(this);
+
+    /// <inheritdoc />
+    public void Dispose() => Editor?.UnregisterBlockGutter(this);
+
+    /// <summary>Receives the hover push from the editor's JS half. Not part of the public API.</summary>
+    internal async Task NotifyBlockHoveredAsync(LexicalBlockRef? block)
+    {
+        HoveredBlock = block;
+        StateHasChanged();
+        await OnBlockHovered.InvokeAsync(block);
+    }
+}

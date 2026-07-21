@@ -51,7 +51,7 @@ import * as lexicalUtils from '@lexical/utils';
 import {
   registerFloatingToolbar,
   registerSlashMenu,
-  registerDragHandle,
+  registerBlockGutters,
   registerLinkEditor,
   OPEN_LINK_EDITOR_COMMAND,
 } from './overlays';
@@ -61,6 +61,14 @@ import {
 // configs. Written as a self-contained module, so making it a lazy chunk later is a
 // one-line change (swap this for a dynamic import, mirroring './table').
 import * as mentionsRuntime from './mentions';
+// The same static-in-core tier as mentions, for the same reason: each of these is
+// well under a couple of kilobytes and needs nothing that isn't already bundled
+// (toc/stats: `lexical` + `@lexical/rich-text`; marks: `@lexical/mark`, ~2kb and
+// node-registering). Making any of them a lazy chunk later is a one-line change
+// here — swap the static import for a literal `import()`, mirroring './table'.
+import tocRuntime from './toc';
+import marksRuntime from './marks';
+import statsRuntime from './stats';
 // Consumer extension contract — types only (see extension.ts), so this import is
 // erased and the external modules stay entirely outside our bundle.
 import type {
@@ -100,6 +108,12 @@ interface NotifyFlags {
   contentPayload: 'signalOnly' | 'text' | 'html' | 'markdown' | 'stateJson';
   /** Push selection formatting state (OnSelectionChangedInternal). */
   selection: boolean;
+  /**
+   * Push the hovered top-level block (OnBlockHoveredInternal). Armed only when a
+   * <LexicalBlockGutter> wired OnBlockHovered — the gutter is otherwise pure JS.
+   * Deduped by node key, so it is one crossing per block change, not per mousemove.
+   */
+  blockHover: boolean;
 }
 
 /** The editor's initial content, applied inside create(). */
@@ -653,6 +667,7 @@ export async function create(
     content: options.notify?.content ?? false,
     contentPayload: options.notify?.contentPayload ?? 'text',
     selection: options.notify?.selection ?? false,
+    blockHover: options.notify?.blockHover ?? false,
   };
 
   // Every feature and extension this editor runs, loaded through one contract before
@@ -687,6 +702,12 @@ export async function create(
           // Statically imported (it is ~4kb), so this costs no extra fetch.
           mentionsModule = mentionsRuntime;
           factory = mentionsRuntime.default;
+        } else if (desc.builtIn === 'toc') {
+          factory = tocRuntime;
+        } else if (desc.builtIn === 'marks') {
+          factory = marksRuntime;
+        } else if (desc.builtIn === 'stats') {
+          factory = statsRuntime;
         } else if (desc.builtIn) {
           console.error(`[Blazor.Lexical] unknown built-in extension '${desc.builtIn}'`);
           continue;
@@ -831,9 +852,24 @@ export async function create(
   if (slashMenuEl) {
     cleanups.push(registerSlashMenu(editor, root, contentEl, slashMenuEl));
   }
-  const dragHandleEl = root.querySelector<HTMLElement>('[data-lexical-drag-handle]');
-  if (dragHandleEl) {
-    cleanups.push(registerDragHandle(editor, root, contentEl, dragHandleEl));
+  // Every block gutter at once (querySelectorAll, not querySelector): a host may place
+  // several — a left rail with the grip and "+", a right rail with its own actions — and
+  // they share one hover hit-test, one drop line, and one delegated drag/click pair.
+  const blockGutterEls = Array.from(
+    root.querySelectorAll<HTMLElement>('[data-lexical-block-gutter]'),
+  );
+  if (blockGutterEls.length > 0) {
+    cleanups.push(
+      registerBlockGutters(editor, root, contentEl, blockGutterEls, (block) => {
+        // The one overlay with an (opt-in) push: the host's OnBlockHovered. The flag is
+        // read at fire time so setNotifications can arm it after create().
+        if (notify.blockHover) {
+          dotNetRef
+            .invokeMethodAsync('OnBlockHoveredInternal', block === null ? null : JSON.stringify(block))
+            .catch(() => {});
+        }
+      }),
+    );
   }
   const linkEditorEl = root.querySelector<HTMLElement>('[data-lexical-link-editor]');
   if (linkEditorEl) {
@@ -944,6 +980,9 @@ export async function create(
       }
       if (flags.contentPayload !== undefined) {
         notify.contentPayload = flags.contentPayload;
+      }
+      if (flags.blockHover !== undefined) {
+        notify.blockHover = flags.blockHover;
       }
       if (flags.selection !== undefined) {
         notify.selection = flags.selection;

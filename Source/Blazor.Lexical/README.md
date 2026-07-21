@@ -14,6 +14,9 @@ Works with both Blazor Server (InteractiveServer) and Blazor WebAssembly.
 - Preload a document with `InitialContent` — no `@ref`, no empty first paint
 - Debounced `OnContentChanged` callback, in the format you ask for (or a dirty signal)
 - Read-only mode, placeholder text, and per-instance or app-wide themes
+- Tables, mentions/hashtags, a live table of contents, marks (app-owned highlight ids),
+  document statistics, and a per-block hover gutter you can put your own buttons in —
+  each an opt-in child component that costs nothing when you don't declare it
 
 ## Install
 

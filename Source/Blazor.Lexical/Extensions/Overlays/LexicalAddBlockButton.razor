@@ -1,0 +1,38 @@
+@namespace Blazor.Lexical
+
+@* "+" insert-block button — an ITEM inside a <LexicalBlockGutter>. Inserts an empty
+   paragraph below the hovered block and types "/" so the slash menu (if the host placed
+   one) opens on the new line.
+
+     <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+         <LexicalAddBlockButton />
+         <LexicalDragHandle />
+     </LexicalBlockGutter>
+
+   Pure markup (marker: data-lexical-add-block); JS delegates the click from the editor
+   root, so it works in whichever rail it is placed. No interop. *@
+<button type="button"
+        class="blazor-lexical__gutter-item blazor-lexical__gutter-btn @CssClass"
+        data-lexical-add-block
+        title="@Title"
+        aria-label="@Title">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <span>+</span>
+    }
+</button>
+
+@code {
+    /// <summary>Custom content for the button (defaults to a plus glyph).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Tooltip / accessible label for the button.</summary>
+    [Parameter] public string Title { get; set; } = "Insert block below";
+
+    /// <summary>Extra CSS class(es) applied to the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+}

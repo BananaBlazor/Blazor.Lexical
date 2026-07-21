@@ -21,6 +21,19 @@ extensible rich-text editor, behind a single `<LexicalEditor>` component.
   toolbar, a link editor, a `/`-triggered slash menu, and a hover drag handle.
   All are optional child markup, and none add interop: they position
   Blazor-authored markup in JS and dispatch the same commands the toolbar does.
+- **Table of contents** — `<LexicalToc />` gives every heading a slug `id` (so
+  `#fragment` links work) and renders a live outline, either into an element you
+  name or as a C# model you render with `<LexicalTocList />`. The document itself
+  is never modified.
+- **Marks** — `<LexicalMarks />` attaches *your own* ids to spans of text: the
+  building block for comments, annotations, suggestions and search highlighting.
+  Marks overlap, and their ids survive serialization.
+- **Document statistics** — `<LexicalStats />` for live word/character/paragraph
+  counts and a reading-time estimate, written straight into the page or pushed to C#.
+- **Block gutters** — `<LexicalBlockGutter>` is a per-block hover rail you compose like
+  a toolbar: drop in the built-in `<LexicalDragHandle />` (drag to reorder) and
+  `<LexicalAddBlockButton />` ("+"), your own `<LexicalGutterButton>`, or all three.
+  Several rails per editor, on either margin.
 - **Four content formats** — read and write plain text, HTML, Markdown, or
   canonical editor-state JSON.
 - **An extension SDK** — contribute custom Lexical nodes, buttons, and callbacks
@@ -84,9 +97,18 @@ Everything else is opt-in child markup:
     <LexicalToolbar />
     <LexicalFloatingToolbar />
     <LexicalLinkEditor />
-    <LexicalDragHandle />
+    <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+        <LexicalAddBlockButton />
+        <LexicalDragHandle />
+    </LexicalBlockGutter>
+    <LexicalBlockGutter>
+        <LexicalGutterButton OnClick="CommentOnBlock">💬</LexicalGutterButton>
+    </LexicalBlockGutter>
     <LexicalTables />
     <LexicalTableEditor />
+    <LexicalToc TargetSelector="#outline" />
+    <LexicalMarks @ref="_marks" />
+    <LexicalStats TargetSelector="#word-count" />
     <LexicalMention Initiator="@@" Provider="SearchPeople" OnSelected="OnPicked" />
     <LexicalMention Initiator="#" Freeform="true" />
     <LexicalSlashMenu>

@@ -75,8 +75,9 @@ instead of it.
 
 ## Adding a push channel
 
-Every JS→.NET channel has the same shape. If you're contributing a new one (focus/blur
-is the obvious next candidate), follow it:
+There are three: `content`, `selection`, and `blockHover`. Every JS→.NET channel has the
+same shape. If you're contributing a new one (focus/blur is the obvious next candidate),
+follow it:
 
 1. **One flag on `notify`,** derived from the `.HasDelegate` of the callback that
    consumes it. `setNotifications` mirrors it so a late subscription still arms the
@@ -90,7 +91,16 @@ is the obvious next candidate), follow it:
    this payload and immediately call back for something else?* If so, let it declare what
    it wants instead — a push the consumer must follow with a pull is two crossings where
    one would do.
-5. **Extensions don't ride these channels.** An extension owns its own JS-side listener
+5. **`blockHover` is why the third channel exists at all.** `<LexicalBlockGutter>` is an
+   *overlay*, not a `LexicalExtension`, so it has no extension channel of its own to push
+   over. That is the bar for adding one: not "this feature wants to talk to .NET" (an
+   extension already can), but "this thing is not an extension and cannot". It still obeys
+   every rule above: armed only by `OnBlockHovered.HasDelegate` or the presence of a
+   `LexicalGutterButton`, deduped by node key so it is one crossing per *block* rather
+   than per mousemove, and carrying the whole `LexicalBlockRef` so no follow-up pull is
+   needed. Several rails share that single crossing — the editor fans it out — rather
+   than each opening a channel.
+6. **Extensions don't ride these channels.** An extension owns its own JS-side listener
    and its own opt-in `invokeDotNet`, so it computes exactly what it needs in JS and makes
    one crossing. The content channel in particular carries **one host-chosen format**, so
    widening it to serve an extension would either stick that extension with the host's

@@ -6,13 +6,14 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=esm --minify --target=es2020 --splitting --outdir=../wwwroot --entry-names=blazor-lexical --chunk-names=blazor-lexical-chunk-[hash] --out-extension:.js=.mjs",
-    "typecheck": "tsc --noEmit --strict --skipLibCheck --moduleResolution bundler --module esnext --target es2020 --lib es2020,dom src/index.ts src/extension.ts src/overlays.ts src/table.ts src/markdown.ts src/mentions.ts"
+    "typecheck": "tsc --noEmit --strict --skipLibCheck --moduleResolution bundler --module esnext --target es2020 --lib es2020,dom src/index.ts src/extension.ts src/overlays.ts src/table.ts src/markdown.ts src/mentions.ts src/toc.ts src/marks.ts src/stats.ts"
   },
   "dependencies": {
     "@lexical/history": "0.48.0",
     "@lexical/html": "0.48.0",
     "@lexical/link": "0.48.0",
     "@lexical/list": "0.48.0",
+    "@lexical/mark": "0.48.0",
     "@lexical/markdown": "0.48.0",
     "@lexical/rich-text": "0.48.0",
     "@lexical/selection": "0.48.0",

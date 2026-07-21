@@ -1,56 +1,38 @@
 @namespace Blazor.Lexical
 
-@* Left-gutter drag handle. Rendered as ChildContent inside <LexicalEditor>, it stays
-   hidden until the pointer moves over a block, then JS reveals it in the gutter beside
-   that block. The grip (draggable) reorders the block; the "+" inserts a new paragraph
-   below and opens the slash menu (if present). All behavior is JS-side with no interop
-   (marker: data-lexical-drag-handle). *@
-<div class="blazor-lexical__drag-handle @CssClass"
-     data-lexical-drag-handle
-     aria-hidden="true">
-    <button type="button"
-            class="blazor-lexical__drag-add"
-            data-lexical-add-block
-            title="@AddTitle"
-            aria-label="@AddTitle">
-        @if (AddContent is not null)
-        {
-            @AddContent
-        }
-        else
-        {
-            <span>+</span>
-        }
-    </button>
-    <span class="blazor-lexical__drag-grip"
-          data-lexical-drag-grip
-          draggable="true"
-          title="@GripTitle"
-          aria-label="@GripTitle">
-        @if (GripContent is not null)
-        {
-            @GripContent
-        }
-        else
-        {
-            <span>⠿</span>
-        }
-    </span>
-</div>
+@* Drag-to-reorder grip — an ITEM inside a <LexicalBlockGutter>, not a rail of its own:
+
+     <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside">
+         <LexicalAddBlockButton />
+         <LexicalDragHandle />
+     </LexicalBlockGutter>
+
+   The gutter owns the hover tracking and the positioning; this contributes only the grip
+   markup (marker: data-lexical-drag-grip, draggable). JS delegates the drag from the
+   editor root, so the grip works in whichever rail it is placed. Reordering happens
+   through Lexical node moves, so history and serialization stay correct. No interop. *@
+<span class="blazor-lexical__gutter-item blazor-lexical__drag-grip @CssClass"
+      data-lexical-drag-grip
+      draggable="true"
+      title="@Title"
+      aria-label="@Title">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <span>⠿</span>
+    }
+</span>
 
 @code {
-    /// <summary>Custom content for the "+" add-block button (defaults to a plus glyph).</summary>
-    [Parameter] public RenderFragment? AddContent { get; set; }
+    /// <summary>Custom content for the grip (defaults to a braille-dots glyph).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    /// <summary>Custom content for the drag grip (defaults to a braille-dots glyph).</summary>
-    [Parameter] public RenderFragment? GripContent { get; set; }
+    /// <summary>Tooltip / accessible label for the grip.</summary>
+    [Parameter] public string Title { get; set; } = "Drag to move";
 
-    /// <summary>Tooltip / accessible label for the "+" add-block button.</summary>
-    [Parameter] public string AddTitle { get; set; } = "Insert block below";
-
-    /// <summary>Tooltip / accessible label for the drag grip.</summary>
-    [Parameter] public string GripTitle { get; set; } = "Drag to move";
-
-    /// <summary>Extra CSS class(es) applied to the drag handle container.</summary>
+    /// <summary>Extra CSS class(es) applied to the grip.</summary>
     [Parameter] public string? CssClass { get; set; }
 }

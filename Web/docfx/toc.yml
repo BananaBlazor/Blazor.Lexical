@@ -4,6 +4,8 @@
   href: getting-started.md
 - name: Toolbar & Overlays
   href: toolbar-and-overlays.md
+- name: Document Features
+  href: document-features.md
 - name: Writing an Extension
   href: writing-an-extension.md
 - name: API Reference

@@ -147,3 +147,49 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* Demo layout: the editor with the table-of-contents outline alongside it. The gap has
+   to clear the RightOutside block gutter, which hangs off the editor card into it. */
+.demo-editor-row {
+    display: flex;
+    gap: 3rem;
+    align-items: flex-start;
+}
+
+.demo-editor-row > .blazor-lexical {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.demo-outline {
+    flex: 0 0 14rem;
+}
+
+.demo-outline h2 {
+    margin: 0 0 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #777;
+}
+
+.demo-outline h2 + nav,
+.demo-outline h2 + .blazor-lexical__toc {
+    margin-bottom: 1.5rem;
+}
+
+.demo-stats {
+    margin-top: 0.5rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+    .demo-editor-row {
+        flex-direction: column;
+    }
+
+    .demo-outline {
+        flex: 1 1 auto;
+    }
+}

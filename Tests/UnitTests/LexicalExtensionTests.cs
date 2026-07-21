@@ -43,7 +43,9 @@ public class LexicalExtensionTests
     /// <summary>Multi-instance extensions declare themselves so the editor allows duplicates.</summary>
     private sealed class MultiExtension : LexicalExtension
     {
-        protected override bool AllowMultiple => true;
+        // protected *internal* on the base — and this assembly now sees the library's
+        // internals (InternalsVisibleTo), so the override has to match both halves.
+        protected internal override bool AllowMultiple => true;
 
         public bool MultipleAllowed => AllowMultiple;
     }

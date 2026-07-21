@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // In-editor floating overlays: the floating format toolbar, the "/" slash menu,
-// and the left-gutter drag handle with its "+" add-block button.
+// and the per-block hover rails (block gutters) that carry the drag grip, the "+"
+// add-block button, and whatever else the host puts in them.
 //
 // These follow the same split of responsibilities as the fixed toolbar
 // (see index.ts): Blazor renders the *markup* (buttons tagged
@@ -321,7 +322,7 @@ export function registerSlashMenu(
 }
 
 // ---------------------------------------------------------------------------
-// Drag handle + add-block button
+// Block gutters — the per-block hover rails (drag grip, "+", host content)
 // ---------------------------------------------------------------------------
 
 /** Returns the top-level block element under `clientY`, or null. */
@@ -335,43 +336,30 @@ function blockElementAt(contentEl: HTMLElement, clientY: number): HTMLElement | 
   return null;
 }
 
+/** The block under the pointer, as reported to a {@link trackHoveredBlock} subscriber. */
+export interface HoveredBlock {
+  /** The block's DOM element (a direct child of the content surface). */
+  element: HTMLElement;
+  /** The top-level node's key, or null when the DOM node resolved to nothing. */
+  key: string | null;
+  /** The block's zero-based position among the content surface's children. */
+  index: number;
+}
+
 /**
- * Drives the left-gutter drag handle: it follows the block under the pointer,
- * its grip drags a block to reorder it (with a drop-line indicator), and its
- * "+" button inserts an empty paragraph below and types "/" to pop the slash
- * menu (when one is present). All reordering happens through Lexical node moves,
- * so history and serialization stay correct.
+ * Tracks which top-level block the pointer is over and reports every change to
+ * `onHover` (null when the pointer leaves the content band or the root entirely).
+ *
+ * Split out from the rail engine so the hit-test and the `editor.read` key resolution
+ * have exactly one owner: {@link registerBlockGutters} builds on it, and anything else
+ * that needs "which block is the pointer over" should too rather than re-deriving it.
  */
-export function registerDragHandle(
+export function trackHoveredBlock(
   editor: LexicalEditor,
   root: HTMLElement,
   contentEl: HTMLElement,
-  handleEl: HTMLElement,
+  onHover: (block: HoveredBlock | null) => void,
 ): () => void {
-  // The block currently under the pointer (what the handle acts on).
-  let hoveredKey: string | null = null;
-  // The block being dragged, captured on dragstart.
-  let draggedKey: string | null = null;
-
-  // A JS-owned horizontal indicator showing where a dropped block will land.
-  const dropLine = document.createElement('div');
-  dropLine.className = 'blazor-lexical__drop-line';
-  dropLine.setAttribute('data-lexical-drop-line', '');
-  root.appendChild(dropLine);
-
-  const hideHandle = () => handleEl.removeAttribute('data-lexical-visible');
-  const hideDropLine = () => dropLine.removeAttribute('data-lexical-visible');
-
-  const showDropLine = (blockEl: HTMLElement, after: boolean) => {
-    const rootRect = root.getBoundingClientRect();
-    const contentRect = contentEl.getBoundingClientRect();
-    const rect = blockEl.getBoundingClientRect();
-    dropLine.style.left = `${contentRect.left - rootRect.left}px`;
-    dropLine.style.width = `${contentRect.width}px`;
-    dropLine.style.top = `${(after ? rect.bottom : rect.top) - rootRect.top}px`;
-    dropLine.setAttribute('data-lexical-visible', '');
-  };
-
   // `editor.read` (not `getEditorState().read`) so the *active editor* is set —
   // $getNearestNodeFromDOMNode needs it to resolve a DOM node's key. Use the
   // non-throwing getTopLevelElement so hovering a non-block (→ root) is a no-op.
@@ -382,29 +370,240 @@ export function registerDragHandle(
       return top === null ? null : top.getKey();
     });
 
-  // Follow the pointer: reveal the handle in the gutter beside the hovered block.
-  const onMouseMove = (e: MouseEvent) => {
+  const onMouseMove = (e: MouseEvent): void => {
     const contentRect = contentEl.getBoundingClientRect();
     if (e.clientY < contentRect.top || e.clientY > contentRect.bottom) {
-      hideHandle();
+      onHover(null);
       return;
     }
-    const blockEl = blockElementAt(contentEl, e.clientY);
-    if (blockEl === null) {
-      hideHandle();
+    const element = blockElementAt(contentEl, e.clientY);
+    if (element === null) {
+      onHover(null);
       return;
     }
-    hoveredKey = keyForBlockElement(blockEl);
-    const rootRect = root.getBoundingClientRect();
-    const rect = blockEl.getBoundingClientRect();
-    handleEl.style.top = `${rect.top - rootRect.top}px`;
-    handleEl.style.left = `${contentRect.left - rootRect.left + 2}px`;
-    handleEl.setAttribute('data-lexical-visible', '');
+    onHover({
+      element,
+      key: keyForBlockElement(element),
+      index: Array.prototype.indexOf.call(contentEl.children, element),
+    });
   };
-  root.addEventListener('mousemove', onMouseMove);
-  root.addEventListener('mouseleave', hideHandle);
+  const onMouseLeave = (): void => onHover(null);
 
-  // Drag-to-reorder. The grip element carries draggable="true" (set in markup).
+  root.addEventListener('mousemove', onMouseMove);
+  root.addEventListener('mouseleave', onMouseLeave);
+  return () => {
+    root.removeEventListener('mousemove', onMouseMove);
+    root.removeEventListener('mouseleave', onMouseLeave);
+  };
+}
+
+/** The hovered block, as reported to the .NET half of the block gutter. */
+export interface BlockRefDto {
+  nodeKey: string;
+  index: number;
+  blockType: string;
+  textPreview: string;
+}
+
+/** How much of the block's text rides along in the hover push. */
+const BLOCK_PREVIEW_CHARS = 80;
+
+/** Gap (px) between the anchor edge and a rail, and between stacked rails. */
+const GUTTER_GAP = 4;
+
+/**
+ * How long a rail stays up after the pointer leaves the editor before it hides.
+ *
+ * This is what makes a rail *reachable*. Rails are absolutely positioned children of the
+ * root, but the pixels between the text and a rail — the gutter gap, and the whole page
+ * outside the card for an `Outside` rail — do not belong to the root, so travelling to a
+ * rail fires the root's `mouseleave`. Hiding on that event immediately (a rail is then
+ * `pointer-events: none`) makes the rail's own buttons impossible to click: it vanishes
+ * mid-journey. The grace window lets the pointer arrive, at which point the rail's
+ * `mouseenter` cancels the hide.
+ */
+const GUTTER_HIDE_GRACE_MS = 400;
+
+/** Where a rail sits, mirrored from the C# `LexicalGutterPosition`. */
+type GutterPosition = 'left-inside' | 'left-outside' | 'right-inside' | 'right-outside';
+
+/**
+ * Drives every `[data-lexical-block-gutter]` rail in the editor: the per-block hover
+ * gutters that hold the drag grip, the "+" add-block button, and whatever else the
+ * host put in them.
+ *
+ * ONE registration for ALL rails, rather than one per rail, because everything here is
+ * genuinely shared: a single hover hit-test (running it per rail would repeat the same
+ * `editor.read` N times per mousemove), a single drop-line indicator, and one delegated
+ * drag/click listener pair on the root. Rails differ only in which side they sit on and
+ * what the host put inside them.
+ *
+ * Rails are positioned outward from the content edge in declaration order, so several on
+ * the same side stack instead of overlapping. Behaviour lives here rather than in the
+ * items because the items are just markup: `[data-lexical-drag-grip]` reorders its block
+ * (through Lexical node moves, so history and serialization stay correct),
+ * `[data-lexical-add-block]` inserts a paragraph below and types "/" to pop the slash
+ * menu, and anything else in a rail is the host's own Blazor `@onclick` markup.
+ *
+ * `onHover` is the single opt-in .NET push (`notify.blockHover`), deduped by node key so
+ * it fires once per *block* rather than once per mousemove.
+ */
+export function registerBlockGutters(
+  editor: LexicalEditor,
+  root: HTMLElement,
+  contentEl: HTMLElement,
+  gutterEls: HTMLElement[],
+  onHover: (block: BlockRefDto | null) => void,
+): () => void {
+  // The block currently under the pointer (what every rail acts on).
+  let hoveredKey: string | null = null;
+  // The block being dragged, captured on dragstart.
+  let draggedKey: string | null = null;
+  // True while the pointer is over any rail — see scheduleHide.
+  let pointerInGutter = false;
+  let lastPushedKey: string | null = null;
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // A JS-owned horizontal indicator showing where a dropped block will land. One per
+  // editor, not one per rail: it marks a position in the document, not in a gutter.
+  const dropLine = document.createElement('div');
+  dropLine.className = 'blazor-lexical__drop-line';
+  dropLine.setAttribute('data-lexical-drop-line', '');
+  root.appendChild(dropLine);
+
+  const positionOf = (el: HTMLElement): GutterPosition => {
+    const raw = el.getAttribute('data-lexical-block-gutter-position');
+    return raw === 'left-inside' || raw === 'left-outside' || raw === 'right-outside'
+      ? raw
+      : 'right-inside';
+  };
+
+  const cancelHide = (): void => {
+    if (hideTimer !== undefined) {
+      clearTimeout(hideTimer);
+      hideTimer = undefined;
+    }
+  };
+
+  /**
+   * Hides every rail after {@link GUTTER_HIDE_GRACE_MS}, unless something cancels it
+   * first — the pointer arriving on a rail, or moving back onto a block.
+   */
+  const scheduleHide = (): void => {
+    cancelHide();
+    hideTimer = setTimeout(() => {
+      hideTimer = undefined;
+      if (pointerInGutter) {
+        return;
+      }
+      for (const el of gutterEls) {
+        el.removeAttribute('data-lexical-visible');
+      }
+    }, GUTTER_HIDE_GRACE_MS);
+  };
+
+  const hideDropLine = (): void => dropLine.removeAttribute('data-lexical-visible');
+
+  const showDropLine = (blockEl: HTMLElement, after: boolean): void => {
+    const rootRect = root.getBoundingClientRect();
+    const contentRect = contentEl.getBoundingClientRect();
+    const rect = blockEl.getBoundingClientRect();
+    dropLine.style.left = `${contentRect.left - rootRect.left}px`;
+    dropLine.style.width = `${contentRect.width}px`;
+    dropLine.style.top = `${(after ? rect.bottom : rect.top) - rootRect.top}px`;
+    dropLine.setAttribute('data-lexical-visible', '');
+  };
+
+  /**
+   * Positions every rail beside `block`, stacking same-position rails outward.
+   *
+   * Each position names the edge a rail hangs off:
+   *
+   * - `*-inside` anchors to the **text column** — the content box inset by its own
+   *   padding, i.e. the empty margin `.blazor-lexical__content` already reserves. An
+   *   inside rail is clamped to the card, so one wider than that reserved band slides
+   *   over the text rather than escaping the editor.
+   * - `*-outside` anchors to the **card edge** and hangs off it, into the page.
+   *
+   * Either way, staying reachable is the grace window's job (see
+   * {@link GUTTER_HIDE_GRACE_MS}), not geometry's — which is precisely what makes
+   * `outside` safe to offer at all.
+   */
+  const layout = (block: HoveredBlock): void => {
+    const rootRect = root.getBoundingClientRect();
+    const contentRect = contentEl.getBoundingClientRect();
+    const rect = block.element.getBoundingClientRect();
+    const style = getComputedStyle(contentEl);
+    // The four anchor edges, root-relative.
+    const anchors: Record<GutterPosition, number> = {
+      'left-inside': contentRect.left + parseFloat(style.paddingLeft) - rootRect.left,
+      'left-outside': 0,
+      'right-inside': contentRect.right - parseFloat(style.paddingRight) - rootRect.left,
+      'right-outside': rootRect.width,
+    };
+    // Distance already consumed at each position by rails placed earlier.
+    const consumed: Record<GutterPosition, number> = {
+      'left-inside': 0,
+      'left-outside': 0,
+      'right-inside': 0,
+      'right-outside': 0,
+    };
+    const blockType = block.element.tagName.toLowerCase();
+
+    for (const el of gutterEls) {
+      const position = positionOf(el);
+      const isLeft = position === 'left-inside' || position === 'left-outside';
+      // The fractional width, not offsetWidth: that rounds to an integer, and the clamp
+      // below compares it against fractional rects — half a pixel of rounding is enough
+      // to put a rail back over the card's edge. Both are measurable here because a
+      // hidden rail uses visibility, not display, so it still has a layout box.
+      const width = el.getBoundingClientRect().width;
+      const offset = consumed[position] + GUTTER_GAP;
+      const ideal = isLeft ? anchors[position] - offset - width : anchors[position] + offset;
+
+      el.style.top = `${rect.top - rootRect.top}px`;
+      el.style.left = `${
+        position.endsWith('-inside')
+          ? Math.max(0, Math.min(ideal, rootRect.width - width))
+          : ideal
+      }px`;
+      consumed[position] += width + GUTTER_GAP;
+
+      el.setAttribute('data-lexical-visible', '');
+      // Context for the host's markup: styleable in CSS, readable from JS, and the same
+      // values the .NET push carries.
+      el.setAttribute('data-lexical-block-key', block.key ?? '');
+      el.setAttribute('data-lexical-block-index', String(block.index));
+      el.setAttribute('data-lexical-block-type', blockType);
+    }
+  };
+
+  const untrack = trackHoveredBlock(editor, root, contentEl, (block) => {
+    if (block === null) {
+      // Deferred, not immediate: the pointer may simply be on its way to a rail. See
+      // GUTTER_HIDE_GRACE_MS. hoveredKey is deliberately left as-is too — hiding is a
+      // visual state, and an in-flight drag still needs the key it started from.
+      scheduleHide();
+      return;
+    }
+    cancelHide();
+    hoveredKey = block.key;
+    layout(block);
+
+    if (block.key === lastPushedKey) {
+      return;
+    }
+    lastPushedKey = block.key;
+    onHover({
+      nodeKey: block.key ?? '',
+      index: block.index,
+      blockType: block.element.tagName.toLowerCase(),
+      textPreview: (block.element.textContent ?? '').slice(0, BLOCK_PREVIEW_CHARS),
+    });
+  });
+
+  // Drag-to-reorder. A grip element carries draggable="true" (set in markup); it can sit
+  // in any rail, so this is delegated from the root rather than bound per gutter.
   const onDragStart = (e: DragEvent) => {
     if ((e.target as HTMLElement).closest('[data-lexical-drag-grip]') === null) {
       return;
@@ -464,8 +663,9 @@ export function registerDragHandle(
   root.addEventListener('drop', onDrop);
   root.addEventListener('dragend', onDragEnd);
 
-  // "+" inserts a fresh paragraph below the hovered block and types "/" so the
-  // slash menu (if the host added one) opens on the new line.
+  // "+" inserts a fresh paragraph below the hovered block and types "/" so the slash
+  // menu (if the host added one) opens on the new line. Delegated for the same reason
+  // the drag is: the button may live in any rail.
   const onAddClick = (e: Event) => {
     if ((e.target as HTMLElement).closest('[data-lexical-add-block]') === null) {
       return;
@@ -487,16 +687,36 @@ export function registerDragHandle(
     });
     editor.focus();
   };
-  handleEl.addEventListener('click', onAddClick);
+  root.addEventListener('click', onAddClick);
+
+  // Arriving on a rail is what cancels the pending hide — the other half of the grace
+  // window. Leaving one restarts it, so a rail does not linger once the pointer is gone.
+  const onGutterEnter = (): void => {
+    pointerInGutter = true;
+    cancelHide();
+  };
+  const onGutterLeave = (): void => {
+    pointerInGutter = false;
+    scheduleHide();
+  };
+  for (const el of gutterEls) {
+    el.addEventListener('mouseenter', onGutterEnter);
+    el.addEventListener('mouseleave', onGutterLeave);
+  }
 
   return () => {
-    root.removeEventListener('mousemove', onMouseMove);
-    root.removeEventListener('mouseleave', hideHandle);
+    untrack();
+    cancelHide();
     root.removeEventListener('dragstart', onDragStart);
     root.removeEventListener('dragover', onDragOver);
     root.removeEventListener('drop', onDrop);
     root.removeEventListener('dragend', onDragEnd);
-    handleEl.removeEventListener('click', onAddClick);
+    root.removeEventListener('click', onAddClick);
+    for (const el of gutterEls) {
+      el.removeEventListener('mouseenter', onGutterEnter);
+      el.removeEventListener('mouseleave', onGutterLeave);
+      el.removeAttribute('data-lexical-visible');
+    }
     dropLine.remove();
   };
 }
