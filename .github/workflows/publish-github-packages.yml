@@ -43,19 +43,19 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       # Node is required by BuildLexicalJsBundle — the packed wwwroot/*.mjs assets
       # are generated from TypeScript at build time, never checked in.
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Restore
         run: dotnet restore Blazor.Lexical.slnx
@@ -107,7 +107,7 @@ jobs:
           -o artifacts
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nupkg-${{ steps.ver.outputs.version }}
           path: artifacts/*
