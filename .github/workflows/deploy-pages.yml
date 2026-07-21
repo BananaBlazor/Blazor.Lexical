@@ -54,7 +54,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # Publish the demo. BuildDocs defaults to false so a local `dotnet run` stays a
       # fast playground; this is the one place that opts in. With -p:BuildDocs=true the
