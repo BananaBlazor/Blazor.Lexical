@@ -1,0 +1,44 @@
+@namespace Blazor.Lexical
+
+@* StartContent/EndContent bracket whichever body is rendered — the default control
+   set or a ChildContent replacement — so "the default toolbar plus my one button"
+   needs no re-composition. *@
+<div class="blazor-lexical__toolbar @CssClass" role="toolbar" aria-label="Formatting">
+    @StartContent
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @if (ShowHistory)
+        {
+            <LexicalHistoryGroup />
+        }
+        @if (ShowBlockType)
+        {
+            <div class="blazor-lexical__toolbar-group">
+                <LexicalBlockSelect />
+            </div>
+        }
+        @if (ShowTextFormat)
+        {
+            <LexicalBasicFormatting />
+        }
+        @if (ShowLists)
+        {
+            <LexicalListGroup />
+        }
+        @if (ShowLink)
+        {
+            <LexicalHyperlink />
+        }
+        @if (ShowTableControls)
+        {
+            <div class="blazor-lexical__toolbar-group">
+                <LexicalTableButton />
+            </div>
+        }
+    }
+    @EndContent
+</div>

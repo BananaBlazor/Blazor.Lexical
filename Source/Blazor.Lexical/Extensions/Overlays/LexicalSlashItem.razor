@@ -1,0 +1,80 @@
+@namespace Blazor.Lexical
+@using Microsoft.AspNetCore.Components.Rendering
+
+@* A single entry in the <LexicalSlashMenu>, rendered as a button JS filters by
+   Keywords + label as the user types after the "/". Two ways to act on selection:
+   - Command: a data-lexical-command token dispatched through the editor's normal
+     delegated path — the same code a toolbar button uses (no interop at all).
+   - OnSelect: a C# callback for actions the built-in commands don't cover (the
+     opt-in escape hatch). Only this variant round-trips to .NET.
+   Either way JS removes the "/query" text before the action runs. The two are
+   rendered as distinct buttons so a plain Command item stays pure-JS — no @onclick,
+   hence no "just in case" interop. *@
+@if (OnSelect.HasDelegate)
+{
+    <button type="button"
+            class="blazor-lexical__slash-item @CssClass"
+            data-lexical-slash-item
+            data-lexical-slash-keywords="@Keywords"
+            role="option"
+            @onclick="OnSelect">
+        @Content
+    </button>
+}
+else
+{
+    <button type="button"
+            class="blazor-lexical__slash-item @CssClass"
+            data-lexical-command="@Command"
+            data-lexical-slash-item
+            data-lexical-slash-keywords="@Keywords"
+            role="option">
+        @Content
+    </button>
+}
+
+@code {
+    /// <summary>
+    /// The <c>data-lexical-command</c> token to run when this item is chosen (e.g.
+    /// <c>block:h1</c>, <c>list:bullet</c>, <c>block:quote</c>). Uses the same grammar
+    /// as toolbar buttons. Leave unset when using <see cref="OnSelect"/> for a custom
+    /// C# action instead.
+    /// </summary>
+    [Parameter] public string? Command { get; set; }
+
+    /// <summary>
+    /// A C# callback invoked when this item is chosen — the escape hatch for inserts
+    /// the built-in commands don't cover (e.g. insert a template, call an API). JS has
+    /// already removed the "/query" text and restored the caret before it runs. Reach
+    /// the editor via the cascaded <see cref="LexicalEditor"/>. Setting this is the
+    /// only thing that makes a slash item talk to .NET.
+    /// </summary>
+    [Parameter] public EventCallback OnSelect { get; set; }
+
+    /// <summary>
+    /// Space-separated search terms matched (along with the visible label) against the
+    /// text typed after the "/". Add synonyms so the item is easy to find
+    /// (e.g. <c>"heading title h1 large"</c>).
+    /// </summary>
+    [Parameter] public string? Keywords { get; set; }
+
+    /// <summary>The visible label, shown when no <see cref="ChildContent"/> is given.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Extra CSS class(es) applied to the item button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom item content, replacing the default label span.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Item body: the caller's content, or a default label span.</summary>
+    private RenderFragment Content => ChildContent ?? DefaultLabel;
+
+    private void DefaultLabel(RenderTreeBuilder builder)
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "blazor-lexical__slash-item-label");
+        builder.AddContent(2, Label);
+        builder.CloseElement();
+    }
+}

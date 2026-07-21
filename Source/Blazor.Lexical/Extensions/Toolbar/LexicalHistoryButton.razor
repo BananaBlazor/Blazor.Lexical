@@ -1,0 +1,29 @@
+@namespace Blazor.Lexical
+
+@* Undo or redo. JS sets data-lexical-disabled when the action is unavailable. *@
+<LexicalCommandButton Command="@(Redo ? "history:redo" : "history:undo")"
+                      Title="@(Title ?? (Redo ? "Redo" : "Undo"))"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @(Redo ? "↷" : "↶")
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>When true this is a redo button; otherwise undo.</summary>
+    [Parameter] public bool Redo { get; set; }
+
+    /// <summary>Tooltip / accessible label. Defaults to "Undo"/"Redo".</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default glyph.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

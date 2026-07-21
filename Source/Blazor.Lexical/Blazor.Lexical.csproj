@@ -1,0 +1,197 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Every component ships in the flat Blazor.Lexical namespace. -->
+    <NoWarn>$(NoWarn);IDE0130</NoWarn>
+  </PropertyGroup>
+
+  <!-- Locked major + our serial (see Version.props). The Lexical-minor component
+       and every consumer-facing Lexical version string below are derived from the
+       lockfile, so there is exactly one source of truth for "which Lexical". -->
+  <Import Project="Version.props" />
+
+  <!-- Derive the bundled Lexical version from the actual packaged artifact
+       (js/package-lock.json — what npm ci installs and esbuild bundles). This runs
+       at evaluation time so $(LexicalVersion) and $(Version) are available to the
+       assembly-info, NuGet-metadata and pack targets without any ordering games.
+       The VerifyLexicalAlignment target below re-derives it via Node and fails the
+       build if this and the lockfile's full pin graph ever disagree. -->
+  <PropertyGroup>
+    <LexicalVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\js\package-lock.json')), '"node_modules/lexical":\s*\{\s*"version":\s*"([^"]+)"').Groups[1].Value)</LexicalVersion>
+    <LexicalMinor>$([System.Text.RegularExpressions.Regex]::Match('$(LexicalVersion)', '^[0-9]+\.([0-9]+)\.').Groups[1].Value)</LexicalMinor>
+    <Version>$(LexicalPackageMajor).$(LexicalMinor).$(LexicalPackageSerial)</Version>
+  </PropertyGroup>
+
+  <!-- Exposed to consumers at runtime: [assembly: AssemblyMetadata("LexicalVersion", "x.y.z")]. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="LexicalVersion" Value="$(LexicalVersion)" />
+  </ItemGroup>
+
+  <!-- NuGet package metadata -->
+  <PropertyGroup>
+    <PackageId>Blazor.Lexical</PackageId>
+    <Authors>BananaBlazor</Authors>
+    <Company>BananaBlazor</Company>
+    <Product>Blazor.Lexical</Product>
+    <Description>A Blazor Razor Class Library that wraps the Lexical rich-text editor behind a single &lt;LexicalEditor&gt; component: rich text with history/undo, lists, links, and get/set of plain text, HTML, Markdown, or canonical editor-state JSON. Works with Blazor Server and WebAssembly; JS glue ships as a self-contained RCL asset. Bundles Lexical $(LexicalVersion).</Description>
+    <PackageTags>blazor;lexical;rich-text-editor;wysiwyg;editor;razor-class-library;rcl;components;webassembly;blazor-server;lexical-$(LexicalMinor)</PackageTags>
+    <PackageReleaseNotes>Bundles Lexical $(LexicalVersion).</PackageReleaseNotes>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2026 BananaBlazor</Copyright>
+    <RepositoryUrl>https://github.com/BananaBlazor/Blazor.Lexical</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BananaBlazor/Blazor.Lexical</PackageProjectUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- SourceLink: the .NET SDK has GitHub SourceLink built in, so no
+         PackageReference is needed — these two switches are all that's required to
+         stamp the repository URL into the package and embed sources that git does
+         not track (the generated LexicalVersion.g.cs). Determinism is CI's job:
+         every workflow that produces a shippable artifact passes
+         -p:ContinuousIntegrationBuild=true, which turns on DeterministicSourcePaths
+         so local checkout paths never reach the PDB. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="THIRD-PARTY-NOTICES" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Dev-only JS build inputs; not shipped and not compiled by MSBuild. -->
+    <None Remove="js\**" />
+    <Content Remove="js\**" />
+  </ItemGroup>
+
+  <!-- The Lexical ESM bundle is generated (not checked in) and esbuild code-splits
+       it into the entry (blazor-lexical.mjs) plus hashed chunks
+       (blazor-lexical-chunk-<hash>.mjs) whose names change with the sources. Keep
+       all of them out of the evaluation-time content glob; RegisterLexicalBundle
+       below adds whatever files actually exist after the build, so neither a fresh
+       clone (files absent at evaluation) nor a rebuild (hashes changed) leaves a
+       stale or missing static web asset. -->
+  <ItemGroup>
+    <Content Remove="wwwroot\blazor-lexical*.mjs" />
+    <!-- Also generated: the extension contract copied out of js/src/extension.ts. -->
+    <Content Remove="wwwroot\blazor-lexical-extension.d.ts" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <LexicalJsDir>$(MSBuildProjectDirectory)\js</LexicalJsDir>
+    <LexicalBundlePath>$(MSBuildProjectDirectory)\wwwroot\blazor-lexical.mjs</LexicalBundlePath>
+    <LexicalBuildScript>$(MSBuildProjectDirectory)\..\..\Scripts\build-js.ps1</LexicalBuildScript>
+  </PropertyGroup>
+
+  <!-- Every TypeScript source esbuild bundles from index.ts; listed as target
+       Inputs so editing any of them (not just index.ts) rebuilds the bundle. -->
+  <ItemGroup>
+    <LexicalJsSource Include="$(LexicalJsDir)\src\**\*.ts" />
+  </ItemGroup>
+
+  <!-- Regenerate the bundle only when it is missing or its sources changed
+       (Inputs/Outputs make this incremental — it does not run on every build).
+       build-js.ps1 installs npm packages first when node_modules is absent, and
+       clears stale chunks before esbuild. The entry file is the incremental
+       Output; the hashed chunks are produced alongside it. -->
+  <Target Name="BuildLexicalJsBundle" BeforeTargets="BeforeBuild;ResolveStaticWebAssetsInputs" Inputs="@(LexicalJsSource);$(LexicalJsDir)\package.json" Outputs="$(LexicalBundlePath)">
+    <Message Importance="high" Text="Blazor.Lexical: (re)generating wwwroot\blazor-lexical.mjs (+ chunks) from js\src ..." />
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(LexicalBuildScript)&quot;" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
+  <!-- Register the generated entry + hashed chunks as static web assets. Always
+       runs (no Inputs/Outputs) and globs after BuildLexicalJsBundle so it picks up
+       the current build's actual filenames — whatever the chunk hashes turned out
+       to be — before the static web assets pipeline reads @(Content).
+       The hook must be ResolveCurrentProjectStaticWebAssetsInputs (the target that
+       turns wwwroot @(Content) into @(StaticWebAsset)), NOT ResolveStaticWebAssetsInputs:
+       the latter runs it as a DependsOnTarget, i.e. before our BeforeTargets hook, so
+       the bundle would ship as plain content and never reach _content/Blazor.Lexical. -->
+  <Target Name="RegisterLexicalBundle" BeforeTargets="AssignTargetPaths;ResolveCurrentProjectStaticWebAssetsInputs" DependsOnTargets="BuildLexicalJsBundle">
+    <ItemGroup>
+      <Content Include="wwwroot\blazor-lexical*.mjs" />
+      <Content Include="wwwroot\blazor-lexical-extension.d.ts" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Publish/build gate: independently re-derive the bundled Lexical version via
+       Node and verify the whole pin graph (exact pins, lockstep, package.json vs
+       lockfile). Fails the build if the pins are inconsistent or if the Node result
+       disagrees with the $(LexicalVersion) MSBuild derived above — so a package can
+       never ship with a misaligned Lexical version. Node is already a hard build
+       requirement (it builds the JS bundle); this only reads two committed JSON
+       files, so it runs on every build as well as before pack. -->
+  <Target Name="VerifyLexicalAlignment" BeforeTargets="BeforeBuild;GenerateNuspec" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(LexicalVersion)' == ''"
+           Text="Could not derive the bundled Lexical version from js\package-lock.json. Ensure the lockfile exists and pins 'lexical' (run npm install / Scripts/update-lexical.ps1)." />
+    <Exec Command="node &quot;$(MSBuildThisFileDirectory)..\..\Scripts\lexical-version.mjs&quot;"
+          ConsoleToMSBuild="true"
+          StandardOutputImportance="low"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_VerifiedLexicalVersion" />
+    </Exec>
+    <Error Condition="'$(_VerifiedLexicalVersion.Trim())' != '$(LexicalVersion)'"
+           Text="Lexical version mismatch: the build derived '$(LexicalVersion)' from the lockfile, but the alignment check reports '$(_VerifiedLexicalVersion)'. The pin graph is inconsistent." />
+  </Target>
+
+  <!-- Generate the public LexicalPackage.LexicalVersion const from the single
+       source of truth. Semicolons are written as %3B so each C# line stays one
+       MSBuild item; WriteOnlyWhenDifferent avoids needless recompiles. -->
+  <Target Name="GenerateLexicalVersionSource" BeforeTargets="BeforeCompile;CoreCompile">
+    <PropertyGroup>
+      <_LexicalVersionSource>$(IntermediateOutputPath)LexicalVersion.g.cs</_LexicalVersionSource>
+    </PropertyGroup>
+    <ItemGroup>
+      <_LexicalVersionSourceLine Include="// &lt;auto-generated /&gt; Derived from js/package-lock.json — do not edit by hand." />
+      <_LexicalVersionSourceLine Include="namespace Blazor.Lexical%3B" />
+      <_LexicalVersionSourceLine Include="/// &lt;summary&gt;Information about the Lexical (facebook/lexical) JavaScript library bundled in this package.&lt;/summary&gt;" />
+      <_LexicalVersionSourceLine Include="public static class LexicalPackage" />
+      <_LexicalVersionSourceLine Include="{" />
+      <_LexicalVersionSourceLine Include="    /// &lt;summary&gt;The exact &lt;c&gt;lexical&lt;/c&gt; npm package version bundled in this package (for example, &lt;c&gt;0.48.0&lt;/c&gt;).&lt;/summary&gt;" />
+      <_LexicalVersionSourceLine Include="    public const string LexicalVersion = &quot;$(LexicalVersion)&quot;%3B" />
+      <_LexicalVersionSourceLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_LexicalVersionSource)" Lines="@(_LexicalVersionSourceLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_LexicalVersionSource)" />
+      <FileWrites Include="$(_LexicalVersionSource)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Pack a README with the bundled Lexical version appended, so the NuGet page's
+       readme states it too. The source README.md stays clean; the footer is added
+       only to the packed copy. The body is read as one item with ';' escaped to
+       '%3B' so its own semicolons survive WriteLinesToFile's item splitting. -->
+  <Target Name="GenerateLexicalReadme" BeforeTargets="_GetPackageFiles;GenerateNuspec" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_PackedReadme>$(IntermediateOutputPath)README.pack.md</_PackedReadme>
+      <_LF>$([System.Char]::ConvertFromUtf32(10))</_LF>
+      <!-- Whole document as ONE item: ';' is escaped to '%3B' so the body's own
+           semicolons survive item materialization, and the blank lines around the
+           footer are internal newlines (item Include trims only leading/trailing
+           whitespace, so boundary newlines would be lost). -->
+      <_ReadmeBody>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\README.md').Replace(';', '%3B'))</_ReadmeBody>
+      <_ReadmeFull>$(_ReadmeBody)$(_LF)$(_LF)---$(_LF)$(_LF)This package bundles **Lexical $(LexicalVersion)** (facebook/lexical). The same version is exposed at runtime as `LexicalPackage.LexicalVersion` and in the assembly metadata key `LexicalVersion`.</_ReadmeFull>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ReadmeLine Include="$(_ReadmeFull)" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_PackedReadme)" Lines="@(_ReadmeLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <None Remove="README.md" />
+      <None Include="$(_PackedReadme)" Pack="true" PackagePath="README.md" />
+      <FileWrites Include="$(_PackedReadme)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

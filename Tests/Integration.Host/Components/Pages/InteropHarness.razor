@@ -1,0 +1,777 @@
+@page "/"
+@page "/interop-harness"
+
+@* Deterministic harness that exercises every Blazor <-> Lexical JS touchpoint.
+   Driven by the Tests.Integration Playwright suite. Stable ids only. *@
+
+<PageTitle>Interop Harness</PageTitle>
+
+<h1>Blazor.Lexical interop harness</h1>
+
+<section>
+    <h2>Main editor (placeholder, css class, theme, change callback, get/set)</h2>
+    <LexicalEditor @ref="_main"
+                   Id="editor-main"
+                   Placeholder="Type here…"
+                   CssClass="harness-main"
+                   Theme="@(new { paragraph = "harness-paragraph" })"
+                   OnContentChanged="OnMainChanged" />
+
+    <div>
+        <button id="btn-get" @onclick="GetMain">Get text</button>
+        <button id="btn-set" @onclick="SetMain">Set text</button>
+    </div>
+    <p>Get result: <span id="get-result">@_getResult</span></p>
+    <p>Change callback: <span id="change-log">@_changeLog</span></p>
+    <p>Change count: <span id="change-count">@_changeCount</span></p>
+</section>
+
+<section>
+    <h2>Formats (HTML / Markdown / editor-state JSON)</h2>
+
+    <div>
+        <button id="btn-get-html" @onclick="GetHtml">Get HTML</button>
+        <button id="btn-set-html" @onclick="SetHtml">Set HTML</button>
+    </div>
+    <p>HTML result: <span id="html-result">@_htmlResult</span></p>
+
+    <div>
+        <button id="btn-get-markdown" @onclick="GetMarkdown">Get Markdown</button>
+        <button id="btn-set-markdown" @onclick="SetMarkdown">Set Markdown</button>
+    </div>
+    <p>Markdown result: <span id="markdown-result">@_markdownResult</span></p>
+
+    <div>
+        <button id="btn-get-json" @onclick="GetJson">Get JSON</button>
+        <button id="btn-set-json" @onclick="SetJson">Set JSON (restore captured)</button>
+    </div>
+    <p>JSON result: <span id="json-result">@_jsonResult</span></p>
+</section>
+
+<section>
+    <h2>Lists (insertUnorderedList / insertOrderedList / removeList)</h2>
+    <LexicalEditor @ref="_lists" Id="editor-lists" />
+    <div>
+        <button id="btn-ul" @onclick="InsertUnordered">Bulleted</button>
+        <button id="btn-ol" @onclick="InsertOrdered">Numbered</button>
+        <button id="btn-list-remove" @onclick="RemoveListFmt">Remove list</button>
+        <button id="btn-list-md" @onclick="SetListMarkdown">Set list markdown</button>
+        <button id="btn-list-get-md" @onclick="GetListMarkdown">Get list markdown</button>
+    </div>
+    <p>List markdown result: <span id="list-md-result">@_listMarkdownResult</span></p>
+</section>
+
+<section>
+    <h2>Links (toggleLink set / remove)</h2>
+    <LexicalEditor @ref="_links" Id="editor-links" />
+    <div>
+        <button id="btn-link-set" @onclick="SetLink">Set link</button>
+        <button id="btn-link-remove" @onclick="RemoveLink">Remove link</button>
+        <button id="btn-link-md" @onclick="SetLinkMarkdown">Set link markdown</button>
+        <button id="btn-link-get-md" @onclick="GetLinkMarkdown">Get link markdown</button>
+    </div>
+    <p>Link markdown result: <span id="link-md-result">@_linkMarkdownResult</span></p>
+</section>
+
+<section>
+    <h2>Formatting — nested toolbar, NO callbacks (pure JS, zero interop)</h2>
+    @* No OnContentChanged/OnSelectionChanged: proves built-in toolbar buttons format
+       entirely in JS and drive data-lexical-active without any .NET round-trip. *@
+    <LexicalEditor @ref="_format"
+                   Id="editor-format"
+                   CssClass="harness-format"
+                   Placeholder="Type here…"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+    </LexicalEditor>
+
+    @* Direct C# method calls (the opt-in programmatic path), driving the same editor. *@
+    <div>
+        <button id="btn-fmt-bold" @onclick="() => FormatFmt(LexicalTextFormat.Bold)">Bold</button>
+        <button id="btn-block-h1" @onclick="() => BlockFmt(LexicalBlockType.Heading1)">H1</button>
+        <button id="btn-block-quote" @onclick="() => BlockFmt(LexicalBlockType.Quote)">Quote</button>
+        <button id="btn-block-p" @onclick="() => BlockFmt(LexicalBlockType.Paragraph)">Paragraph</button>
+        <button id="btn-fmt-undo" @onclick="UndoFmt">Undo</button>
+        <button id="btn-fmt-redo" @onclick="RedoFmt">Redo</button>
+        <button id="btn-fmt-get-html" @onclick="GetFmtHtml">Get HTML</button>
+    </div>
+    <p>Format HTML result: <span id="fmt-html-result">@_fmtHtmlResult</span></p>
+</section>
+
+<section>
+    <h2>Formatting — opt-in callbacks (selection + content push)</h2>
+    <LexicalEditor @ref="_notify"
+                   Id="editor-notify"
+                   CssClass="harness-notify"
+                   OnContentChanged="OnNotifyContent"
+                   OnSelectionChanged="OnNotifySelection">
+        <LexicalToolbar ShowLink="false" />
+    </LexicalEditor>
+    <p>Notify change: <span id="notify-change">@_notifyChange</span></p>
+    <p>Notify change count: <span id="notify-change-count">@_notifyChangeCount</span></p>
+    <p>Notify sel bold: <span id="notify-sel-bold">@_notifySelBold</span></p>
+    <p>Notify sel block: <span id="notify-sel-block">@_notifySelBlock</span></p>
+    <p>Notify sel count: <span id="notify-sel-count">@_notifySelCount</span></p>
+</section>
+
+<section>
+    <h2>Overlays — floating toolbar, slash menu, drag handle (pure JS, zero interop)</h2>
+    @* No callbacks wired: proves the in-editor overlays are entirely client-side.
+       The overlays activate purely from the marker markup they render. *@
+    <LexicalEditor Id="editor-overlays"
+                   CssClass="harness-overlays"
+                   Placeholder="Type '/' for blocks, select text for the toolbar…"
+                   Theme="LexicalTheme.Default">
+        <LexicalFloatingToolbar />
+        <LexicalSlashMenu />
+        <LexicalDragHandle />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Link editor popup — toolbar link button + floating editor (pure JS, zero interop)</h2>
+    @* No callbacks wired: the toolbar link button inserts a placeholder link and the
+       floating <LexicalLinkEditor/> opens to edit its URL — all client-side. *@
+    <LexicalEditor Id="editor-linkeditor"
+                   CssClass="harness-linkeditor"
+                   Placeholder="Select text, then click the link button…"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+        <LexicalLinkEditor />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Tables — insert picker, slash /table, in-cell action menu (pure JS, zero interop)</h2>
+    @* No callbacks wired: proves table insert + in-cell editing are entirely
+       client-side. The picker, slash item, and action menu drive the @lexical/table
+       plugin without any .NET round-trip. *@
+    <LexicalEditor @ref="_tables"
+                   Id="editor-tables"
+                   CssClass="harness-tables"
+                   Placeholder="Insert a table via the toolbar or /table…"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+        <LexicalSlashMenu />
+        @* Declared *after* the toolbar and slash menu on purpose: it proves the
+           ExtensionsChanged re-render, i.e. that chrome declared above <LexicalTables/>
+           still picks the feature up. *@
+        <LexicalTables />
+        <LexicalTableEditor />
+    </LexicalEditor>
+
+    @* Direct C# insert (the opt-in programmatic path), driving the same editor. *@
+    <div>
+        <button id="btn-insert-table" @onclick="InsertTableFmt">Insert 2×3 table</button>
+        <button id="btn-tables-get-html" @onclick="GetTablesHtml">Get HTML</button>
+    </div>
+    <p>Tables HTML result: <span id="tables-html-result">@_tablesHtmlResult</span></p>
+</section>
+
+<section>
+    <h2>Mentions — @@ typeahead (provider + OnSelected) and # freeform highlight</h2>
+    @* The @@ editor wires a fake provider and OnSelected (opt-in interop) plus a
+       content callback so the silent-refresh test can prove refresh does not notify.
+       The # editor is freeform-only (no provider): pure-JS hashtag highlighting. *@
+    <LexicalEditor @ref="_mentionPeople"
+                   Id="editor-mention-people"
+                   CssClass="harness-mention-people"
+                   Placeholder="Type a mention…"
+                   OnContentChanged="OnMentionContent"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator"
+                        Color="#1877e8"
+                        Provider="ResolvePeople"
+                        OnSelected="OnMentionSelected" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-mention-list" @onclick="GetMentionList">List mentions</button>
+        <button id="btn-mention-refresh" @onclick="RefreshMentionName">Rename first mention</button>
+    </div>
+    <p>Mention selected: <span id="mention-selected">@_mentionSelected</span></p>
+    <p>Mention list: <span id="mention-list">@_mentionList</span></p>
+    <p>Mention refresh count: <span id="mention-refresh-count">@_mentionRefreshCount</span></p>
+    <p>Mention content-change count: <span id="mention-change-count">@_mentionChangeCount</span></p>
+
+    <LexicalEditor Id="editor-mention-hashtag"
+                   CssClass="harness-mention-hashtag"
+                   Placeholder="Type #tags…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="#" Color="#e8b800" Freeform="true" />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Extensions — the badge reference extension (external ESM, opt-in interop)</h2>
+    @* Two editors prove the extension SDK's invariants as a pair, like
+       .harness-format / .harness-notify do for the core:
+
+         * editor-badge-notify wires OnBadgeClicked, so HasInvokeHandler is true and
+           clicking a badge round-trips to C#.
+         * editor-badge-quiet wires nothing: the same extension, the same custom node
+           and the same client-side insert, but zero JS→.NET calls. *@
+    <LexicalEditor @ref="_badgeNotify"
+                   Id="editor-badge-notify"
+                   CssClass="harness-badge-notify"
+                   Placeholder="Insert a badge…"
+                   Theme="LexicalTheme.Default">
+        <BadgeExtension @ref="_badgeNotifyExt" Label="Draft" OnBadgeClicked="OnBadgeClicked" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-badge-insert-cs" @onclick="InsertBadgeFromCs">Insert badge from C#</button>
+        <button id="btn-badge-count" @onclick="CountBadges">Count badges</button>
+        <button id="btn-badge-html" @onclick="GetBadgeHtml">Get HTML</button>
+    </div>
+    <p>Badge clicked: <span id="badge-clicked">@_badgeClicked</span></p>
+    <p>Badge click count: <span id="badge-click-count">@_badgeClickCount</span></p>
+    <p>Badge count: <span id="badge-count">@_badgeCount</span></p>
+    <p>Badge HTML: <span id="badge-html-result">@_badgeHtmlResult</span></p>
+
+    <LexicalEditor Id="editor-badge-quiet"
+                   CssClass="harness-badge-quiet"
+                   Placeholder="Insert a badge (no callbacks)…"
+                   Theme="LexicalTheme.Default">
+        <BadgeExtension Label="Quiet" />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Initial content — one editor per format, loaded inside create()</h2>
+    @* No @ref and no OnReady: the document is applied while the editor is created, so
+       it is present on the first paint (data-lexical-empty is never set) and it is the
+       history baseline — undo must not empty these. *@
+    <LexicalEditor Id="editor-initial-html"
+                   CssClass="harness-initial-html"
+                   InitialContent="@LexicalContent.FromHtml(InitialHtml)"
+                   Theme="LexicalTheme.Default" />
+
+    <LexicalEditor Id="editor-initial-text"
+                   CssClass="harness-initial-text"
+                   InitialContent="@LexicalContent.FromText(InitialText)" />
+
+    <LexicalEditor Id="editor-initial-md"
+                   CssClass="harness-initial-md"
+                   InitialContent="@LexicalContent.FromMarkdown(InitialMarkdown)" />
+
+    <LexicalEditor @ref="_initialJson"
+                   Id="editor-initial-json"
+                   CssClass="harness-initial-json"
+                   InitialContent="@LexicalContent.FromEditorStateJson(InitialStateJson)" />
+
+    <div>
+        <button id="btn-initial-undo" @onclick="UndoInitialJson">Undo (json editor)</button>
+        <button id="btn-initial-ready" @onclick="ReadInitialReady">Read IsReady</button>
+        <button id="btn-content-roundtrip" @onclick="RoundTripContent">Round-trip content</button>
+    </div>
+    <p>Initial IsReady: <span id="initial-ready">@_initialReady</span></p>
+    <p>Round-trip result: <span id="content-roundtrip">@_contentRoundTrip</span></p>
+</section>
+
+<section>
+    <h2>Content payload — SignalOnly (dirty signal without the document)</h2>
+    @* The same opt-in channel as .harness-notify, but carrying no body: the callback
+       fires with an empty LexicalContent and LastContent stays null. *@
+    <LexicalEditor @ref="_signal"
+                   Id="editor-signal"
+                   CssClass="harness-signal"
+                   ContentPayload="LexicalContentPayload.SignalOnly"
+                   OnContentChanged="OnSignalContent" />
+    <div>
+        <button id="btn-signal-last" @onclick="ReadSignalLast">Read LastContentText</button>
+        <button id="btn-notify-last" @onclick="ReadNotifyLast">Read notify LastContentText</button>
+    </div>
+    <p>Signal count: <span id="signal-count">@_signalCount</span></p>
+    <p>Signal arg length: <span id="signal-arg-length">@_signalArgLength</span></p>
+    <p>Signal last: <span id="signal-last">@_signalLast</span></p>
+    <p>Notify last: <span id="notify-last">@_notifyLast</span></p>
+</section>
+
+<section>
+    <h2>Content payload — a format-carrying push (HTML, one crossing)</h2>
+    @* The subscriber declares HTML, so the document is serialized JS-side inside the
+       debounce and arrives ready to use — no plain-text push followed by a getHtml
+       round trip. The format rides along on the value. *@
+    <LexicalEditor Id="editor-payload-html"
+                   CssClass="harness-payload-html"
+                   ContentPayload="LexicalContentPayload.Html"
+                   OnContentChanged="OnHtmlPayload" />
+    <p>HTML payload format: <span id="payload-html-format">@_htmlPayloadFormat</span></p>
+    <p>HTML payload: <span id="payload-html-text">@_htmlPayloadText</span></p>
+</section>
+
+<section>
+    <h2>Toolbar — StartContent/EndContent added to the default set</h2>
+    @* The default controls still render; the two fragments bracket them. *@
+    <LexicalEditor Id="editor-toolbar-extra" CssClass="harness-toolbar-extra">
+        <LexicalToolbar>
+            <StartContent>
+                <button id="btn-toolbar-start" type="button">Start</button>
+            </StartContent>
+            <EndContent>
+                <button id="btn-toolbar-end" type="button">End</button>
+            </EndContent>
+        </LexicalToolbar>
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Mentions — a provider slower than its QueryTimeout</h2>
+    @* Proves the loading affordance and the soft timeout: the menu shows
+       data-lexical-mention-loading while the query is in flight, then closes when the
+       provider blows the deadline instead of stranding the session. *@
+    <LexicalEditor Id="editor-mention-slow"
+                   CssClass="harness-mention-slow"
+                   Placeholder="Type a mention…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator"
+                        Color="#1877e8"
+                        Provider="ResolveSlowly"
+                        QueryTimeout="@TimeSpan.FromMilliseconds(600)" />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>History disabled</h2>
+    <LexicalEditor Id="editor-nohistory" EnableHistory="false" />
+</section>
+
+<section>
+    <h2>Read-only (created read-only)</h2>
+    <LexicalEditor Id="editor-readonly" ReadOnly="true" />
+</section>
+
+<section>
+    <h2>Toggle read-only (setEditable)</h2>
+    <LexicalEditor Id="editor-toggle" ReadOnly="_toggleReadOnly" />
+    <button id="btn-toggle" @onclick="() => _toggleReadOnly = !_toggleReadOnly">
+        Toggle read-only (now: <span id="toggle-state">@(_toggleReadOnly ? "readonly" : "editable")</span>)
+    </button>
+</section>
+
+<section>
+    <h2>Disposable (dispose on removal)</h2>
+    @if (_showDisposable)
+    {
+        <LexicalEditor Id="editor-disposable" />
+    }
+    <button id="btn-remove" @onclick="() => _showDisposable = false">Remove</button>
+    <button id="btn-readd" @onclick="() => _showDisposable = true">Re-add</button>
+</section>
+
+@code {
+    // Stable URL asserted by the link integration tests.
+    private const string LinkUrl = "https://example.com/";
+
+    // The mention initiator, bound rather than inlined so the "@" isn't parsed as Razor.
+    private const string AtInitiator = "@";
+
+    private LexicalEditor? _main;
+    private LexicalEditor? _lists;
+    private LexicalEditor? _links;
+    private LexicalEditor? _format;
+    private LexicalEditor? _notify;
+    private LexicalEditor? _tables;
+    private LexicalEditor? _mentionPeople;
+    private LexicalEditor? _badgeNotify;
+    private LexicalEditor? _initialJson;
+    private LexicalEditor? _signal;
+    private BadgeExtension? _badgeNotifyExt;
+    private string _getResult = "";
+    private string _changeLog = "";
+    private int _changeCount;
+    private bool _toggleReadOnly;
+    private bool _showDisposable = true;
+    private string _htmlResult = "";
+    private string _markdownResult = "";
+    private string _jsonResult = "";
+    private string _capturedJson = "";
+    private string _listMarkdownResult = "";
+    private string _linkMarkdownResult = "";
+    private string _fmtHtmlResult = "";
+    private string _tablesHtmlResult = "";
+    private string _notifyChange = "";
+    private int _notifyChangeCount;
+    private string _notifySelBold = "";
+    private string _notifySelBlock = "";
+    private int _notifySelCount;
+    private string _mentionSelected = "";
+    private string _mentionList = "";
+    private int _mentionRefreshCount;
+    private int _mentionChangeCount;
+    private string _badgeClicked = "";
+    private int _badgeClickCount;
+    private int _badgeCount;
+    private string _badgeHtmlResult = "";
+    private string _initialReady = "";
+    private string _contentRoundTrip = "";
+    private string _htmlPayloadFormat = "";
+    private string _htmlPayloadText = "";
+    private int _signalCount;
+    private int _signalArgLength = -1;
+    private string _signalLast = "";
+    private string _notifyLast = "";
+
+    // Initial content, one constant per format. Each carries a distinct marker string
+    // so a test can tell which format actually loaded.
+    private const string InitialHtml = "<p>Initial <strong>html</strong> content</p>";
+    private const string InitialText = "Initial text content";
+    private const string InitialMarkdown = "## Initial markdown heading";
+    private const string InitialStateJson =
+        """
+        {"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"",
+        "text":"Initial state json content","type":"text","version":1}],"direction":"ltr",
+        "format":"","indent":0,"type":"paragraph","version":1}],"direction":"ltr","format":"",
+        "indent":0,"type":"root","version":1}}
+        """;
+
+    // A provider that never answers in time — the QueryTimeout must close the picker.
+    private static async Task<IEnumerable<MentionItem>> ResolveSlowly(string query)
+    {
+        await Task.Delay(5000);
+        return People;
+    }
+
+    private void OnSignalContent(LexicalContent content)
+    {
+        _signalCount++;
+        _signalArgLength = content.Text.Length;
+    }
+
+    private void OnHtmlPayload(LexicalContent content)
+    {
+        _htmlPayloadFormat = content.Format.ToString();
+        _htmlPayloadText = content.Text;
+    }
+
+    private void ReadSignalLast() =>
+        _signalLast = _signal?.LastContent is { } c ? c.Text : "(null)";
+
+    private void ReadNotifyLast() =>
+        _notifyLast = _notify?.LastContent is { } c ? $"{c.Format}|{c.Text}" : "(null)";
+
+    private void ReadInitialReady() => _initialReady = _initialJson?.IsReady.ToString() ?? "(null)";
+
+    // The generic, format-as-a-value pair: read the document in a format chosen at
+    // runtime, then write the same value straight back.
+    private async Task RoundTripContent()
+    {
+        if (_initialJson is null)
+        {
+            return;
+        }
+        var content = await _initialJson.GetContentAsync(LexicalContentFormat.Markdown);
+        await _initialJson.SetContentAsync(content);
+        _contentRoundTrip = $"{content.Format}|{content.Text}";
+    }
+
+    private async Task UndoInitialJson()
+    {
+        if (_initialJson is not null)
+        {
+            await _initialJson.UndoAsync();
+        }
+    }
+
+    // A fixed directory the fake provider searches — stands in for a GAL/host lookup.
+    private static readonly MentionItem[] People =
+    [
+        new("1", "Luke Skywalker", "/u/luke", "Jedi"),
+        new("2", "Leia Organa", "/u/leia", "General"),
+        new("3", "Han Solo", "/u/han", "Smuggler"),
+    ];
+
+    private Task<IEnumerable<MentionItem>> ResolvePeople(string query)
+    {
+        var matches = People.Where(p =>
+            p.Text.Contains(query, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult<IEnumerable<MentionItem>>(matches);
+    }
+
+    private void OnMentionContent(LexicalContent content) => _mentionChangeCount++;
+
+    private void OnMentionSelected(LexicalMentionSelected selected) =>
+        _mentionSelected = $"{selected.Text}|{selected.Id}";
+
+    private async Task GetMentionList()
+    {
+        if (_mentionPeople is not null)
+        {
+            var mentions = await _mentionPeople.GetMentionsAsync();
+            _mentionList = string.Join(
+                ",", mentions.Select(m => $"{m.Text}|{m.Value}|{m.Initiator}"));
+        }
+    }
+
+    // Discovers the config id + value of the first mention, then renames every
+    // occurrence of that value. The rename is silent — it must not bump the
+    // content-change count above.
+    private async Task RefreshMentionName()
+    {
+        if (_mentionPeople is null)
+        {
+            return;
+        }
+        var mentions = await _mentionPeople.GetMentionsAsync();
+        var first = mentions.FirstOrDefault();
+        if (first is not null)
+        {
+            _mentionRefreshCount = await _mentionPeople.RefreshMentionsByValueAsync(
+                first.ConfigId, first.Value, "Luke S. (renamed)", "/u/luke-renamed");
+        }
+    }
+
+    // The extension's opt-in JS→.NET channel (its own [JSInvokable] route, not the
+    // editor's content/selection channels).
+    private void OnBadgeClicked(string text)
+    {
+        _badgeClicked = text;
+        _badgeClickCount++;
+    }
+
+    // The .NET→JS direction: C# asks the extension's JS half to insert / count.
+    private async Task InsertBadgeFromCs()
+    {
+        if (_badgeNotifyExt is not null)
+        {
+            await _badgeNotifyExt.InsertBadgeAsync("From C#");
+        }
+    }
+
+    private async Task CountBadges()
+    {
+        if (_badgeNotifyExt is not null)
+        {
+            _badgeCount = await _badgeNotifyExt.CountBadgesAsync();
+        }
+    }
+
+    private async Task GetBadgeHtml()
+    {
+        if (_badgeNotify is not null)
+        {
+            _badgeHtmlResult = await _badgeNotify.GetHtmlAsync();
+        }
+    }
+
+    private void OnMainChanged(LexicalContent content)
+    {
+        _changeLog = content.Text;
+        _changeCount++;
+    }
+
+    private void OnNotifyContent(LexicalContent content)
+    {
+        _notifyChange = content.Text;
+        _notifyChangeCount++;
+    }
+
+    private void OnNotifySelection(LexicalSelectionState state)
+    {
+        _notifySelBold = state.IsBold ? "true" : "false";
+        _notifySelBlock = state.BlockType.ToString();
+        _notifySelCount++;
+    }
+
+    private async Task FormatFmt(LexicalTextFormat format)
+    {
+        if (_format is not null)
+        {
+            await _format.FormatTextAsync(format);
+        }
+    }
+
+    private async Task BlockFmt(LexicalBlockType blockType)
+    {
+        if (_format is not null)
+        {
+            await _format.SetBlockTypeAsync(blockType);
+        }
+    }
+
+    private async Task UndoFmt()
+    {
+        if (_format is not null)
+        {
+            await _format.UndoAsync();
+        }
+    }
+
+    private async Task RedoFmt()
+    {
+        if (_format is not null)
+        {
+            await _format.RedoAsync();
+        }
+    }
+
+    private async Task GetFmtHtml()
+    {
+        if (_format is not null)
+        {
+            _fmtHtmlResult = await _format.GetHtmlAsync();
+        }
+    }
+
+    private async Task InsertTableFmt()
+    {
+        if (_tables is not null)
+        {
+            await _tables.InsertTableAsync(2, 3);
+        }
+    }
+
+    private async Task GetTablesHtml()
+    {
+        if (_tables is not null)
+        {
+            _tablesHtmlResult = await _tables.GetHtmlAsync();
+        }
+    }
+
+    private async Task GetMain()
+    {
+        if (_main is not null)
+        {
+            _getResult = await _main.GetTextAsync();
+        }
+    }
+
+    private async Task SetMain()
+    {
+        if (_main is not null)
+        {
+            await _main.SetTextAsync("Set via C#");
+        }
+    }
+
+    private async Task GetHtml()
+    {
+        if (_main is not null)
+        {
+            _htmlResult = await _main.GetHtmlAsync();
+        }
+    }
+
+    private async Task SetHtml()
+    {
+        if (_main is not null)
+        {
+            await _main.SetHtmlAsync("<h1>HTML heading</h1><p>HTML <strong>bold</strong> body</p>");
+        }
+    }
+
+    private async Task GetMarkdown()
+    {
+        if (_main is not null)
+        {
+            _markdownResult = await _main.GetMarkdownAsync();
+        }
+    }
+
+    private async Task SetMarkdown()
+    {
+        if (_main is not null)
+        {
+            await _main.SetMarkdownAsync("# Markdown heading\n\nMarkdown **bold** body");
+        }
+    }
+
+    // Captures the current editor state as JSON. The Set button restores it,
+    // so the round-trip covers both getEditorStateJson and setEditorStateJson.
+    private async Task GetJson()
+    {
+        if (_main is not null)
+        {
+            _capturedJson = await _main.GetEditorStateJsonAsync();
+            _jsonResult = _capturedJson;
+        }
+    }
+
+    private async Task SetJson()
+    {
+        if (_main is not null && _capturedJson.Length > 0)
+        {
+            await _main.SetEditorStateJsonAsync(_capturedJson);
+        }
+    }
+
+    // Lists: insertUnorderedList / insertOrderedList / removeList touchpoints.
+    private async Task InsertUnordered()
+    {
+        if (_lists is not null)
+        {
+            await _lists.InsertUnorderedListAsync();
+        }
+    }
+
+    private async Task InsertOrdered()
+    {
+        if (_lists is not null)
+        {
+            await _lists.InsertOrderedListAsync();
+        }
+    }
+
+    private async Task RemoveListFmt()
+    {
+        if (_lists is not null)
+        {
+            await _lists.RemoveListAsync();
+        }
+    }
+
+    // Round-trips list markdown to exercise the @lexical/list nodes' Markdown
+    // transformers (registered via createEditor's nodes[]).
+    private async Task SetListMarkdown()
+    {
+        if (_lists is not null)
+        {
+            await _lists.SetMarkdownAsync("- one\n- two\n- three");
+        }
+    }
+
+    private async Task GetListMarkdown()
+    {
+        if (_lists is not null)
+        {
+            _listMarkdownResult = await _lists.GetMarkdownAsync();
+        }
+    }
+
+    // Links: toggleLink set / remove touchpoints.
+    private async Task SetLink()
+    {
+        if (_links is not null)
+        {
+            await _links.SetLinkAsync(LinkUrl);
+        }
+    }
+
+    private async Task RemoveLink()
+    {
+        if (_links is not null)
+        {
+            await _links.RemoveLinkAsync();
+        }
+    }
+
+    // Round-trips link markdown to exercise the @lexical/link node's Markdown
+    // transformer.
+    private async Task SetLinkMarkdown()
+    {
+        if (_links is not null)
+        {
+            await _links.SetMarkdownAsync($"see [Example]({LinkUrl}) now");
+        }
+    }
+
+    private async Task GetLinkMarkdown()
+    {
+        if (_links is not null)
+        {
+            _linkMarkdownResult = await _links.GetMarkdownAsync();
+        }
+    }
+}

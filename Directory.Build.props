@@ -1,0 +1,60 @@
+<Project>
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+  </PropertyGroup>
+ 
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);</NoWarn>
+  </PropertyGroup>
+
+  <!-- Determine build platform: Visual Studio, Windows command line, or WSL.
+       'vs' takes precedence so command-line builds on Windows don't collide with
+       a running VS instance (which holds locks on bin/obj files). -->
+  <PropertyGroup>
+    <BuildPlatform Condition="'$(BuildingInsideVisualStudio)' == 'true'">vs</BuildPlatform>
+    <BuildPlatform Condition="'$(BuildPlatform)' == '' and '$(WSL_DISTRO_NAME)' != ''">wsl</BuildPlatform>
+    <BuildPlatform Condition="'$(BuildPlatform)' == ''">win</BuildPlatform>
+  </PropertyGroup>
+
+  <!-- Exclude the other platforms' build artifacts from compilation -->
+  <PropertyGroup Condition="'$(BuildPlatform)' == 'wsl'">
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/win/**;**/vs/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(BuildPlatform)' == 'win'">
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/wsl/**;**/vs/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(BuildPlatform)' == 'vs'">
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/win/**;**/wsl/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- Isolate build outputs by platform to prevent conflicts between Windows and WSL -->
+  <PropertyGroup>
+    <!-- Root directory of the repository, defined by *this* Directory.Build.props file. -->
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+
+    <!-- Places all build artifacts under a path like ".build\win\ProjectName\*" -->
+    <ProjectBuildRoot>$(RepoRoot).build\$(BuildPlatform)\$(MSBuildProjectName)\</ProjectBuildRoot>
+
+    <BaseOutputPath>$(ProjectBuildRoot)bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(ProjectBuildRoot)obj\</BaseIntermediateOutputPath>
+    <!-- Redirect MSBuildProjectExtensionsPath so NuGet restore writes to the custom obj path,
+      not the default local obj\ directory. Must be set before Microsoft.Common.props reads it. -->
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <OutputPath>$(BaseOutputPath)$(Configuration)\$(TargetFramework)\</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\</IntermediateOutputPath>
+    <ProjectAssetsFile>$(BaseIntermediateOutputPath)project.assets.json</ProjectAssetsFile>
+  </PropertyGroup>
+</Project>

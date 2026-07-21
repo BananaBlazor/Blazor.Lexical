@@ -1,0 +1,24 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["Tests.Integration.Host.styles.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/Blazor.Lexical/blazor-lexical.css"]" />
+    @* An extension's CSS is linked by the app, like the core stylesheet. *@
+    <link rel="stylesheet" href="@Assets["_content/Samples.Extensions.Badge/badge.css"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

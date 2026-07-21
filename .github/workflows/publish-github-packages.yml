@@ -1,0 +1,137 @@
+# Publish Blazor.Lexical to this repository's GitHub Packages NuGet feed.
+#
+# MANUAL ONLY — no push/release trigger, and there must never be one.
+#
+# This is the staging feed: packages land here first, get consumed and shaken out,
+# and are promoted to nuget.org by promote-to-nuget.yml once we are happy with
+# them. Promotion pushes the *same bytes* — it never rebuilds — so what ships is
+# exactly what was tested here.
+#
+# No secrets or account setup required: GITHUB_TOKEN authenticates against
+# nuget.pkg.github.com, and the feed is created on first push. The one hard
+# requirement is that the package's RepositoryUrl points at this repo, which
+# Blazor.Lexical.csproj already sets — GitHub Packages rejects a package whose
+# repository does not match the owner in the push URL.
+#
+# Version is Major.<Lexical-minor>.Serial, derived from Version.props and the
+# Lexical lockfile; this workflow never edits it. Because no feed lets a version
+# be overwritten, use prerelease = true (the default) to publish repeatedly off
+# the same serial — it appends -preview.<run number>.
+name: Publish to GitHub Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Append -preview.<run number> so repeated runs do not collide'
+        type: boolean
+        default: true
+      dry_run:
+        description: 'Pack and validate only — do not push'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-github-packages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Node is required by BuildLexicalJsBundle — the packed wwwroot/*.mjs assets
+      # are generated from TypeScript at build time, never checked in.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore
+        run: dotnet restore Blazor.Lexical.slnx
+
+      - name: Build
+        run: dotnet build Blazor.Lexical.slnx -c Release --no-restore -p:ContinuousIntegrationBuild=true
+
+      # A package is only publishable if the tests guarding its behavior pass.
+      - name: Unit tests
+        run: dotnet test Tests/UnitTests/Tests.UnitTests.csproj -c Release --no-build
+
+      - name: Install Playwright browsers
+        run: pwsh Tests/Integration/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Integration tests
+        run: dotnet test Tests/Integration/Tests.Integration.csproj -c Release --no-build
+
+      # Ask MSBuild for the version it derived rather than re-deriving it here —
+      # there is exactly one source of truth (Version.props + the lockfile) and it
+      # is not this file. The prerelease suffix is layered on top via PackageVersion.
+      - name: Resolve version
+        id: ver
+        run: |
+          BASE=$(dotnet msbuild Source/Blazor.Lexical/Blazor.Lexical.csproj -getProperty:Version -nologo | tr -d '[:space:]')
+          if [ -z "$BASE" ]; then echo "::error::could not read Version from the project"; exit 1; fi
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            VERSION="$BASE-preview.${{ github.run_number }}"
+          else
+            VERSION="$BASE"
+          fi
+          echo "Base version $BASE -> publishing $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ContinuousIntegrationBuild makes the build deterministic and lets SourceLink
+      # stamp the repo URL. VerifyLexicalAlignment runs before pack and fails if the
+      # bundled Lexical pins have drifted, so a package can never claim a Lexical
+      # version it does not bundle.
+      - name: Pack
+        run: >-
+          dotnet pack Source/Blazor.Lexical/Blazor.Lexical.csproj -c Release --no-build
+          -p:ContinuousIntegrationBuild=true
+          -p:PackageVersion=${{ steps.ver.outputs.version }}
+          -o artifacts
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg-${{ steps.ver.outputs.version }}
+          path: artifacts/*
+
+      # --no-symbols: GitHub Packages has no symbol server and rejects the .snupkg,
+      # which would otherwise fail the run after the .nupkg has already landed. The
+      # symbols survive in the run artifact above; promote-to-nuget.yml can pull
+      # them from there (its run_id input) so nuget.org still gets symbols.
+      - name: Push to GitHub Packages
+        if: ${{ !inputs.dry_run }}
+        run: >-
+          dotnet nuget push 'artifacts/*.nupkg'
+          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --no-symbols
+          --skip-duplicate
+
+      - name: Summary
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "### Dry run — nothing was pushed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Packed and validated \`Blazor.Lexical $V\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Published Blazor.Lexical $V to GitHub Packages" >> "$GITHUB_STEP_SUMMARY"
+            echo "Consume it by adding the feed (a GitHub PAT with \`read:packages\` is required):" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "dotnet nuget add source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \\" >> "$GITHUB_STEP_SUMMARY"
+            echo "  -n blazor-lexical-gpr -u <github-username> -p <token> --store-password-in-clear-text" >> "$GITHUB_STEP_SUMMARY"
+            echo "dotnet add package Blazor.Lexical --version $V" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "When it is proven, promote it with the **Promote to nuget.org** workflow." >> "$GITHUB_STEP_SUMMARY"
+          fi

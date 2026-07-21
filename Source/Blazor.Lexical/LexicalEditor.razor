@@ -1,0 +1,16 @@
+@namespace Blazor.Lexical
+
+@* The root wrapper is what JS binds to: toolbars (ChildContent) render inside it
+   so the delegated command listener catches their clicks, and Lexical attaches to
+   the [data-lexical-content] surface below. `this` is cascaded so custom C#
+   toolbar buttons can reach the editor's methods. *@
+<CascadingValue Value="this" IsFixed="true">
+    <div @ref="_root" class="blazor-lexical @CssClass">
+        @ChildContent
+        <div class="blazor-lexical__content"
+             data-lexical-content
+             id="@Id"
+             data-placeholder="@Placeholder"
+             contenteditable="@(ReadOnly ? "false" : "true")"></div>
+    </div>
+</CascadingValue>

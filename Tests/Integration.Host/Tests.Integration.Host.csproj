@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\Blazor.Lexical\Blazor.Lexical.csproj" />
+    <!-- The reference extension, exercised by the harness's badge section. -->
+    <ProjectReference Include="..\..\Samples\Extensions.Badge\Samples.Extensions.Badge.csproj" />
+  </ItemGroup>
+
+</Project>

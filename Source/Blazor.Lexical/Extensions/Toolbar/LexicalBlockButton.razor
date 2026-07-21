@@ -1,0 +1,33 @@
+@namespace Blazor.Lexical
+
+@* Applies a specific block type (heading, quote, paragraph). JS sets
+   data-lexical-active when the selection already has that block type.
+   List block types are handled by LexicalListButton. *@
+<LexicalCommandButton Command="@Command"
+                      Title="@(Title ?? LexicalToolbar.BlockTypeLabel(Block))"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @LexicalToolbar.BlockTypeLabel(Block)
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>The block type this button applies (non-list).</summary>
+    [Parameter, EditorRequired] public LexicalBlockType Block { get; set; }
+
+    /// <summary>Tooltip / accessible label. Defaults to a label for the block type.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default label.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Command => $"block:{Block.ToJsToken()}";
+}

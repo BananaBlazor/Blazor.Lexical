@@ -1,0 +1,39 @@
+@namespace Blazor.Lexical
+
+@* Sets block alignment. JS sets data-lexical-active when the selection already has
+   this alignment. LexicalAlignment.None clears alignment. *@
+<LexicalCommandButton Command="@($"align:{Alignment.ToJsToken()}")"
+                      Title="@(Title ?? Alignment.ToString())"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @Glyph
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>The alignment this button applies.</summary>
+    [Parameter, EditorRequired] public LexicalAlignment Alignment { get; set; }
+
+    /// <summary>Tooltip / accessible label.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default glyph.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Glyph => Alignment switch
+    {
+        LexicalAlignment.Left => "⯇",
+        LexicalAlignment.Center => "≡",
+        LexicalAlignment.Right => "⯈",
+        LexicalAlignment.Justify => "☰",
+        _ => "⇔",
+    };
+}

@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.9" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Source\Blazor.Lexical\Blazor.Lexical.csproj" />
+    <!-- The reference consumer extension, demoed below the main editor. It uses only
+         the library's public extension SDK — exactly what a third-party package would. -->
+    <ProjectReference Include="..\Samples\Extensions.Badge\Samples.Extensions.Badge.csproj" />
+  </ItemGroup>
+
+  <!-- Documentation site. DocFX renders the RCL's /// XML doc comments plus the
+       conceptual pages under docfx/ into wwwroot/docs, which the demo serves at
+       /docs/. Gated by BuildDocs, default FALSE: a plain `dotnet run` / `dotnet
+       build` of the sample stays a fast, dependency-light playground. The Pages
+       workflow publishes with -p:BuildDocs=true, which is what ships the docs.
+       Pass -p:BuildDocs=true locally to preview them. DocFX is a repo-pinned local
+       tool (.config/dotnet-tools.json), restored on demand — no global install. -->
+  <PropertyGroup>
+    <BuildDocs Condition="'$(BuildDocs)' == ''">false</BuildDocs>
+    <!-- The RCL's redirected build output for the current platform/config (see
+         Directory.Build.props). The trailing ** in the globs below covers the Razor
+         SDK's doubled-TFM folder (bin\<cfg>\net10.0\net10.0\); ref/refint live under
+         obj\, never bin\, but are excluded defensively in case a future SDK changes. -->
+    <RclBuildDir>$(RepoRoot).build\$(BuildPlatform)\Blazor.Lexical\bin\$(Configuration)\</RclBuildDir>
+  </PropertyGroup>
+
+  <!-- Generated docs output: keep it out of the evaluation-time static-web-asset glob,
+       unconditionally. With BuildDocs=true, RegisterDocFx re-adds whatever exists after
+       generation, so a fresh clone (absent) and a rebuild (regenerated) both register
+       the current files. With BuildDocs=false this is what stops a stale wwwroot/docs
+       left over from an earlier docs build from silently shipping in a no-docs build. -->
+  <ItemGroup>
+    <Content Remove="wwwroot\docs\**" />
+    <None Remove="wwwroot\docs\**" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BuildDocs)' == 'true'">
+    <!-- Incremental inputs: the conceptual pages + DocFX config, plus the RCL's XML
+         doc (from the prior build) so an XML-comment-only edit still retriggers the
+         API pages. Convergent, not perfect: on a clean first build the XML isn't
+         globbed yet, but the target runs anyway because the output is missing. -->
+    <DocFxSource Include="docfx\**\*.md;docfx\**\*.yml;docfx\docfx.json"
+                 Exclude="docfx\api\**;docfx\_input\**" />
+    <DocFxSource Include="$(RclBuildDir)**\Blazor.Lexical.xml"
+                 Exclude="$(RclBuildDir)**\ref\**;$(RclBuildDir)**\refint\**" />
+  </ItemGroup>
+
+  <!-- Generate the site. Runs after the RCL is built (ResolveProjectReferences) and
+       before static web assets are collected. Incremental via Inputs/Outputs. -->
+  <Target Name="GenerateDocFx"
+          Condition="'$(BuildDocs)' == 'true'"
+          AfterTargets="ResolveProjectReferences"
+          BeforeTargets="ResolveProjectStaticWebAssets"
+          Inputs="@(DocFxSource)"
+          Outputs="wwwroot\docs\index.html">
+    <Message Importance="high" Text="Blazor.Lexical demo: generating API docs into wwwroot\docs (BuildDocs=true) ..." />
+
+    <!-- Stage the freshly built RCL assembly + XML doc for DocFX metadata. Exclude
+         ref/refint so DocFX never reads a metadata-only reference assembly. -->
+    <ItemGroup>
+      <_DocFxLibInput Include="$(RclBuildDir)**\Blazor.Lexical.dll;$(RclBuildDir)**\Blazor.Lexical.xml"
+                      Exclude="$(RclBuildDir)**\ref\**;$(RclBuildDir)**\refint\**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_DocFxLibInput)" DestinationFolder="docfx\_input" SkipUnchangedFiles="true" />
+
+    <Exec Command="dotnet tool restore" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="dotnet docfx docfx/docfx.json" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
+  <!-- Always register the generated docs as static web assets (even when
+       GenerateDocFx skipped as up-to-date), mirroring the RCL's RegisterLexicalBundle.
+       BeforeTargets is load-bearing — it is what schedules this target into the build;
+       DependsOnTargets only orders GenerateDocFx ahead of it. -->
+  <Target Name="RegisterDocFx"
+          Condition="'$(BuildDocs)' == 'true'"
+          BeforeTargets="ResolveProjectStaticWebAssets"
+          DependsOnTargets="GenerateDocFx">
+    <ItemGroup>
+      <Content Include="wwwroot\docs\**" />
+    </ItemGroup>
+  </Target>
+
+</Project>

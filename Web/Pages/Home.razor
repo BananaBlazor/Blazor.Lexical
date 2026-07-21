@@ -1,0 +1,229 @@
+@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<h1>Blazor.Lexical demo (WebAssembly)</h1>
+
+<p>Type in the editor below, or drive it from C#.</p>
+
+<p>
+    Type <code>@@</code> to mention a teammate (a suggestion picker backed by C#),
+    or <code>#</code> to tag a topic — matching <code>#hashtags</code> highlight live
+    as you type, with no round-trip to .NET.
+</p>
+
+@* A full-featured editor. Every child below is optional, opt-in markup:
+   - <LexicalToolbar/> is the fixed toolbar (buttons dispatch commands in JS).
+   - <LexicalFloatingToolbar/> pops above the current text selection.
+   - <LexicalSlashMenu/> opens when you type "/" at the start of a line.
+   - <LexicalDragHandle/> shows a grip + "+" in the left gutter on hover.
+   - <LexicalTableEditor/> floats an action menu inside the caret's table cell.
+   - <LexicalMention/> configs enable @-mentions and #-hashtags (see below).
+   None of the overlays add any JS↔.NET interop — they position Blazor-authored
+   markup in JS and reuse the same data-lexical-command dispatch as the toolbar.
+   Insert a table from the toolbar's "Insert ▾" grid picker or the "/table" item.
+   InitialContent preloads the sample document inside create(), so it is there on the
+   first paint — no @ref, no OnReady round-trip, and no flash of an empty editor.
+   The "Reload sample" button below shows the imperative path (SetHtmlAsync). *@
+<LexicalEditor @ref="_editor"
+               Placeholder="@PlaceholderText"
+               Theme="LexicalTheme.Default"
+               InitialContent="@LexicalContent.FromHtml(SampleHtml)"
+               OnContentChanged="OnChanged">
+    <LexicalToolbar />
+    <LexicalFloatingToolbar />
+    <LexicalLinkEditor />
+    <LexicalDragHandle />
+    @* Tables are an extension: declaring it is what loads the ~90kb @lexical/table
+       chunk and lights up the toolbar picker, the "/table" item, and the action menu. *@
+    <LexicalTables />
+    <LexicalTableEditor />
+    @* Two mention configs. The "@" config has a Provider, so it queries C# (debounced)
+       for suggestions as you type — the opt-in interop path. The "#" config is pure
+       freeform highlighting: no Provider means zero JS→.NET calls, it just styles any
+       "#token" run live as you type. *@
+    <LexicalMention Initiator="@@" Color="@PeopleColor" Provider="SearchPeople" OnSelected="OnMentionPicked" />
+    <LexicalMention Initiator="#" Color="@TopicColor" Freeform="true" />
+    @* The slash menu with the default block items plus one custom item that runs
+       C# (the escape hatch): OnSelect works as a slash entry with no interop for
+       the built-in items. *@
+    <LexicalSlashMenu>
+        <LexicalSlashItem Command="block:paragraph" Label="Paragraph" Keywords="paragraph text body" />
+        <LexicalSlashItem Command="block:h1" Label="Heading 1" Keywords="heading title h1 large" />
+        <LexicalSlashItem Command="block:h2" Label="Heading 2" Keywords="heading subtitle h2" />
+        <LexicalSlashItem Command="list:bullet" Label="Bulleted list" Keywords="bulleted unordered list ul" />
+        <LexicalSlashItem Command="list:number" Label="Numbered list" Keywords="numbered ordered list ol" />
+        <LexicalSlashItem Command="block:quote" Label="Quote" Keywords="quote blockquote" />
+        <LexicalSlashItem Command="table:insert" Label="Table" Keywords="table grid rows columns cells" />
+        <LexicalSlashItem Label="Insert today's date"
+                          Keywords="date today insert timestamp"
+                          OnSelect="InsertDate" />
+    </LexicalSlashMenu>
+</LexicalEditor>
+
+<div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+    <button class="btn btn-primary" @onclick="SetText">Set text</button>
+    <button class="btn btn-secondary" @onclick="GetText">Get text</button>
+    <button class="btn btn-secondary" @onclick="LoadSample">Reload sample</button>
+</div>
+
+<p style="margin-top: 1rem;"><strong>Get text result:</strong> <span id="get-result">@_getResult</span></p>
+<p><strong>Live change:</strong> <span id="change-result">@_changeResult</span></p>
+<p><strong>Last mention picked:</strong> <span id="mention-result">@_mentionResult</span></p>
+
+<h2 style="margin-top: 2.5rem;">Extensions</h2>
+
+<p>
+    The editor below hosts <code>&lt;BadgeExtension&gt;</code> — a sample extension that
+    lives <em>outside</em> the library, in its own Razor Class Library. It contributes a
+    custom Lexical node, its own insert button, and an opt-in callback to C#. Its JS half
+    is a hand-written ES module loaded at runtime from
+    <code>_content/Samples.Extensions.Badge/badge.mjs</code>; nothing about it is compiled
+    into Blazor.Lexical. See <a href="docs/writing-an-extension.html">Writing an extension</a>.
+</p>
+
+@* The extension's own button sits in the toolbar's EndContent: the default control
+   set is kept as-is and the extension is simply appended — no re-composing. *@
+<LexicalEditor Placeholder="Click “Insert badge”, then click the badge itself…"
+               Theme="LexicalTheme.Default">
+    <LexicalToolbar>
+        <EndContent>
+            <BadgeExtension @ref="_badge" Label="Draft" OnBadgeClicked="OnBadgeClicked" />
+        </EndContent>
+    </LexicalToolbar>
+</LexicalEditor>
+
+<div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+    <button class="btn btn-secondary" @onclick="InsertBadgeFromCs">Insert badge from C#</button>
+    <button class="btn btn-secondary" @onclick="CountBadges">Count badges</button>
+</div>
+
+<p style="margin-top: 1rem;"><strong>Badge clicked:</strong> <span id="badge-result">@_badgeResult</span></p>
+<p><strong>Badges in document:</strong> <span id="badge-count">@_badgeCount</span></p>
+
+@code {
+    private LexicalEditor? _editor;
+    private BadgeExtension? _badge;
+    private string _badgeResult = "";
+    private int _badgeCount;
+    private string _getResult = "";
+    private string _changeResult = "";
+    private string _mentionResult = "";
+
+    // Per-config colours, shared between the <LexicalMention> markup and the preloaded
+    // sample HTML so the tokens rendered on load match what typing produces.
+    private const string PlaceholderText = "Type '/' for a block, '@' to mention, '#' to tag…";
+    private const string PeopleColor = "#1877e8";
+    private const string TopicColor = "#d9820b";
+
+    // A tiny in-memory "directory" the @-mention Provider searches. In a real app this
+    // would be an API/database call; here it's a static list to keep the demo self-contained.
+    private static readonly (string Id, string Name, string Handle, string Role)[] People =
+    [
+        ("ada", "Ada Lovelace", "@ada", "Mathematician · first programmer"),
+        ("alan", "Alan Turing", "@alan", "Computer scientist · codebreaker"),
+        ("grace", "Grace Hopper", "@grace", "Rear admiral · compiler pioneer"),
+        ("katherine", "Katherine Johnson", "@katherine", "Mathematician · NASA"),
+        ("linus", "Linus Torvalds", "@linus", "Created Linux and Git"),
+        ("margaret", "Margaret Hamilton", "@margaret", "Led Apollo flight software"),
+    ];
+
+    // Preloaded sample content. The @-mention is a real reference token (a <span
+    // data-lexical-mention …>), so it re-hydrates as an atomic MentionNode; the
+    // #hashtags are plain text that the freeform config highlights live on load.
+    private string SampleHtml =>
+        $"""
+        <p>Welcome to the <strong>Blazor.Lexical</strong> demo. This paragraph mentions
+        {Mention("ada", "@Ada Lovelace")} and tags a couple of topics like #blazor and #lexical.</p>
+        <p>Try it yourself: type <code>@</code> to search the directory (for example
+        {Mention("grace", "@Grace Hopper")} or @alan), then keep writing with #hashtags
+        such as #richtext or #webassembly — they highlight as you type.</p>
+        """;
+
+    // Builds one preloaded @-mention span matching the "@" config's DOM shape.
+    private string Mention(string id, string display) =>
+        $"""<span data-lexical-mention="true" data-lexical-mention-trigger="@" data-lexical-mention-value="{id}" data-lexical-mention-color="{PeopleColor}">{display}</span>""";
+
+    // Filters the directory by the current query fragment (the text typed after "@").
+    // An empty query returns everyone so the picker opens with suggestions immediately.
+    private Task<IEnumerable<MentionItem>> SearchPeople(string query)
+    {
+        var matches = People
+            .Where(p => query.Length == 0
+                     || p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                     || p.Handle.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Select(p => new MentionItem(
+                Id: p.Id,
+                Text: $"@{p.Name}",
+                Url: $"https://example.com/people/{p.Id}",
+                Secondary: p.Role));
+        return Task.FromResult<IEnumerable<MentionItem>>(matches);
+    }
+
+    private void OnMentionPicked(LexicalMentionSelected selected)
+    {
+        _mentionResult = $"{selected.Text} (id: {selected.Id})";
+    }
+
+    private async Task LoadSample()
+    {
+        if (_editor is not null)
+        {
+            await _editor.SetHtmlAsync(SampleHtml);
+        }
+    }
+
+    private async Task SetText()
+    {
+        if (_editor is not null)
+        {
+            await _editor.SetTextAsync("Hello from C#! This text was set via SetTextAsync.");
+        }
+    }
+
+    private async Task GetText()
+    {
+        if (_editor is not null)
+        {
+            _getResult = await _editor.GetTextAsync();
+        }
+    }
+
+    // The push channel carries the document in the format ContentPayload names —
+    // here the default, plain text — with the format riding along on the value.
+    private void OnChanged(LexicalContent content)
+    {
+        _changeResult = content.Text;
+    }
+
+    // The extension's opt-in JS→.NET channel: it routes through the extension's own
+    // OnInvokeAsync, not through any editor-level callback.
+    private void OnBadgeClicked(string text) => _badgeResult = text;
+
+    // The reverse direction: C# calling the extension's JS half.
+    private async Task InsertBadgeFromCs()
+    {
+        if (_badge is not null)
+        {
+            await _badge.InsertBadgeAsync("From C#");
+        }
+    }
+
+    private async Task CountBadges()
+    {
+        if (_badge is not null)
+        {
+            _badgeCount = await _badge.CountBadgesAsync();
+        }
+    }
+
+    // Escape-hatch slash action: insert today's date at the caret via the cascaded
+    // editor. This runs after JS has removed the "/query" trigger text.
+    private async Task InsertDate()
+    {
+        if (_editor is not null)
+        {
+            await _editor.InsertTextAsync(DateTime.Now.ToString("D"));
+        }
+    }
+}

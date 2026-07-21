@@ -1,0 +1,35 @@
+@namespace Blazor.Lexical
+
+@* Toggles a bulleted or numbered list. JS toggles the list off when it is already
+   the active block type, and sets data-lexical-active accordingly. *@
+<LexicalCommandButton Command="@Command"
+                      Title="@(Title ?? DefaultTitle)"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @(ListType == LexicalBlockType.NumberList ? "1." : "•")
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>Which list type this button toggles.</summary>
+    [Parameter] public LexicalBlockType ListType { get; set; } = LexicalBlockType.BulletList;
+
+    /// <summary>Tooltip / accessible label.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default glyph.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Command => ListType == LexicalBlockType.NumberList ? "list:number" : "list:bullet";
+
+    private string DefaultTitle =>
+        ListType == LexicalBlockType.NumberList ? "Numbered list" : "Bulleted list";
+}

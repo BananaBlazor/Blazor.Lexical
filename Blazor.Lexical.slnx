@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Samples/">
+    <Project Path="Samples/Extensions.Badge/Samples.Extensions.Badge.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <File Path="Tests/README.md" />
+    <Project Path="Tests/Integration.Host/Tests.Integration.Host.csproj" />
+    <Project Path="Tests/Integration/Tests.Integration.csproj" />
+    <Project Path="Tests/UnitTests/Tests.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/_Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.props" />
+  </Folder>
+  <Project Path="Source/Blazor.Lexical/Blazor.Lexical.csproj" />
+  <Project Path="Web/Blazor.Lexical.Web.csproj" />
+</Solution>

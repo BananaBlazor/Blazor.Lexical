@@ -1,0 +1,33 @@
+@namespace Blazor.Lexical
+
+@* Block-type dropdown. JS reads the change event, dispatches the block command,
+   and keeps the selected value in sync with the caret's block type. No @onchange. *@
+<select class="blazor-lexical__block-select @CssClass"
+        data-lexical-command="block:select"
+        aria-label="Block type">
+    @foreach (var block in Blocks)
+    {
+        <option value="@block.ToSelectValue()">@LexicalToolbar.BlockTypeLabel(block)</option>
+    }
+</select>
+
+@code {
+    /// <summary>Extra CSS class(es) for the select.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>
+    /// The block types offered; defaults to Normal / H1–H3 / bulleted &amp; numbered
+    /// lists / Quote (the playground-style block menu, with lists inline).
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<LexicalBlockType> Blocks { get; set; } =
+    [
+        LexicalBlockType.Paragraph,
+        LexicalBlockType.Heading1,
+        LexicalBlockType.Heading2,
+        LexicalBlockType.Heading3,
+        LexicalBlockType.BulletList,
+        LexicalBlockType.NumberList,
+        LexicalBlockType.Quote,
+    ];
+}

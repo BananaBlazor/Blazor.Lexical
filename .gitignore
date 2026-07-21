@@ -1,0 +1,43 @@
+# Build output. Directory.Build.props redirects every project's bin/obj under
+# /.build/<platform>/, so that whole tree is generated — and its restore artifacts
+# (project.assets.json, *.nuget.g.props) embed absolute NuGet cache paths, i.e. the
+# building user's home directory. Never commit it.
+/.build/
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+
+# Visual Studio
+.vs/
+
+# Per-developer Claude Code settings. The shared agent instructions ARE committed:
+# AGENTS.md is canonical, and each CLAUDE.md is a one-line import of its sibling.
+.claude/settings.local.json
+
+# Scratch / temporary outputs
+/.temp/
+
+# JS toolchain
+**/node_modules/
+
+# Generated Lexical bundle — built from js/src by Scripts/build-js.ps1 (MSBuild
+# runs it automatically). Not checked in; regenerated on build. The glob must cover
+# the entry file AND the code-split chunks (blazor-lexical-chunk-<hash>.mjs), whose
+# names change with the sources — committing them would leave stale hashes behind on
+# every rebuild. blazor-lexical.css is NOT matched (it is hand-written source).
+Source/Blazor.Lexical/wwwroot/blazor-lexical*.mjs
+# Copied verbatim from js/src/extension.ts by build-js.ps1.
+Source/Blazor.Lexical/wwwroot/blazor-lexical-extension.d.ts
+
+# Docs site (DocFX) — all generated, not checked in.
+#  - Web/docfx/_input: staged RCL assembly + XML doc (DocFX metadata input)
+#  - Web/docfx/api:    API reference metadata DocFX extracts from the assembly
+#  - Web/wwwroot/docs: the rendered site, produced during the WASM build
+Web/docfx/_input/
+Web/docfx/api/
+Web/wwwroot/docs/
+
+# GitHub Pages assembly (CI scratch dirs)
+_site/
+/publish_wasm/

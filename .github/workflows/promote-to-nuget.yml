@@ -1,0 +1,261 @@
+# Promote an already-published GitHub Packages build to nuget.org.
+#
+# MANUAL ONLY, and deliberately dumb: it does not build, test, pack, or version
+# anything. It takes a package that already exists — the exact bytes that were
+# validated by "Publish to GitHub Packages" — and pushes them to nuget.org. That
+# is the whole point of the two-stage flow: what ships is what was shaken out on
+# the staging feed, not a fresh rebuild that merely claims the same version.
+#
+# Authentication is Trusted Publishing (OIDC) — there is no long-lived nuget.org
+# API key anywhere in this repo, and there must never be one. NuGet/login trades
+# a GitHub-signed OIDC token for a key that lives one hour, which is why that step
+# sits immediately before the push rather than at the top of the job.
+#
+# The trusted publishing policy on nuget.org must match this workflow exactly:
+#   Repository Owner  the repo owner       Workflow File  promote-to-nuget.yml
+#   Repository        Blazor.Lexical       Environment    nuget  (see `environment:` below)
+# Renaming this file, or removing/renaming the environment, breaks publishing until
+# the policy is updated to match. The only repo secret needed is NUGET_USER: the
+# nuget.org *profile name* that owns the policy, not an email and not a key.
+#
+# Remaining setup before the first real run:
+#   1. Reserve the `Blazor.Lexical` package id on nuget.org.
+#   2. Set the repository secret NUGET_USER to the nuget.org profile name.
+#   3. Optionally give the `nuget` environment required reviewers — the job below
+#      already targets it, so that alone turns a push into a two-person action.
+# A fresh policy on a private repo is only provisionally active for 7 days until
+# its first successful publish; if that lapses, restart the window on nuget.org.
+# Until you are ready, run with dry_run = true: it resolves and downloads the
+# package and stops short of both the OIDC exchange and the push.
+#
+# Pushing to nuget.org is irreversible: a version can be unlisted but never
+# replaced or re-pushed. Check the version twice.
+#
+# A successful push also tags the repo and cuts a GitHub Release, so shipping is
+# the thing that leaves a mark in git — nothing on the staging feed does. The
+# commit tagged is the one the package was *built* from, recovered from the
+# publish run, never a guess at whatever HEAD happens to be now.
+name: Promote to nuget.org
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to promote, exactly as published (e.g. 0.48.1)'
+        type: string
+        required: true
+      run_id:
+        description: 'Optional: publish run id to take the package from instead of the feed. Use this to carry the .snupkg symbols, which GitHub Packages does not store.'
+        type: string
+        required: false
+      dry_run:
+        description: 'Resolve and download only — do not push to nuget.org'
+        type: boolean
+        default: true
+      tag:
+        description: 'On success, tag the built commit v<version> and cut a GitHub Release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: read
+  actions: read
+  # Lets the job mint the OIDC token that NuGet/login exchanges for a temporary key.
+  id-token: write
+
+concurrency:
+  group: promote-to-nuget
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    # Gate for required reviewers; harmless until the environment has protection rules.
+    environment: nuget
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Two sources, same package. The feed is the durable one; a run artifact is
+      # the way to also carry the .snupkg, since GitHub Packages has no symbol
+      # server and the publish workflow pushes --no-symbols. Run artifacts expire
+      # (90 days by default), so the feed path is the fallback that always works.
+      - name: Download package from run artifact
+        if: inputs.run_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p artifacts download
+          gh run download "${{ inputs.run_id }}" --repo "${{ github.repository }}" --dir download
+          find download -name '*.nupkg' -o -name '*.snupkg' | xargs -r -I{} cp {} artifacts/
+
+      - name: Download package from GitHub Packages
+        if: inputs.run_id == ''
+        run: |
+          mkdir -p artifacts
+          V="${{ inputs.version }}"
+          URL="https://nuget.pkg.github.com/${{ github.repository_owner }}/download/blazor.lexical/$V/blazor.lexical.$V.nupkg"
+          CODE=$(curl -sSL -w '%{http_code}' -o "artifacts/Blazor.Lexical.$V.nupkg" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$URL")
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Blazor.Lexical $V not found on the GitHub Packages feed (HTTP $CODE) — publish it there first"
+            exit 1
+          fi
+          echo "Note: symbols (.snupkg) are not stored by GitHub Packages. To promote them too, re-run with run_id set."
+
+      # Guard against promoting the wrong thing: the file on disk must be the
+      # version that was asked for, and it must be the only package present.
+      - name: Verify downloaded package
+        run: |
+          ls -l artifacts/
+          COUNT=$(ls artifacts/*.nupkg 2>/dev/null | wc -l)
+          if [ "$COUNT" != "1" ]; then
+            echo "::error::expected exactly one .nupkg, found $COUNT"
+            exit 1
+          fi
+          FOUND=$(basename "$(ls artifacts/*.nupkg)" .nupkg | sed 's/^[Bb]lazor\.[Ll]exical\.//')
+          if [ "$FOUND" != "${{ inputs.version }}" ]; then
+            echo "::error::package on disk is version $FOUND, expected ${{ inputs.version }}"
+            exit 1
+          fi
+          case "${{ inputs.version }}" in
+            *-*) echo "::warning::${{ inputs.version }} is a prerelease — it will publish to nuget.org as a prerelease. Promote a clean Major.Minor.Serial build for a normal release." ;;
+          esac
+
+      # nuget.org rejects a duplicate version, but only after the upload. Fail early
+      # with a message that says what to do instead.
+      - name: Check version is not already on nuget.org
+        run: |
+          V="${{ inputs.version }}"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://api.nuget.org/v3-flatcontainer/blazor.lexical/$V/blazor.lexical.$V.nupkg")
+          if [ "$CODE" = "200" ]; then
+            echo "::error::Blazor.Lexical $V is already on nuget.org — versions cannot be replaced. Bump LexicalPackageSerial in Source/Blazor.Lexical/Version.props, republish to GitHub Packages, and promote that."
+            exit 1
+          fi
+          echo "Version $V is free on nuget.org (HTTP $CODE)."
+
+      # Which commit produced these bytes? This job never checks out the repo, so
+      # there is no HEAD to assume — and assuming one would tag whatever landed on
+      # main since, which is exactly the lie the tag exists to prevent. The publish
+      # run knows, so ask it: either the run_id we were handed, or the run that
+      # uploaded the `nupkg-<version>` artifact. Run artifacts expire (90 days), so
+      # the lookup can legitimately come up empty; that only costs us the tag, never
+      # the promotion, so this step must not fail the run.
+      - name: Resolve built commit
+        id: sha
+        if: inputs.tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if [ -n "$RUN_ID" ]; then
+            SHA=$(gh run view "$RUN_ID" --repo "$REPO" --json headSha --jq .headSha 2>/dev/null || true)
+          else
+            SHA=$(gh api "repos/$REPO/actions/artifacts?per_page=100" --paginate \
+              --jq ".artifacts[] | select(.name == \"nupkg-$VERSION\") | .workflow_run.head_sha" \
+              2>/dev/null | head -n 1 || true)
+          fi
+          if [ -z "$SHA" ]; then
+            echo "::warning::could not determine the commit $VERSION was built from — it will not be tagged. Re-run with run_id set, or tag by hand."
+          else
+            echo "$VERSION was built from $SHA"
+            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dry run summary
+        if: inputs.dry_run
+        run: |
+          echo "### Dry run — nothing was pushed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Resolved and validated \`Blazor.Lexical ${{ inputs.version }}\`." >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.tag }}" = "true" ]; then
+            SHA="${{ steps.sha.outputs.sha }}"
+            if [ -n "$SHA" ]; then
+              echo "A real run would tag \`$SHA\` as \`v${{ inputs.version }}\`." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "A real run would **not** tag: the built commit could not be resolved." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "Re-run with **dry_run = false** to publish to nuget.org." >> "$GITHUB_STEP_SUMMARY"
+
+      # Fail here rather than inside NuGet/login, whose error for a missing user is
+      # not obviously about a repo secret.
+      - name: Check trusted publishing prerequisites
+        if: ${{ !inputs.dry_run }}
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+        run: |
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::NUGET_USER secret is not set — it must be the nuget.org profile name that owns the trusted publishing policy (not an email). See the header of this workflow."
+            exit 1
+          fi
+
+      # Trades this job's OIDC token for a nuget.org API key that expires in an hour
+      # and can only be issued once per token. It must stay adjacent to the push —
+      # do not hoist it to the top of the job or put slow steps between the two.
+      - name: NuGet login (OIDC)
+        id: login
+        if: ${{ !inputs.dry_run }}
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # --skip-duplicate so a partial retry (nupkg landed, snupkg did not) is safe.
+      - name: Push to nuget.org
+        if: ${{ !inputs.dry_run }}
+        run: |
+          dotnet nuget push 'artifacts/*.nupkg' \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key '${{ steps.login.outputs.NUGET_API_KEY }}' \
+            --skip-duplicate
+
+      # Only after the push succeeds: the tag means "this shipped", so it must never
+      # exist for a version that did not. `gh release create --target` creates the
+      # tag as well, so no checkout is needed. Tagging is best-effort — nuget.org is
+      # already irreversibly published by this point, and failing the run here would
+      # only make the outcome look worse than it is.
+      - name: Tag and release
+        if: ${{ !inputs.dry_run && inputs.tag && steps.sha.outputs.sha != '' && success() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          TAG="v$VERSION"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "::warning::$TAG already exists — leaving it alone"
+            exit 0
+          fi
+          case "$VERSION" in
+            *-*) PRERELEASE=--prerelease ;;
+            *)   PRERELEASE= ;;
+          esac
+          gh release create "$TAG" --repo "$REPO" --target "$SHA" \
+            --title "Blazor.Lexical $VERSION" \
+            --generate-notes $PRERELEASE
+
+      - name: Publish summary
+        if: ${{ !inputs.dry_run && success() }}
+        run: |
+          V="${{ inputs.version }}"
+          echo "### Promoted Blazor.Lexical $V to nuget.org" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://www.nuget.org/packages/Blazor.Lexical/$V" >> "$GITHUB_STEP_SUMMARY"
+          echo "Indexing can take a few minutes." >> "$GITHUB_STEP_SUMMARY"
+          SHA="${{ steps.sha.outputs.sha }}"
+          if [ "${{ inputs.tag }}" != "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Tagging was skipped (tag = false)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$SHA" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Tagged \`$SHA\` as [\`v$V\`](${{ github.server_url }}/${{ github.repository }}/releases/tag/v$V)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo ":warning: Not tagged — the commit \`$V\` was built from could not be resolved. Tag it by hand." >> "$GITHUB_STEP_SUMMARY"
+          fi

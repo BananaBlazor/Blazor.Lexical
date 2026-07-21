@@ -1,0 +1,50 @@
+@namespace Blazor.Lexical
+
+@* Floating link editor (playground-style). Rendered as ChildContent inside
+   <LexicalEditor>, it stays hidden until the caret enters a link — then it shows a
+   *preview* (the URL as a clickable link plus edit/remove buttons) — or until the
+   toolbar link button inserts a new link, when it opens the *edit* form (a URL
+   input with confirm/cancel). JS (registerLinkEditor) owns show/hide, positioning,
+   and the preview/edit switch; the remove button is an ordinary
+   data-lexical-command so the delegated dispatch runs it — no .NET round-trip.
+   Marker: data-lexical-link-editor. *@
+<div class="blazor-lexical__link-editor"
+     data-lexical-link-editor
+     role="dialog"
+     aria-label="Edit link">
+    <div class="blazor-lexical__link-view" data-lexical-link-view>
+        <a class="blazor-lexical__link-preview"
+           data-lexical-link-preview
+           target="_blank"
+           rel="noopener noreferrer"></a>
+        <button type="button"
+                class="blazor-lexical__link-btn"
+                data-lexical-link-edit
+                title="Edit link"
+                aria-label="Edit link">✎</button>
+        <LexicalCommandButton Command="link:remove"
+                              CssClass="blazor-lexical__link-btn"
+                              Title="Remove link">🗑</LexicalCommandButton>
+    </div>
+    <div class="blazor-lexical__link-edit" data-lexical-link-edit-form hidden>
+        <input type="url"
+               class="blazor-lexical__link-input"
+               data-lexical-link-input
+               placeholder="@Placeholder" />
+        <button type="button"
+                class="blazor-lexical__link-btn"
+                data-lexical-link-cancel
+                title="Cancel"
+                aria-label="Cancel">✕</button>
+        <button type="button"
+                class="blazor-lexical__link-btn"
+                data-lexical-link-confirm
+                title="Save link"
+                aria-label="Save link">✓</button>
+    </div>
+</div>
+
+@code {
+    /// <summary>Placeholder text for the URL input.</summary>
+    [Parameter] public string Placeholder { get; set; } = "https://…";
+}

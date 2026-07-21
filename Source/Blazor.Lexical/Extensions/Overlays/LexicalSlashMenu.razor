@@ -1,0 +1,75 @@
+@namespace Blazor.Lexical
+@implements IDisposable
+
+@* Slash command menu. Rendered as ChildContent inside <LexicalEditor>, it stays
+   hidden until the user types "/" at the start of a line (or after whitespace); JS
+   then floats it at the caret, filters the items as they keep typing, and drives
+   ↑/↓/Enter/Tab/Escape. Selecting an item deletes the "/query" text and runs the
+   item's command (marker: data-lexical-slash-menu). *@
+<div class="blazor-lexical__slash-menu @CssClass"
+     data-lexical-slash-menu
+     role="listbox"
+     aria-label="Insert block">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <LexicalSlashItem Command="block:paragraph" Label="Paragraph" Keywords="paragraph text body normal plain" />
+        <LexicalSlashItem Command="block:h1" Label="Heading 1" Keywords="heading title h1 large" />
+        <LexicalSlashItem Command="block:h2" Label="Heading 2" Keywords="heading subtitle h2 medium" />
+        <LexicalSlashItem Command="block:h3" Label="Heading 3" Keywords="heading subheading h3 small" />
+        <LexicalSlashItem Command="list:bullet" Label="Bulleted list" Keywords="bulleted unordered list ul bullet point" />
+        <LexicalSlashItem Command="list:number" Label="Numbered list" Keywords="numbered ordered list ol number" />
+        <LexicalSlashItem Command="block:quote" Label="Quote" Keywords="quote blockquote citation" />
+        @if (Editor?.HasExtension<LexicalTables>() ?? false)
+        {
+            <LexicalSlashItem Command="table:insert" Label="Table" Keywords="table grid rows columns cells" />
+        }
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The editor this menu lives in, supplied by <see cref="LexicalEditor"/>'s
+    /// cascade. Used to include the <c>/table</c> item only when the editor nests a
+    /// <see cref="LexicalTables"/> extension.
+    /// </summary>
+    [CascadingParameter] public LexicalEditor? Editor { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        // The table answer only settles once the editor freezes its extension set, which
+        // is after this menu has already rendered — and <LexicalTables/> may even be
+        // declared below us. Re-render when the editor says the set changed.
+        if (Editor is not null)
+        {
+            Editor.ExtensionsChanged += OnExtensionsChanged;
+        }
+    }
+
+    private void OnExtensionsChanged() => InvokeAsync(StateHasChanged);
+
+    /// <summary>Unsubscribes from the editor's extension-set notifications.</summary>
+    public void Dispose()
+    {
+        if (Editor is not null)
+        {
+            Editor.ExtensionsChanged -= OnExtensionsChanged;
+        }
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// The menu items. When omitted, a default set (paragraph, H1–H3, bulleted and
+    /// numbered lists, quote, and — when the editor enables tables — a table) is
+    /// shown. Supply your own <see cref="LexicalSlashItem"/> entries to change the
+    /// options or add custom insert actions.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Extra CSS class(es) applied to the slash menu container.</summary>
+    [Parameter] public string? CssClass { get; set; }
+}

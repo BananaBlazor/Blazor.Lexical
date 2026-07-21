@@ -1,0 +1,113 @@
+name: Deploy demo + docs to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; cancel in-progress runs of the same group.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Base path the site is served from. Project Pages lives at
+      # https://<owner>.github.io/<repo>/, so the WASM <base href> must be the repo
+      # name — the default below matches BananaBlazor/Blazor.Lexical. Override with a
+      # repository variable named BASE_HREF — set it to "/" for a custom domain or a
+      # user/org root site. (Do NOT set it to an empty string: GitHub treats '' as
+      # falsy in `||`, so it would silently fall back to the default. Use "/", which
+      # the rewrite step normalizes.)
+      BASE_HREF: ${{ vars.BASE_HREF || '/Blazor.Lexical' }}
+      # Optional: set the PAGES_CNAME repository variable to your custom domain to
+      # emit a CNAME into the artifact (an Actions deploy does not pick up the CNAME
+      # GitHub commits to the branch, so the domain resets without this).
+      #
+      # To move the demo to the bananablazor.com custom domain, set BOTH repository
+      # variables together (Settings ▸ Secrets and variables ▸ Actions ▸ Variables) —
+      # they are two halves of one switch, and setting only PAGES_CNAME leaves every
+      # asset requested from /Blazor.Lexical/ on a site served at the root:
+      #     BASE_HREF   = /
+      #     PAGES_CNAME = www.bananablazor.com
+      # DNS must be in place first: a CNAME record for `www` → bananablazor.github.io,
+      # plus the four A / four AAAA apex records for bananablazor.com if the bare
+      # domain should redirect. Until then, leave both unset and the site serves from
+      # https://bananablazor.github.io/Blazor.Lexical/.
+      PAGES_CNAME: ${{ vars.PAGES_CNAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Publish the demo. BuildDocs defaults to false so a local `dotnet run` stays a
+      # fast playground; this is the one place that opts in. With -p:BuildDocs=true the
+      # WASM project's GenerateDocFx target restores DocFX as a local tool and renders
+      # the docs into wwwroot/docs, so the publish output already contains /docs — no
+      # separate DocFX step or docs-assembly copy is needed.
+      # ContinuousIntegrationBuild turns on DeterministicSourcePaths, so the build
+      # server's checkout path is normalized away instead of being baked into the
+      # published output. Every workflow that produces a shippable artifact sets it.
+      - name: Publish WASM demo + docs
+        run: >-
+          dotnet publish Web/Blazor.Lexical.Web.csproj -c Release -o publish_wasm
+          -p:BuildDocs=true -p:ContinuousIntegrationBuild=true
+
+      # Rewrite the published <base href="/"> to the served base path. The
+      # checked-in index.html stays "/" so local `dotnet run` is unaffected. Normalize
+      # to exactly one trailing slash ("/" -> "/", "/Repo" -> "/Repo/") and assert the
+      # rewrite actually landed — a silent sed miss would ship a broken base href.
+      - name: Set base href
+        run: |
+          BASE="${BASE_HREF%/}/"
+          sed -i -E 's#<base href="/" ?/>#<base href="'"$BASE"'" />#' publish_wasm/wwwroot/index.html
+          grep -qF "<base href=\"$BASE\" />" publish_wasm/wwwroot/index.html \
+            || { echo "::error::base href rewrite failed (expected $BASE)"; exit 1; }
+
+      # Assemble the site: the WASM publish output (demo at root, docs already under
+      # /docs/) becomes the site as-is, plus the GitHub Pages helper files.
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r publish_wasm/wwwroot/. _site/
+          # Fail loudly if the docs didn't generate — otherwise /docs/ silently serves
+          # the Blazor SPA shell with a 404 status, which looks like a routing bug.
+          test -f _site/docs/index.html \
+            || { echo "::error::docs missing from publish output (wwwroot/docs not generated)"; exit 1; }
+          # .nojekyll: Jekyll would otherwise strip Blazor's _framework/ folder
+          # (leading underscore). 404.html: SPA fallback for deep links.
+          touch _site/.nojekyll
+          cp _site/index.html _site/404.html
+          # CNAME must ride in the artifact for a custom domain (see PAGES_CNAME above).
+          if [ -n "$PAGES_CNAME" ]; then echo "$PAGES_CNAME" > _site/CNAME; fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

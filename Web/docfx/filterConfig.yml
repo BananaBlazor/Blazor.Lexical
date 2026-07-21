@@ -1,0 +1,8 @@
+# DocFX API filter. The Razor SDK compiles _Imports.razor into a public
+# `Blazor.Lexical._Imports` class (component/imports classes are always emitted
+# public — there is no per-file knob to make it internal), which is build
+# infrastructure, not part of the SDK. Exclude it from the generated API docs.
+apiRules:
+- exclude:
+    uidRegex: ^Blazor\.Lexical\._Imports$
+    type: Type

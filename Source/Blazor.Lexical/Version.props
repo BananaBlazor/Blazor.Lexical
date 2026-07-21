@@ -1,0 +1,23 @@
+<Project>
+
+  <!-- Package-version pieces for Blazor.Lexical.
+
+       The full NuGet version is  Major.<Lexical-minor>.Serial  (assembled in
+       Blazor.Lexical.csproj). The MIDDLE component is DERIVED from the bundled
+       Lexical version at build time and must NOT be set here — see the
+       "Versioning" section of Source/Blazor.Lexical/CLAUDE.md. -->
+  <PropertyGroup>
+
+    <!-- LOCKED to 0. The major is a deliberate, human-only decision: a breaking
+         change to the Blazor.Lexical C# API, or Lexical shipping its own 1.0.
+         Scripts and CI MUST NOT edit this line; bumping it is a manual step. -->
+    <LexicalPackageMajor>0</LexicalPackageMajor>
+
+    <!-- Our revision within a single Lexical-minor line. Bump it on each release.
+         Scripts/update-lexical.ps1 resets it to 0 when the bundled Lexical MINOR
+         changes (a new Lexical-minor line starts its own serial at 0). -->
+    <LexicalPackageSerial>0</LexicalPackageSerial>
+
+  </PropertyGroup>
+
+</Project>

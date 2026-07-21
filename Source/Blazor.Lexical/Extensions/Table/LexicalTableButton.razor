@@ -1,0 +1,63 @@
+@namespace Blazor.Lexical
+
+@* Toolbar "Insert table" control (grid-size picker). Placed inside <LexicalToolbar>
+   (or anywhere in the toolbar), it shows an "Insert ▾" trigger; clicking it opens a
+   grid where hovering sizes the table and clicking inserts it. JS
+   (registerTablePicker) owns open/close, the hover highlight, and the insert — the
+   trigger and grid cells carry no data-lexical-command and never round-trip to .NET
+   (marker: data-lexical-table-picker). Pair with <LexicalTableEditor/> for in-cell
+   editing. *@
+<div class="blazor-lexical__table-picker @CssClass" data-lexical-table-picker>
+    <button type="button"
+            class="blazor-lexical__toolbar-btn"
+            data-lexical-table-picker-trigger
+            title="@Title"
+            aria-label="@Title">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else
+        {
+            <span class="blazor-lexical__glyph-table">▦</span>
+            <span class="blazor-lexical__table-picker-caret">▾</span>
+        }
+    </button>
+    <div class="blazor-lexical__table-picker-popover"
+         data-lexical-table-picker-popover
+         hidden>
+        <div class="blazor-lexical__table-grid"
+             role="grid"
+             aria-label="Table size"
+             style="--blazor-lexical-table-grid-cols:@Columns">
+            @for (var r = 1; r <= Rows; r++)
+            {
+                for (var c = 1; c <= Columns; c++)
+                {
+                    <span class="blazor-lexical__table-grid-cell"
+                          data-lexical-table-grid-cell
+                          data-row="@r"
+                          data-col="@c"></span>
+                }
+            }
+        </div>
+        <div class="blazor-lexical__table-picker-label" data-lexical-table-picker-label>Cancel</div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Maximum number of rows selectable in the size grid (default 8).</summary>
+    [Parameter] public int Rows { get; set; } = 8;
+
+    /// <summary>Maximum number of columns selectable in the size grid (default 10).</summary>
+    [Parameter] public int Columns { get; set; } = 10;
+
+    /// <summary>Tooltip / accessible label for the trigger.</summary>
+    [Parameter] public string Title { get; set; } = "Insert table";
+
+    /// <summary>Extra CSS class(es) applied to the picker container.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom trigger content, replacing the default table glyph + caret.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,28 @@
+@namespace Blazor.Lexical
+
+@* Low-level toolbar button: renders a <button> tagged with a data-lexical-command
+   token. It carries NO @onclick — the editor's delegated JS listener dispatches the
+   command and toggles active/disabled state via data-lexical-* attributes, so a
+   click never crosses into .NET. Compose the typed wrappers (LexicalFormatButton,
+   …) rather than using this directly, or use it to declare a custom command. *@
+<button type="button"
+        class="blazor-lexical__toolbar-btn @CssClass"
+        data-lexical-command="@Command"
+        title="@Title"
+        aria-label="@Title">
+    @ChildContent
+</button>
+
+@code {
+    /// <summary>The data-lexical-command token (e.g. <c>format:bold</c>, <c>block:h1</c>).</summary>
+    [Parameter, EditorRequired] public string Command { get; set; } = "";
+
+    /// <summary>Tooltip / accessible label.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Button content (glyph, icon, or text).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

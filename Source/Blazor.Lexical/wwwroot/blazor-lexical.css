@@ -1,0 +1,789 @@
+/* Styling for Blazor.Lexical. Lexical ships unstyled by design; the content
+   theme classes below are those returned by LexicalTheme.Default, and the
+   toolbar chrome styles the <LexicalToolbar> control set.
+
+   The default look mirrors the Lexical playground (https://playground.lexical.dev):
+   the editor renders as a single white, rounded card whose toolbar sits flush
+   on top of the content, separated only by a hairline. The page framing the
+   playground puts *around* that card — the gray backdrop, the system font, and
+   the centered max-width column — is intentionally NOT baked in here; it is a
+   host concern, so the demo apps supply it. Restyle via the CSS custom
+   properties on .blazor-lexical, or supply your own LexicalTheme. */
+
+/* Shared theming knobs. Scoped to both the editor and the toolbar because the
+   toolbar renders as a sibling of the editor in the popover overlays, and to keep
+   the variables reachable from either. Values track the playground reference. */
+.blazor-lexical,
+.blazor-lexical__toolbar {
+  --blazor-lexical-accent: rgb(33, 111, 219);          /* links, focus, drop line */
+  --blazor-lexical-surface: #fff;                       /* the card + toolbar + popovers */
+  --blazor-lexical-border: #e0e0e0;                     /* input/select/popover hairlines */
+  --blazor-lexical-divider: #eee;                       /* toolbar underline + group separators */
+  --blazor-lexical-muted: #999;                         /* placeholder text */
+  --blazor-lexical-subtle: rgb(101, 103, 107);          /* quote text, h2, block-select label */
+  --blazor-lexical-heading: rgb(5, 5, 5);               /* h1 */
+  --blazor-lexical-quote-border: rgb(206, 208, 212);
+  --blazor-lexical-btn-hover: #eee;
+  --blazor-lexical-btn-active: rgb(223, 232, 250);      /* active toolbar button */
+  --blazor-lexical-code-bg: rgb(240, 242, 245);
+  --blazor-lexical-radius: 10px;
+  --blazor-lexical-content-font-size: 16px;
+}
+
+/* The editor root is the card: a white, rounded surface. The toolbar (rendered
+   as the first child) sits flush on top; the content surface fills the rest.
+   The subtle shadow lifts the card off its backdrop even on a white page — on
+   the gray playground-style backdrop the demos use, it reads as a clean sheet. */
+.blazor-lexical {
+  position: relative;
+  background: var(--blazor-lexical-surface);
+  border-radius: var(--blazor-lexical-radius);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  color: #000;
+  line-height: 1.7;
+}
+
+.blazor-lexical__content {
+  position: relative;
+  min-height: 150px;
+  /* Roomy playground gutters: small top, generous sides, deep bottom so there is
+     always somewhere to click below the last block. */
+  padding: 8px 46px 40px;
+  border-radius: 0 0 var(--blazor-lexical-radius) var(--blazor-lexical-radius);
+  outline: none;
+  font-size: var(--blazor-lexical-content-font-size);
+  overflow-wrap: anywhere;
+}
+
+/* The playground content editable carries no border and no focus ring — the
+   card is the only frame — so typing feels like writing on a sheet of paper. */
+.blazor-lexical__content[contenteditable="false"] {
+  background: #f7f7f7;
+  color: #555;
+}
+
+/* Placeholder: JS toggles data-lexical-empty on the content when it has no text;
+   the text comes from the data-placeholder attribute. No .NET involved.
+   It overlays the content box and inherits the content's own padding, so it
+   aligns with where typed text starts. */
+.blazor-lexical__content[data-lexical-empty]::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  color: var(--blazor-lexical-muted);
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Content theme (class names returned by LexicalTheme.Default).       */
+/* Adapted from the MIT-licensed Lexical playground reference theme.   */
+/* Paragraphs carry no margin — line-height alone spaces the prose,    */
+/* matching the playground.                                            */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__paragraph {
+  margin: 0;
+  position: relative;
+}
+
+.blazor-lexical__h1 {
+  font-size: 24px;
+  color: var(--blazor-lexical-heading);
+  font-weight: 400;
+  margin: 0;
+}
+
+.blazor-lexical__h2 {
+  font-size: 16px;
+  color: var(--blazor-lexical-subtle);
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.blazor-lexical__h3 {
+  font-size: 12px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* The playground reference theme only styles h1–h3; h4–h6 continue the same
+   small-uppercase idiom so the deeper levels stay visually consistent. */
+.blazor-lexical__h4,
+.blazor-lexical__h5,
+.blazor-lexical__h6 {
+  font-size: 12px;
+  color: var(--blazor-lexical-subtle);
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.blazor-lexical__quote {
+  margin: 0 0 10px 20px;
+  color: var(--blazor-lexical-subtle);
+  border-left: 4px solid var(--blazor-lexical-quote-border);
+  padding-left: 16px;
+}
+
+/* Lists indent via the list item's own margin (playground idiom) so the marker
+   sits in the content gutter rather than a padded <ul>/<ol>. */
+.blazor-lexical__ul,
+.blazor-lexical__ol {
+  padding: 0;
+  margin: 0;
+  list-style-position: outside;
+}
+
+.blazor-lexical__li {
+  margin: 0 32px;
+}
+
+/* Nested lists should not add their own marker/outer margin. */
+.blazor-lexical__nested-li {
+  list-style-type: none;
+}
+
+.blazor-lexical__link {
+  color: var(--blazor-lexical-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.blazor-lexical__link:hover {
+  text-decoration: underline;
+}
+
+/* Tables (class names returned by LexicalTheme.Default). Fixed layout with
+   collapsed borders, matching the playground's editable-table look. */
+.blazor-lexical__table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  margin: 12px 0;
+  table-layout: fixed;
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.blazor-lexical__table-cell {
+  position: relative;
+  min-width: 75px;
+  padding: 6px 10px;
+  border: 1px solid var(--blazor-lexical-border);
+  vertical-align: top;
+  text-align: start;
+  outline: none;
+}
+
+.blazor-lexical__table-cell-header {
+  background: var(--blazor-lexical-code-bg);
+  font-weight: 700;
+  text-align: start;
+}
+
+/* Cell drag-selection: the observer marks selected cells and the table itself. */
+.blazor-lexical__table-cell-selected {
+  background: var(--blazor-lexical-btn-active);
+  caret-color: transparent;
+}
+
+.blazor-lexical__table-selected {
+  outline: 2px solid var(--blazor-lexical-accent);
+}
+
+.blazor-lexical__text-bold {
+  font-weight: 700;
+}
+
+.blazor-lexical__text-italic {
+  font-style: italic;
+}
+
+.blazor-lexical__text-underline {
+  text-decoration: underline;
+}
+
+.blazor-lexical__text-strikethrough {
+  text-decoration: line-through;
+}
+
+.blazor-lexical__text-underline-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.blazor-lexical__text-code {
+  background: var(--blazor-lexical-code-bg);
+  padding: 1px 0.25rem;
+  font-family: Menlo, Consolas, Monaco, monospace;
+  font-size: 94%;
+}
+
+.blazor-lexical__text-subscript {
+  font-size: 0.8em;
+  vertical-align: sub;
+}
+
+.blazor-lexical__text-superscript {
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.blazor-lexical__text-lowercase {
+  text-transform: lowercase;
+}
+
+.blazor-lexical__text-uppercase {
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ */
+/* Toolbar chrome (<LexicalToolbar>).                                  */
+/* Sits flush atop the content as the card's header: same white        */
+/* surface, rounded top corners, a hairline divider below.             */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  padding: 6px;
+  background: var(--blazor-lexical-surface);
+  border-bottom: 1px solid var(--blazor-lexical-divider);
+  border-radius: var(--blazor-lexical-radius) var(--blazor-lexical-radius) 0 0;
+}
+
+.blazor-lexical__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+/* Thin separators between groups (the playground's toolbar divider). */
+.blazor-lexical__toolbar-group:not(:last-child)::after {
+  content: "";
+  align-self: stretch;
+  width: 1px;
+  margin: 4px;
+  background: var(--blazor-lexical-divider);
+}
+
+.blazor-lexical__toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 8px;
+  border: none;
+  border-radius: var(--blazor-lexical-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Active/disabled state is set by JS (data-lexical-*), not Blazor, so it stays in
+   sync with the caret without any interop. */
+.blazor-lexical__toolbar-btn:hover:not([data-lexical-disabled]) {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+.blazor-lexical__toolbar-btn[data-lexical-active] {
+  background: var(--blazor-lexical-btn-active);
+}
+
+.blazor-lexical__toolbar-btn[data-lexical-disabled] {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* The block-type <select> styled as a borderless toolbar item: muted 14px label
+   like the playground's "Normal ▾" dropdown. */
+.blazor-lexical__block-select {
+  height: 34px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--blazor-lexical-radius);
+  background: none;
+  color: var(--blazor-lexical-subtle);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.blazor-lexical__block-select:hover {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+/* Glyph styling so the format buttons read as what they do. */
+.blazor-lexical__glyph-bold {
+  font-weight: 700;
+}
+
+.blazor-lexical__glyph-italic {
+  font-style: italic;
+}
+
+.blazor-lexical__glyph-underline {
+  text-decoration: underline;
+}
+
+.blazor-lexical__glyph-strikethrough {
+  text-decoration: line-through;
+}
+
+.blazor-lexical__glyph-code {
+  font-family: Menlo, Consolas, Monaco, monospace;
+  font-size: 0.85em;
+}
+
+.blazor-lexical__link-input {
+  height: 28px;
+  padding: 0 0.4rem;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14px;
+}
+
+/* ------------------------------------------------------------------ */
+/* In-editor overlays (floating toolbar, slash menu, drag handle).     */
+/* Each is Blazor-authored markup positioned absolutely by JS relative */
+/* to the editor root; JS toggles data-lexical-visible to show/hide.   */
+/* ------------------------------------------------------------------ */
+
+/* Shared hidden/visible state. visibility:hidden (not display:none) keeps the
+   element measurable so JS can position it before it becomes visible. */
+.blazor-lexical__floating-toolbar,
+.blazor-lexical__slash-menu,
+.blazor-lexical__mention-menu,
+.blazor-lexical__drag-handle,
+.blazor-lexical__link-editor,
+.blazor-lexical__table-menu,
+.blazor-lexical__drop-line {
+  position: absolute;
+  z-index: 20;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.blazor-lexical__floating-toolbar[data-lexical-visible],
+.blazor-lexical__slash-menu[data-lexical-visible],
+.blazor-lexical__mention-menu[data-lexical-visible],
+.blazor-lexical__drag-handle[data-lexical-visible],
+.blazor-lexical__link-editor[data-lexical-visible],
+.blazor-lexical__table-menu[data-lexical-visible] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The floating toolbar reuses the toolbar chrome but as a compact popover.
+   Its left never crosses into the gutter (JS clamps it to the first text
+   column); the higher z-index just keeps it above the other overlays. */
+.blazor-lexical__floating-toolbar {
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 4px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 20%);
+}
+
+/* Reset the group separator/underline so nested groups sit flush in the popover. */
+.blazor-lexical__floating-toolbar .blazor-lexical__toolbar-group:not(:last-child)::after {
+  display: none;
+}
+
+/* Slash command menu: a vertical list of options floated at the caret. */
+.blazor-lexical__slash-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 30%);
+}
+
+.blazor-lexical__slash-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.blazor-lexical__slash-item:hover,
+.blazor-lexical__slash-item[data-lexical-slash-active] {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+/* Mention nodes. Each config's colour rides inline as --blazor-lexical-mention-color;
+   these classes carry the shared shape. Inserted references get a tinted background;
+   freeform highlights (hashtag-style) just recolour the text. */
+.blazor-lexical__mention {
+  --_mention-color: var(--blazor-lexical-mention-color, var(--blazor-lexical-accent));
+  color: var(--_mention-color);
+  background-color: color-mix(in srgb, var(--_mention-color) 15%, transparent);
+  border-radius: 4px;
+  padding: 0 2px;
+  font-weight: 500;
+}
+
+.blazor-lexical__mention[data-lexical-mention-url] {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.blazor-lexical__mention-highlight {
+  color: var(--blazor-lexical-mention-color, var(--blazor-lexical-accent));
+  font-weight: 500;
+}
+
+/* Mention picker: a floating list of provider candidates, built by JS at the caret. */
+.blazor-lexical__mention-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 30%);
+}
+
+.blazor-lexical__mention-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.blazor-lexical__mention-item:hover,
+.blazor-lexical__mention-item[data-lexical-mention-active] {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+.blazor-lexical__mention-item-secondary {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Loading state: JS sets data-lexical-mention-loading while a provider query is in
+   flight, so a slow data source shows the picker working instead of nothing. The
+   affordance is a spinner rather than a message — no text to localize. Hosts can
+   restyle it via the same attribute. */
+.blazor-lexical__mention-menu[data-lexical-mention-loading] {
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+}
+
+.blazor-lexical__mention-menu[data-lexical-mention-loading]::after {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--blazor-lexical-border);
+  border-top-color: var(--blazor-lexical-accent);
+  border-radius: 50%;
+  animation: blazor-lexical-spin 0.7s linear infinite;
+}
+
+@keyframes blazor-lexical-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Respect a reduced-motion preference: keep the indicator, drop the spin. */
+@media (prefers-reduced-motion: reduce) {
+  .blazor-lexical__mention-menu[data-lexical-mention-loading]::after {
+    animation: none;
+  }
+}
+
+/* Drag handle: sits in the left content gutter reserved by the 46px padding. */
+.blazor-lexical__drag-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.05rem;
+  height: 1.5rem;
+}
+
+.blazor-lexical__drag-add,
+.blazor-lexical__drag-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--blazor-lexical-muted);
+  font: inherit;
+  line-height: 1;
+}
+
+.blazor-lexical__drag-add {
+  cursor: pointer;
+}
+
+.blazor-lexical__drag-grip {
+  cursor: grab;
+}
+
+.blazor-lexical__drag-add:hover,
+.blazor-lexical__drag-grip:hover {
+  background: var(--blazor-lexical-btn-hover);
+  color: inherit;
+}
+
+/* Horizontal indicator showing where a dragged block will drop. */
+.blazor-lexical__drop-line {
+  height: 2px;
+  background: var(--blazor-lexical-accent);
+  border-radius: 1px;
+}
+
+.blazor-lexical__drop-line[data-lexical-visible] {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Floating link editor popup (playground-style).                      */
+/* JS swaps between the preview (.__link-view) and edit (.__link-edit)  */
+/* rows by toggling [hidden]; the box itself shows via the shared       */
+/* overlay [data-lexical-visible] rule above.                          */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__link-editor {
+  z-index: 40;
+  min-width: 16rem;
+  max-width: 24rem;
+  padding: 4px 6px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 20%);
+}
+
+.blazor-lexical__link-view:not([hidden]),
+.blazor-lexical__link-edit:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* The URL input and the preview link each take the free space in their row. */
+.blazor-lexical__link-editor .blazor-lexical__link-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.blazor-lexical__link-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--blazor-lexical-accent);
+  text-decoration: none;
+}
+
+.blazor-lexical__link-preview:hover {
+  text-decoration: underline;
+}
+
+/* Compact icon buttons for edit/remove/confirm/cancel (and the link glyph). */
+.blazor-lexical__link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.blazor-lexical__link-btn:hover:not([data-lexical-disabled]) {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+/* ------------------------------------------------------------------ */
+/* Insert-table grid picker (<LexicalTableButton>).                    */
+/* A toolbar trigger with a CSS-anchored grid popover; JS tracks the   */
+/* hovered R×C span (data-lexical-active) and inserts on click.        */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__table-picker {
+  position: relative;
+  display: inline-flex;
+}
+
+.blazor-lexical__glyph-table {
+  font-size: 0.95em;
+}
+
+.blazor-lexical__table-picker-caret {
+  margin-left: 2px;
+  font-size: 0.7em;
+}
+
+.blazor-lexical__table-picker-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 30%);
+}
+
+.blazor-lexical__table-picker-popover[hidden] {
+  display: none;
+}
+
+.blazor-lexical__table-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--blazor-lexical-table-grid-cols, 10), 16px);
+  gap: 2px;
+}
+
+.blazor-lexical__table-grid-cell {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.blazor-lexical__table-grid-cell[data-lexical-active] {
+  background: var(--blazor-lexical-btn-active);
+  border-color: var(--blazor-lexical-accent);
+}
+
+.blazor-lexical__table-picker-label {
+  margin-top: 6px;
+  color: var(--blazor-lexical-subtle);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* In-cell table action menu (<LexicalTableEditor>).                   */
+/* JS floats the container at the caret cell's top-right (shared        */
+/* overlay visibility rule above); the dropdown anchors below the       */
+/* trigger and toggles via [hidden].                                    */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__table-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 4px;
+  background: var(--blazor-lexical-surface);
+  color: var(--blazor-lexical-subtle);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 15%);
+}
+
+.blazor-lexical__table-menu-trigger:hover {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+.blazor-lexical__table-menu-dropdown {
+  position: absolute;
+  top: 22px;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 4px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 30%);
+}
+
+.blazor-lexical__table-menu-dropdown[hidden] {
+  display: none;
+}
+
+.blazor-lexical__table-menu-dropdown button {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.blazor-lexical__table-menu-dropdown button:hover {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+.blazor-lexical__table-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--blazor-lexical-divider);
+}

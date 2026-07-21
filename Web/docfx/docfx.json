@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "_input",
+          "files": [ "Blazor.Lexical.dll" ]
+        }
+      ],
+      "dest": "api",
+      "filter": "filterConfig.yml"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [ "**/*.{md,yml}" ],
+        "exclude": [ "filterConfig.yml", "_input/**" ]
+      }
+    ],
+    "output": "../wwwroot/docs",
+    "template": [ "default", "modern" ],
+    "globalMetadata": {
+      "_appName": "Blazor.Lexical",
+      "_appTitle": "Blazor.Lexical",
+      "_enableSearch": true,
+      "_disableContribution": true
+    },
+    "postProcessors": [ "ExtractSearchIndex" ]
+  }
+}

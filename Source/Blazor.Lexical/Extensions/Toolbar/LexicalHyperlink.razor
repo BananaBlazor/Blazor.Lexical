@@ -1,0 +1,29 @@
+@namespace Blazor.Lexical
+
+@* Link toolbar button (playground-style). Clicking it toggles a link over the
+   selection: when the selection already sits in a link it is removed, otherwise a
+   placeholder link is inserted and the floating <LexicalLinkEditor/> (when the host
+   placed one inside the editor) opens so the URL can be typed. Pure markup — JS
+   dispatches the "link:toggle" command and sets data-lexical-active when the
+   selection is a link. No .NET round-trip. Pair with <LexicalLinkEditor/>. *@
+<LexicalCommandButton Command="link:toggle" Title="@Title" CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <span class="blazor-lexical__glyph-link">🔗</span>
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>Tooltip / accessible label.</summary>
+    [Parameter] public string Title { get; set; } = "Insert link";
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default link glyph.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

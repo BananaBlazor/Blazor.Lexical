@@ -1,0 +1,31 @@
+/* Styles for <BadgeExtension>. An extension's CSS is not auto-injected — the
+   consuming app links it explicitly, exactly like the core stylesheet:
+
+     <link rel="stylesheet" href="_content/Samples.Extensions.Badge/badge.css" /> */
+
+.blazor-lexical-badge {
+    background: #e8f0fe;
+    border: 1px solid #b6d0f7;
+    border-radius: 1em;
+    color: #1a4fa0;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 0.05em 0.55em;
+    white-space: nowrap;
+}
+
+.blazor-lexical-badge-insert {
+    background: #fff;
+    border: 1px solid #cfd6dd;
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85em;
+    margin: 0 0 0.4rem;
+    padding: 0.25em 0.7em;
+}
+
+.blazor-lexical-badge-insert:hover {
+    background: #f2f5f8;
+}

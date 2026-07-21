@@ -1,0 +1,46 @@
+@namespace Blazor.Lexical
+
+@* Toggles a single inline text format. Pure markup — JS dispatches the command and
+   sets data-lexical-active to reflect the current selection. No .NET round-trip. *@
+<LexicalCommandButton Command="@($"format:{Format.ToJsToken()}")"
+                      Title="@(Title ?? Format.ToString())"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <span class="@GlyphClass">@Glyph</span>
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>The inline format this button toggles.</summary>
+    [Parameter, EditorRequired] public LexicalTextFormat Format { get; set; }
+
+    /// <summary>Tooltip / accessible label. Defaults to the format name.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default glyph.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Glyph => Format switch
+    {
+        LexicalTextFormat.Bold => "B",
+        LexicalTextFormat.Italic => "I",
+        LexicalTextFormat.Underline => "U",
+        LexicalTextFormat.Strikethrough => "S",
+        LexicalTextFormat.Code => "</>",
+        LexicalTextFormat.Subscript => "X₂",
+        LexicalTextFormat.Superscript => "X²",
+        LexicalTextFormat.Lowercase => "abc",
+        LexicalTextFormat.Uppercase => "ABC",
+        _ => "?",
+    };
+
+    private string GlyphClass => $"blazor-lexical__glyph-{Format.ToString().ToLowerInvariant()}";
+}

@@ -1,0 +1,78 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref; superseded pushes to a PR branch are cancelled.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The BuildLexicalJsBundle target shells out to Scripts/build-js.ps1, so Node
+      # must be on PATH before any build. `npm ci` runs from that target when
+      # node_modules is missing — no separate install step here.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('Source/Blazor.Lexical/js/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.slnx') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Blazor.Lexical.slnx
+
+      - name: Build
+        run: dotnet build Blazor.Lexical.slnx -c Release --no-restore
+
+      - name: Unit tests
+        run: >-
+          dotnet test Tests/UnitTests/Tests.UnitTests.csproj -c Release
+          --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+
+      # Playwright drives real browsers; the install script is emitted next to the
+      # test assembly by the Microsoft.Playwright package during build.
+      - name: Install Playwright browsers
+        run: pwsh Tests/Integration/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Integration tests
+        run: >-
+          dotnet test Tests/Integration/Tests.Integration.csproj -c Release
+          --no-build --logger "trx;LogFileName=integration.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: ignore

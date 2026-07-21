@@ -1,0 +1,80 @@
+@namespace Samples.Extensions.Badge
+@inherits LexicalExtension
+
+@* The reference extension: a custom Lexical node ("badge"), a button that inserts
+   one, an optional JS→.NET click callback, and two .NET→JS calls. Nest it in an
+   editor exactly like any other child:
+
+     <LexicalEditor>
+       <LexicalToolbar />
+       <BadgeExtension Label="Draft" OnBadgeClicked="Handle" />
+     </LexicalEditor>
+
+   An extension may render markup; it lands inside the editor root, so this button
+   is caught by the extension's own delegated listener in badge.mjs (not the core
+   data-lexical-command dispatch, which stays closed to extensions).
+
+   Interop is opt-in: with no OnBadgeClicked wired, HasInvokeHandler is false, the
+   descriptor tells JS so, and clicking a badge performs zero .NET calls. *@
+
+<button type="button" class="blazor-lexical-badge-insert" data-lexical-badge-insert>
+    @ButtonText
+</button>
+
+@code {
+    /// <summary>The text of an inserted badge. Passed to the JS half as its options.</summary>
+    [Parameter] public string Label { get; set; } = "Badge";
+
+    /// <summary>Caption of the rendered insert button.</summary>
+    [Parameter] public string ButtonText { get; set; } = "Insert badge";
+
+    /// <summary>
+    /// Optional callback fired when the user clicks a badge in the document, carrying
+    /// its text. Wiring it is what opts this extension into JS→.NET interop; leave it
+    /// unset and the extension stays entirely client-side.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnBadgeClicked { get; set; }
+
+    /// <summary>The extension's ESM half, served as this library's own static web asset.</summary>
+    protected override string? ModuleUrl => "./_content/Samples.Extensions.Badge/badge.mjs";
+
+    /// <summary>Per-instance config handed to the JS factory.</summary>
+    protected override object? GetOptions() => new { label = Label };
+
+    /// <summary>
+    /// Narrows the base class's "does it override OnInvokeAsync" default to the
+    /// consumer's actual wiring, so an instance without a callback does no interop.
+    /// </summary>
+    protected override bool HasInvokeHandler => OnBadgeClicked.HasDelegate;
+
+    /// <inheritdoc />
+    protected override async Task<string?> OnInvokeAsync(string method, string argsJson)
+    {
+        if (method == "badgeClicked" && OnBadgeClicked.HasDelegate)
+        {
+            await OnBadgeClicked.InvokeAsync(FirstStringArg(argsJson));
+        }
+        return null;
+    }
+
+    /// <summary>Inserts a badge at the caret from C# (the .NET→JS direction).</summary>
+    public Task InsertBadgeAsync(string text) =>
+        InvokeJsAsync("insert", JsonSerializer.Serialize(new[] { text }));
+
+    /// <summary>Counts the badges currently in the document (round-trips through JS).</summary>
+    public async Task<int> CountBadgesAsync()
+    {
+        var json = await InvokeJsAsync("count");
+        return json is not null && int.TryParse(json, out var count) ? count : 0;
+    }
+
+    /// <summary>Reads the first element of a JSON argument array (the JS call's payload).</summary>
+    private static string FirstStringArg(string argsJson)
+    {
+        using var document = JsonDocument.Parse(argsJson);
+        return document.RootElement.ValueKind == JsonValueKind.Array
+            && document.RootElement.GetArrayLength() > 0
+                ? document.RootElement[0].GetString() ?? string.Empty
+                : string.Empty;
+    }
+}

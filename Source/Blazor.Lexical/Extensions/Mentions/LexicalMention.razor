@@ -1,0 +1,104 @@
+@namespace Blazor.Lexical
+@implements IDisposable
+
+@* A mention configuration. Place one or more inside <LexicalEditor> to enable the
+   write-ahead (typeahead) and/or freeform highlighting features. Renders nothing —
+   it registers its configuration with the cascaded editor, which passes it to the
+   JS runtime when the editor is created.
+
+     <LexicalEditor>
+       <LexicalMention Initiator="@@" Color="#1877e8" Provider="SearchPeople" />
+       <LexicalMention Initiator="#" Color="#e8b800" Freeform="true" />
+     </LexicalEditor>
+
+   Interop is opt-in: a config with no Provider does zero JS→.NET calls (freeform
+   highlighting is pure client-side); only a Provider config queries .NET as the user
+   types. *@
+
+@code {
+    /// <summary>The editor this config belongs to, supplied by <see cref="LexicalEditor"/>'s cascade.</summary>
+    [CascadingParameter] private LexicalEditor? Editor { get; set; }
+
+    /// <summary>
+    /// The trigger character that starts this mention (e.g. <c>"@"</c>, <c>"#"</c>,
+    /// <c>"!"</c>). Typing it — at the start of a line or after whitespace — begins a
+    /// session for this config. Required.
+    /// </summary>
+    [Parameter, EditorRequired] public string Initiator { get; set; } = "";
+
+    /// <summary>
+    /// CSS colour applied to this config's inserted reference and freeform-highlight
+    /// nodes (used for the text colour and a tinted background). When unset, the
+    /// bundled stylesheet's default mention colour is used.
+    /// </summary>
+    [Parameter] public string? Color { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, matching <c>&lt;initiator&gt;token</c> text is highlighted live
+    /// as the user types (the playground's hashtag behaviour), even with no
+    /// <see cref="Provider"/> and even when a suggestion isn't chosen. Combine with a
+    /// <see cref="Provider"/> to show suggestions while still highlighting whatever was typed.
+    /// </summary>
+    [Parameter] public bool Freeform { get; set; }
+
+    /// <summary>
+    /// The async data source queried (debounced) as the user types after the
+    /// <see cref="Initiator"/>. Receives the current query fragment and returns the
+    /// candidate <see cref="MentionItem"/>s to show in the picker. Leave unset for a
+    /// pure freeform-highlight config — setting it is the only thing that makes this
+    /// mention talk to .NET.
+    /// </summary>
+    [Parameter] public Func<string, Task<IEnumerable<MentionItem>>>? Provider { get; set; }
+
+    /// <summary>
+    /// Optional callback fired after a suggestion is confirmed and its reference node
+    /// inserted, carrying the chosen <see cref="LexicalMentionSelected"/>. Use it to
+    /// record the selection (e.g. the chosen id) without diffing the document.
+    /// </summary>
+    [Parameter] public EventCallback<LexicalMentionSelected> OnSelected { get; set; }
+
+    /// <summary>
+    /// How long the picker waits for a <see cref="Provider"/> response before giving
+    /// up: it drops the in-flight query, closes the menu, and warns to the browser
+    /// console (the next keystroke queries again). Defaults to 5 seconds;
+    /// <see cref="TimeSpan.Zero"/> or less disables the timeout. While a query is in
+    /// flight the menu carries <c>data-lexical-mention-loading</c>, so hosts can style
+    /// a loading state. Ignored without a <see cref="Provider"/>.
+    /// </summary>
+    [Parameter] public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Stable id for this config, generated once; routes provider queries and tags inserted nodes.</summary>
+    internal string ConfigId { get; } = $"mention-{Guid.NewGuid():N}";
+
+    /// <summary>Whether a data provider is wired (gates all JS→.NET interop for this config).</summary>
+    internal bool HasProvider => Provider is not null;
+
+    /// <summary>Whether a confirmed selection should be pushed to .NET for this config.</summary>
+    internal bool NotifiesSelected => OnSelected.HasDelegate;
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => Editor?.RegisterMention(this);
+
+    /// <inheritdoc />
+    public void Dispose() => Editor?.UnregisterMention(this);
+
+    /// <summary>Builds the interop wire model for this config.</summary>
+    internal MentionConfigDto ToDto() => new()
+    {
+        Id = ConfigId,
+        Initiator = Initiator,
+        Color = Color ?? string.Empty,
+        Freeform = Freeform,
+        HasProvider = HasProvider,
+        NotifySelected = NotifiesSelected,
+        QueryTimeoutMs = QueryTimeout > TimeSpan.Zero ? (int)QueryTimeout.TotalMilliseconds : 0,
+    };
+
+    /// <summary>Resolves candidates for a query via the <see cref="Provider"/> (empty when none).</summary>
+    internal async Task<IEnumerable<MentionItem>> ResolveAsync(string query) =>
+        Provider is null ? [] : await Provider(query);
+
+    /// <summary>Invokes <see cref="OnSelected"/> if wired.</summary>
+    internal Task NotifySelectedAsync(LexicalMentionSelected selected) =>
+        OnSelected.HasDelegate ? OnSelected.InvokeAsync(selected) : Task.CompletedTask;
+}

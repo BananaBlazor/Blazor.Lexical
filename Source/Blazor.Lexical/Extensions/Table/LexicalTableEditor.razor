@@ -1,0 +1,40 @@
+@namespace Blazor.Lexical
+
+@* In-cell table action menu (playground-style). Rendered as ChildContent inside
+   <LexicalEditor>, it stays hidden until the caret enters a table cell — then JS
+   (registerTableActionMenu) floats the trigger in that cell's top-right corner, and
+   clicking it opens a dropdown of row/column/header/delete operations. The operation
+   buttons are handled locally by JS (no data-lexical-command), acting on the current
+   cell selection, so nothing round-trips to .NET (marker: data-lexical-table-menu).
+   Pair with <LexicalTableButton/> (or the "/table" slash item) to insert tables. *@
+<div class="blazor-lexical__table-menu @CssClass" data-lexical-table-menu>
+    <button type="button"
+            class="blazor-lexical__table-menu-trigger"
+            data-lexical-table-trigger
+            title="@Title"
+            aria-label="@Title">▾</button>
+    <div class="blazor-lexical__table-menu-dropdown"
+         data-lexical-table-dropdown
+         role="menu"
+         hidden>
+        <button type="button" role="menuitem" data-lexical-table-action="row-above">Insert row above</button>
+        <button type="button" role="menuitem" data-lexical-table-action="row-below">Insert row below</button>
+        <button type="button" role="menuitem" data-lexical-table-action="col-left">Insert column left</button>
+        <button type="button" role="menuitem" data-lexical-table-action="col-right">Insert column right</button>
+        <div class="blazor-lexical__table-menu-sep" role="separator"></div>
+        <button type="button" role="menuitem" data-lexical-table-action="row-delete">Delete row</button>
+        <button type="button" role="menuitem" data-lexical-table-action="col-delete">Delete column</button>
+        <button type="button" role="menuitem" data-lexical-table-action="table-delete">Delete table</button>
+        <div class="blazor-lexical__table-menu-sep" role="separator"></div>
+        <button type="button" role="menuitem" data-lexical-table-action="row-header">Toggle row header</button>
+        <button type="button" role="menuitem" data-lexical-table-action="col-header">Toggle column header</button>
+    </div>
+</div>
+
+@code {
+    /// <summary>Tooltip / accessible label for the action-menu trigger.</summary>
+    [Parameter] public string Title { get; set; } = "Table actions";
+
+    /// <summary>Extra CSS class(es) applied to the action-menu container.</summary>
+    [Parameter] public string? CssClass { get; set; }
+}

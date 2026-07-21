@@ -1,0 +1,44 @@
+@namespace Blazor.Lexical
+
+@* Floating formatting toolbar. Rendered as ChildContent inside <LexicalEditor>, it
+   stays hidden until JS detects a non-empty text selection, then floats above the
+   selected text. Its buttons are the same data-lexical-command buttons the fixed
+   toolbar uses, so clicks dispatch and active state reflects with no .NET round-trip
+   — JS only shows/positions the box (marker: data-lexical-floating-toolbar). *@
+<div class="blazor-lexical__floating-toolbar @CssClass"
+     data-lexical-floating-toolbar
+     role="toolbar"
+     aria-label="Selection formatting">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @* Individual format buttons, mirroring the playground's selection hover
+           toolbar (as opposed to its fixed-toolbar "Aa" dropdown): bold/italic/
+           underline plus strikethrough and the lowercase/uppercase transforms. *@
+        <div class="blazor-lexical__toolbar-group">
+            <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+            <LexicalFormatButton Format="LexicalTextFormat.Italic" />
+            <LexicalFormatButton Format="LexicalTextFormat.Underline" />
+            <LexicalFormatButton Format="LexicalTextFormat.Strikethrough" />
+            <LexicalFormatButton Format="LexicalTextFormat.Lowercase" Title="Lowercase" />
+            <LexicalFormatButton Format="LexicalTextFormat.Uppercase" Title="Uppercase" />
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The toolbar contents. When omitted, a default group of individual format
+    /// buttons is shown — bold, italic, underline, strikethrough, and the lowercase
+    /// and uppercase transforms — mirroring the Lexical playground's selection hover
+    /// toolbar. Supply your own <c>data-lexical-command</c> buttons (e.g.
+    /// <see cref="LexicalFormatButton"/>) to customize which actions it exposes.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Extra CSS class(es) applied to the floating toolbar container.</summary>
+    [Parameter] public string? CssClass { get; set; }
+}
