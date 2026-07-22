@@ -55,6 +55,9 @@ import {
   registerLinkEditor,
   OPEN_LINK_EDITOR_COMMAND,
 } from './overlays';
+// The per-block geometry surfaced to extensions as `ctx.blockLayout` — the same
+// primitives the block gutter runs on (see block-layout.ts).
+import { listTopLevelBlocks, computeBlockAnchor } from './block-layout';
 // The mentions feature (custom nodes + typeahead + @lexical/text) ships in core: it
 // measured ~4kb gzipped, so like the light overlays above (and unlike the heavy table
 // chunk) it is imported statically and simply activated when an editor declares
@@ -80,6 +83,7 @@ import type {
   LexicalExtensionFactory,
   LexicalExtensionModule,
   LexicalExtensionSetup,
+  LexicalBlockLayout,
 } from './extension';
 
 // The table feature (nodes + @lexical/table, ~90kb) is a lazily-imported chunk —
@@ -1051,6 +1055,40 @@ export async function create(
   if (linkEditorEl) {
     cleanups.push(registerLinkEditor(editor, root, contentEl, linkEditorEl));
   }
+  // Per-block positioning, handed to every extension's register(ctx) — the same
+  // geometry the block gutter runs on. onBlocksChanged coalesces a typing burst to one
+  // reposition per frame; no scroll listener, since a block's offset from root is
+  // scroll-invariant (they share one scroll container).
+  const blockLayout: LexicalBlockLayout = {
+    blocks: () => listTopLevelBlocks(editor, contentEl),
+    anchor: (spot, sizePx, consumedPx) =>
+      computeBlockAnchor(root, contentEl, spot, sizePx, consumedPx),
+    onBlocksChanged(callback) {
+      let raf: number | undefined;
+      const schedule = () => {
+        if (raf === undefined) {
+          raf = requestAnimationFrame(() => {
+            raf = undefined;
+            callback();
+          });
+        }
+      };
+      const stopUpdates = editor.registerUpdateListener(({ dirtyElements }) => {
+        if (dirtyElements.size > 0) {
+          schedule();
+        }
+      });
+      window.addEventListener('resize', schedule);
+      return () => {
+        if (raf !== undefined) {
+          cancelAnimationFrame(raf);
+        }
+        window.removeEventListener('resize', schedule);
+        stopUpdates();
+      };
+    },
+  };
+
   // Extensions: now that the editor and the core plugins exist, let each loaded module
   // wire its own commands/listeners and keep its teardown. This is where the table
   // runtime + its overlays and the mentions typeahead get wired too — they are
@@ -1061,7 +1099,7 @@ export async function create(
       continue;
     }
     try {
-      const teardown = module.register({ editor, root, content: contentEl });
+      const teardown = module.register({ editor, root, content: contentEl, blockLayout });
       if (typeof teardown === 'function') {
         cleanups.push(teardown);
       }

@@ -145,6 +145,23 @@
 <p style="margin-top: 1rem;"><strong>Badge clicked:</strong> <span id="badge-result">@_badgeResult</span></p>
 <p><strong>Badges in document:</strong> <span id="badge-count">@_badgeCount</span></p>
 
+<p>
+    A second sample extension, <code>&lt;GutterMarkersExtension&gt;</code>, shows the
+    <code>ctx.blockLayout</code> primitives: it draws a colored speaker tab outside the
+    left edge of every block, a star toggle you can flip without any round-trip to C#,
+    and a changed-indicator bar that lights up on blocks you edit. All of it is the
+    extension's own DOM, styling and state — the SDK only supplies the per-block geometry.
+</p>
+
+@* The extension renders nothing itself; declaring it is what loads its JS half, which
+   decorates each block. Extra left margin gives the outside-hanging tabs room. *@
+<LexicalEditor Theme="LexicalTheme.Default"
+               InitialContent="@LexicalContent.FromHtml(MarkersSampleHtml)"
+               CssClass="gutter-markers-demo">
+    <LexicalToolbar />
+    <GutterMarkersExtension />
+</LexicalEditor>
+
 @code {
     private LexicalEditor? _editor;
     private LexicalMarks? _marks;
@@ -198,6 +215,15 @@
         <p>Select some of this text and press “Highlight selection”: the mark is keyed by an
         id <em>this page</em> mints, which is what makes marks useful for comments. Overlap
         two of them and the shared span carries both ids.</p>
+        """;
+
+    // A few blocks so the per-block speaker tabs, stars and changed bars are all visible.
+    private const string MarkersSampleHtml =
+        """
+        <h2>Gutter markers</h2>
+        <p>Every block gets a colored speaker tab on the left.</p>
+        <p>Click the ☆ on the right to star a block — it stays starred with no call to C#.</p>
+        <p>Edit any block and its changed-indicator bar lights up green.</p>
         """;
 
     // Builds one preloaded @-mention span matching the "@" config's DOM shape.

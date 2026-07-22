@@ -14,9 +14,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Source\Blazor.Lexical\Blazor.Lexical.csproj" />
-    <!-- The reference consumer extension, demoed below the main editor. It uses only
+    <!-- The reference consumer extensions, demoed below the main editor. Each uses only
          the library's public extension SDK — exactly what a third-party package would. -->
     <ProjectReference Include="..\Samples\Extensions.Badge\Samples.Extensions.Badge.csproj" />
+    <ProjectReference Include="..\Samples\Extensions.GutterMarkers\Samples.Extensions.GutterMarkers.csproj" />
   </ItemGroup>
 
   <!-- Documentation site. DocFX renders the RCL's /// XML doc comments plus the

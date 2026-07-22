@@ -1,0 +1,52 @@
+/* Styles for <GutterMarkersExtension>. An extension's CSS is not auto-injected — the
+   consuming app links it explicitly, exactly like the core stylesheet:
+
+     <link rel="stylesheet" href="_content/Samples.Extensions.GutterMarkers/gutter-markers.css" /> */
+
+/* The marker layer shares the editor root's coordinate space; it lets pointer events
+   through so only the star (below) is interactive. */
+.gutter-markers__layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.gutter-markers__tab,
+.gutter-markers__star,
+.gutter-markers__bar {
+    position: absolute;
+}
+
+.gutter-markers__tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px 0 0 3px;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.gutter-markers__star {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: #d8a200;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.gutter-markers__star.is-on {
+    color: #f5a623;
+}
+
+.gutter-markers__bar {
+    border-radius: 2px;
+    background: #30a46c;
+}

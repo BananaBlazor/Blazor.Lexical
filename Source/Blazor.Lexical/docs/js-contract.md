@@ -8,6 +8,10 @@ changing the bundle, the command tokens, or any overlay.
 - `index.ts` — bootstrap, `create()`, toolbar dispatch, exports.
 - `overlays.ts` — floating toolbar, slash menu, block gutters (the per-block hover rails,
   including the drag grip and "+"), link editor.
+- `block-layout.ts` — pure per-block geometry (`listTopLevelBlocks` / `computeBlockAnchor`,
+  `keyForBlockElement`, `GUTTER_GAP`). One owner for "what are the blocks" and "where does
+  something anchored to a block go", shared by `overlays.ts` (the built-in gutter) and the
+  extension-facing `ctx.blockLayout` (index.ts). No hover/rail/DOM-event concepts.
 - `mentions.ts` — mention nodes, typeahead, freeform highlight. Static in core (~4 kb
   gzipped), activated when configs exist.
 - `toc.ts` — heading outline: slugs, DOM-only anchor stamping, optional `<ol>` renderer,
@@ -45,6 +49,9 @@ each run.
 `build-js.ps1` also copies `extension.ts` verbatim to
 `wwwroot/blazor-lexical-extension.d.ts` (a shipped static web asset) so extension authors
 get the contract typed; the `.csproj` registers it alongside the generated `.mjs` files.
+That `.d.ts` is the whole asserted extension surface — `setup` (`lexical`/`utils`/
+`invokeDotNet`/…) and the `register(ctx)` context, `ctx.blockLayout` included (see
+[extensions.md](extensions.md)) — so a new context member is live the moment it lands here.
 
 Only `index.ts`'s exports are the Blazor↔JS contract, asserted by
 `../../Tests/Integration/ModuleContractTests.cs` — update it when adding or removing

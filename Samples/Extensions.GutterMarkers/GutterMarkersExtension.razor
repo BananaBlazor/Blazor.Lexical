@@ -1,0 +1,18 @@
+@namespace Samples.Extensions.GutterMarkers
+@inherits LexicalExtension
+
+@* A client-side extension: no markup, no interop. It reads ctx.blockLayout in its JS
+   half to draw persistent per-block decorations — a left-outside colored speaker tab, a
+   right-inside star toggle, and a right-inside changed-indicator bar. Persistence,
+   styling and click semantics are the extension's own; the SDK only supplies the
+   per-block geometry. Nest it like any other editor child:
+
+     <LexicalEditor>
+       <LexicalToolbar />
+       <GutterMarkersExtension />
+     </LexicalEditor> *@
+
+@code {
+    /// <summary>The extension's ESM half, served as this library's own static web asset.</summary>
+    protected override string? ModuleUrl => "./_content/Samples.Extensions.GutterMarkers/gutter-markers.mjs";
+}

@@ -32,6 +32,9 @@ import {
 } from 'lexical';
 import { $isLinkNode } from '@lexical/link';
 import { $findMatchingParent } from '@lexical/utils';
+// The per-block geometry, factored out so the gutter and the extension-facing
+// `ctx.blockLayout` (index.ts) share one source of truth for it.
+import { computeBlockAnchor, keyForBlockElement, GUTTER_GAP } from './block-layout';
 
 // Matches the Lexical playground's `setFloatingElemPosition` gaps.
 const FLOATING_VERTICAL_GAP = 10;
@@ -373,16 +376,6 @@ export function trackHoveredBlock(
   contentEl: HTMLElement,
   onHover: (block: HoveredBlock | null) => void,
 ): () => void {
-  // `editor.read` (not `getEditorState().read`) so the *active editor* is set —
-  // $getNearestNodeFromDOMNode needs it to resolve a DOM node's key. Use the
-  // non-throwing getTopLevelElement so hovering a non-block (→ root) is a no-op.
-  const keyForBlockElement = (blockEl: HTMLElement): string | null =>
-    editor.read(() => {
-      const node = $getNearestNodeFromDOMNode(blockEl);
-      const top = node === null ? null : node.getTopLevelElement();
-      return top === null ? null : top.getKey();
-    });
-
   const onMouseMove = (e: MouseEvent): void => {
     const contentRect = contentEl.getBoundingClientRect();
     if (e.clientY < contentRect.top || e.clientY > contentRect.bottom) {
@@ -396,7 +389,7 @@ export function trackHoveredBlock(
     }
     onHover({
       element,
-      key: keyForBlockElement(element),
+      key: keyForBlockElement(editor, element),
       index: Array.prototype.indexOf.call(contentEl.children, element),
     });
   };
@@ -420,9 +413,6 @@ export interface BlockRefDto {
 
 /** How much of the block's text rides along in the hover push. */
 const BLOCK_PREVIEW_CHARS = 80;
-
-/** Gap (px) between the anchor edge and a rail, and between stacked rails. */
-const GUTTER_GAP = 4;
 
 /**
  * How long a rail stays up after the pointer leaves the editor before it hides.
@@ -544,16 +534,7 @@ export function registerBlockGutters(
    */
   const layout = (block: HoveredBlock): void => {
     const rootRect = root.getBoundingClientRect();
-    const contentRect = contentEl.getBoundingClientRect();
     const rect = block.element.getBoundingClientRect();
-    const style = getComputedStyle(contentEl);
-    // The four anchor edges, root-relative.
-    const anchors: Record<GutterPosition, number> = {
-      'left-inside': contentRect.left + parseFloat(style.paddingLeft) - rootRect.left,
-      'left-outside': 0,
-      'right-inside': contentRect.right - parseFloat(style.paddingRight) - rootRect.left,
-      'right-outside': rootRect.width,
-    };
     // Distance already consumed at each position by rails placed earlier.
     const consumed: Record<GutterPosition, number> = {
       'left-inside': 0,
@@ -565,26 +546,19 @@ export function registerBlockGutters(
 
     for (const el of gutterEls) {
       const position = positionOf(el);
-      const isLeft = position === 'left-inside' || position === 'left-outside';
       // The fractional width, not offsetWidth: that rounds to an integer, and the clamp
-      // below compares it against fractional rects — half a pixel of rounding is enough
-      // to put a rail back over the card's edge. Both are measurable here because a
+      // in computeBlockAnchor compares it against fractional rects — half a pixel of
+      // rounding is enough to put a rail back over the card's edge. Measurable because a
       // hidden rail uses visibility, not display, so it still has a layout box.
       const width = el.getBoundingClientRect().width;
-      const offset = consumed[position] + GUTTER_GAP;
-      const ideal = isLeft ? anchors[position] - offset - width : anchors[position] + offset;
 
       el.style.top = `${rect.top - rootRect.top}px`;
-      el.style.left = `${
-        position.endsWith('-inside')
-          ? Math.max(0, Math.min(ideal, rootRect.width - width))
-          : ideal
-      }px`;
+      el.style.left = `${computeBlockAnchor(root, contentEl, position, width, consumed[position])}px`;
       consumed[position] += width + GUTTER_GAP;
 
       el.setAttribute('data-lexical-visible', '');
-      // Context for the host's markup: styleable in CSS, readable from JS, and the same
-      // values the .NET push carries.
+      // Context for the markup: styleable in CSS, readable from JS, and the same values
+      // the .NET push carries.
       el.setAttribute('data-lexical-block-key', block.key ?? '');
       el.setAttribute('data-lexical-block-index', String(block.index));
       el.setAttribute('data-lexical-block-type', blockType);

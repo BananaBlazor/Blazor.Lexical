@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- A reference extension for the Blazor.Lexical extension SDK: the worked example
+       for ctx.blockLayout — placing persistent, per-block decorations beside blocks
+       (colored speaker tabs, a star toggle, a changed-indicator bar) using only the
+       public extension surface. Like Extensions.Badge it reaches into no internals; its
+       JS is hand-written ESM with no build step, served as a static web asset.
+
+       Sample, not shipped: not packable. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\Blazor.Lexical\Blazor.Lexical.csproj" />
+  </ItemGroup>
+
+</Project>

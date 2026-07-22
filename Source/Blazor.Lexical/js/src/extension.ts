@@ -110,6 +110,61 @@ export interface LexicalExtensionSetup {
   silentUpdateTag: string;
 }
 
+/**
+ * Where something can be anchored relative to a block. Today, the four margins a
+ * `<LexicalBlockGutter>` rail can occupy; the union is the extension point for future
+ * spots (e.g. `'above' | 'below'`) without changing {@link LexicalBlockLayout.anchor}.
+ */
+export type LexicalBlockAnchor =
+  | 'left-inside'
+  | 'left-outside'
+  | 'right-inside'
+  | 'right-outside';
+
+/** One top-level block, as reported by {@link LexicalBlockLayout.blocks}. */
+export interface LexicalBlockInfo {
+  /** The top-level node's key. */
+  key: string;
+  /** The block's DOM element (a direct child of the content surface). */
+  element: HTMLElement;
+  /** Zero-based position among the content surface's children. */
+  index: number;
+  /** `tagName.toLowerCase()`, the same convention as the hover push's `blockType`. */
+  type: string;
+}
+
+/**
+ * Per-block positioning: the two pieces of geometry the built-in block gutter uses,
+ * surfaced so an extension can place its own persistent, app-styled, app-stateful
+ * decorations beside blocks. Positioning only — the decorations, their styling, their
+ * click handling and any persistence are the extension's own.
+ */
+export interface LexicalBlockLayout {
+  /**
+   * Every top-level block in document order. A live snapshot — call it fresh each time
+   * you reposition, don't cache it.
+   */
+  blocks(): LexicalBlockInfo[];
+
+  /**
+   * Root-relative CSS offset for an element of `sizePx` at `spot`, honoring the same
+   * content-padding / inside-clamp / outside-hangs-off-the-card math the built-in block
+   * gutter uses. Pass `consumedPx` (the accumulated size of anything already stacked at
+   * this spot for this block) to place a further item outward. For the current
+   * horizontal spots this is a CSS `left`; the axis is implied by `spot`.
+   */
+  anchor(spot: LexicalBlockAnchor, sizePx: number, consumedPx?: number): number;
+
+  /**
+   * Runs `callback` after a structural/content change (coalesced to one call per
+   * animation frame) and on window resize — the two things that can move a block.
+   * Deliberately not wired to scroll: a block and the root share one scroll container,
+   * so a block's position relative to root is scroll-invariant; only reflow moves it.
+   * Returns a teardown.
+   */
+  onBlocksChanged(callback: () => void): () => void;
+}
+
 /** The live editor + DOM, handed to {@link LexicalExtensionModule.register}. */
 export interface LexicalExtensionContext {
   /** The editor instance, already created and registered with rich-text/history. */
@@ -118,6 +173,8 @@ export interface LexicalExtensionContext {
   root: HTMLElement;
   /** The `[data-lexical-content]` contenteditable surface Lexical is bound to. */
   content: HTMLElement;
+  /** Per-block positioning primitives — see {@link LexicalBlockLayout}. */
+  blockLayout: LexicalBlockLayout;
 }
 
 /** What an extension's factory returns. Every member is optional. */

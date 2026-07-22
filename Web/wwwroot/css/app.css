@@ -193,3 +193,9 @@ code {
         flex: 1 1 auto;
     }
 }
+
+/* The gutter-markers sample hangs a colored tab off the left edge of every block;
+   reserve room for it so the tabs aren't clipped against the page edge. */
+.gutter-markers-demo {
+    margin-left: 2rem;
+}

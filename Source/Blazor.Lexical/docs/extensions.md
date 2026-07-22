@@ -92,6 +92,38 @@ contract.
   extensions are per-editor and configured in markup), and no rescan for extensions added
   after `create()` (same limitation as overlays).
 
+## `ctx.blockLayout` — per-block positioning
+
+`register(ctx)` gets `blockLayout` alongside `editor`/`root`/`content`. It exists for the
+gap between the built-in block gutter and an app's own per-block UI: `<LexicalBlockGutter>`
+is deliberately **hover-only and singular** (one rail chasing the pointer — the grace
+window exists because it's ephemeral), so persistent, many-at-once, app-styled,
+app-stateful indicators are the *app's* domain. What the SDK owed it was not another rail
+but the two pieces of geometry the gutter already had privately, so an app can build its
+own extension without re-deriving them.
+
+Named `blockLayout`, **not** `gutter`: the four gutter anchors are today's only spots, not
+the concept. The concept is "position something relative to a block", and a future spot
+(`'above'`/`'below'`) should be an additive union member, not a second namespace beside a
+misleadingly-named `gutter`.
+
+- **`blocks()`** — every top-level block in document order (`{ key, element, index, type }`),
+  read fresh each call. Not cached; call it each time you reposition.
+- **`anchor(spot, sizePx, consumedPx?)`** — the root-relative CSS `left` for an element of
+  `sizePx` at `spot` (`left-inside` | `left-outside` | `right-inside` | `right-outside`),
+  honoring the same content-padding / inside-clamp / outside-hangs-off-the-card math the
+  built-in gutter uses. `consumedPx` stacks a second item further out. The axis is implied
+  by `spot`.
+- **`onBlocksChanged(callback)`** — fires after a structural/content change (coalesced to
+  one call per animation frame) and on window resize; returns a teardown. **Not** wired to
+  scroll on purpose: a block and `root` share one scroll container, so a block's offset
+  from `root` is scroll-invariant — only reflow moves it.
+
+The math has one owner: `js/src/block-layout.ts` (`listTopLevelBlocks` / `computeBlockAnchor`),
+which `overlays.ts` also runs on, so the gutter and an app extension can never drift.
+Worked example: `Samples/Extensions.GutterMarkers` (speaker tabs, a star toggle, a
+changed-indicator bar — all its own DOM, styling and state).
+
 ## Adding a push channel
 
 One flag on `notify` derived from `.HasDelegate` (mirrored in `setNotifications`); one

@@ -57,3 +57,16 @@ public enum LexicalGutterPosition
     /// <summary>The left margin, hanging off the outside of the card.</summary>
     LeftOutside,
 }
+
+/// <summary>Shared JS-token mapping for <see cref="LexicalGutterPosition"/>. Not part of the public API.</summary>
+internal static class LexicalGutterPositionExtensions
+{
+    /// <summary>The wire token JS reads off the marker; mirrors the JS <c>GutterPosition</c>.</summary>
+    public static string ToJsToken(this LexicalGutterPosition position) => position switch
+    {
+        LexicalGutterPosition.LeftInside => "left-inside",
+        LexicalGutterPosition.LeftOutside => "left-outside",
+        LexicalGutterPosition.RightOutside => "right-outside",
+        _ => "right-inside",
+    };
+}
