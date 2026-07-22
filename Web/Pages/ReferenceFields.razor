@@ -1,0 +1,155 @@
+@page "/reference-fields"
+
+<PageTitle>Reference fields</PageTitle>
+
+<h1>Typed reference fields — <code>setup.primitives</code></h1>
+
+<p>
+    This page is the worked example for the SDK's two app-agnostic JS primitives, surfaced
+    to every extension through <code>setup.primitives</code> and demonstrated by
+    <code>&lt;ReferenceFieldsExtension&gt;</code> (its own Razor Class Library under
+    <code>Samples/Extensions.ReferenceFields</code>):
+</p>
+
+<ul>
+    <li>
+        <strong>Ghost completion</strong> — muted "rest of the word" text painted
+        <em>after</em> the caret. Type <code>par</code> and <em>Paris</em> ghosts in as
+        <code>par<span style="color:#999">is</span></code>. The ghost is
+        <strong>visible but never real</strong>: it lives in an overlay outside the
+        contenteditable, so it never enters the document, the state JSON, or the undo stack.
+    </li>
+    <li>
+        <strong>Entity commit</strong> — the buffer→resolve→commit→create-if-missing state
+        machine. <kbd>Tab</kbd>/<kbd>Enter</kbd> accepts the match; <kbd>↓</kbd> cycles the
+        alternates (<em>Paris</em> → <em>Parma</em>) with no dropdown; a city that is not in
+        the list is <em>created optimistically</em> — committed immediately with a
+        provisional id, then swapped for the real one when the (simulated) backend responds.
+    </li>
+</ul>
+
+<p>
+    Known cities: <code>Paris</code>, <code>Parma</code>, <code>Berlin</code>,
+    <code>Barcelona</code>, <code>Lisbon</code>, <code>London</code>, <code>Rome</code>,
+    <code>Tokyo</code>. Type anything else and press <kbd>Enter</kbd> to create it.
+</p>
+
+<label style="display: inline-flex; gap: 0.4rem; align-items: center; margin-bottom: 0.75rem;">
+    <input type="checkbox" checked="@_ghostEnabled" @onchange="ToggleGhost" />
+    Ghost completion on
+</label>
+
+<div class="reference-field" style="max-width: 32rem;">
+    <LexicalEditor @ref="_editor"
+                   Placeholder="Type a city — e.g. par…"
+                   Theme="LexicalTheme.Default">
+        <ReferenceFieldsExtension @ref="_field"
+                                  OnEntityCommitted="OnCommitted"
+                                  OnEntityResolved="OnResolved" />
+    </LexicalEditor>
+</div>
+
+<p style="margin-top: 1rem;">
+    Committed tags:
+    @if (_chips.Count == 0)
+    {
+        <span style="color:#999;">none yet</span>
+    }
+    @foreach (var chip in _chips)
+    {
+        var css = "reference-chip"
+            + (chip.Created ? " is-created" : "")
+            + (chip.Provisional ? " is-provisional" : "");
+        <span class="@css" style="margin-left: 0.4rem;">
+            @chip.Text
+            <span style="opacity:0.7;">(@chip.Id)</span>
+            <button type="button" class="reference-chip__remove" title="Remove"
+                    @onclick="() => RemoveChip(chip)">✕</button>
+        </span>
+    }
+</p>
+
+<div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <button class="btn btn-secondary" @onclick="RefreshReadout">Read document text / state JSON</button>
+    <button class="btn btn-secondary" @onclick="RefreshState">Inspect field (best / alternates)</button>
+</div>
+
+<p style="margin-top: 1rem;">
+    <strong>Document text:</strong> <span id="doc-text">@_docText</span><br />
+    <strong>State JSON:</strong>
+    <code id="state-json" style="word-break: break-all; font-size: 0.8em;">@_stateJson</code>
+</p>
+<p>
+    The ghost suffix appears in <em>neither</em> readout, and pressing <kbd>Ctrl</kbd>+<kbd>Z</kbd>
+    in the field does not "undo" the ghost — it was never an edit.
+</p>
+<p><strong>Field state:</strong> <span id="field-state">@_fieldState</span></p>
+
+@code {
+    private LexicalEditor? _editor;
+    private ReferenceFieldsExtension? _field;
+    private bool _ghostEnabled = true;
+    private readonly List<Chip> _chips = [];
+    private string _docText = "";
+    private string _stateJson = "";
+    private string _fieldState = "";
+
+    private sealed class Chip
+    {
+        public required string Id { get; set; }
+        public required string Text { get; init; }
+        public required bool Created { get; init; }
+        public bool Provisional { get; set; }
+    }
+
+    // Every commit — existing match or the optimistic create placeholder — lands here.
+    private void OnCommitted(ReferenceCommit commit)
+    {
+        _chips.Add(new Chip
+        {
+            Id = commit.Id,
+            Text = commit.Text,
+            Created = commit.Created,
+            Provisional = commit.Provisional,
+        });
+    }
+
+    // The create-if-missing resolution: swap the provisional id for the real one in place.
+    private void OnResolved(ReferenceResolved resolved)
+    {
+        var chip = _chips.Find(c => c.Id == resolved.ProvisionalId);
+        if (chip is not null)
+        {
+            chip.Id = resolved.RealId;
+            chip.Provisional = false;
+        }
+    }
+
+    private void RemoveChip(Chip chip) => _chips.Remove(chip);
+
+    private async Task ToggleGhost(ChangeEventArgs e)
+    {
+        _ghostEnabled = e.Value is true;
+        if (_field is not null)
+        {
+            await _field.SetGhostEnabledAsync(_ghostEnabled);
+        }
+    }
+
+    private async Task RefreshReadout()
+    {
+        if (_editor is not null)
+        {
+            _docText = await _editor.GetTextAsync();
+            _stateJson = await _editor.GetEditorStateJsonAsync();
+        }
+    }
+
+    private async Task RefreshState()
+    {
+        if (_field is not null)
+        {
+            _fieldState = await _field.GetStateAsync() ?? "";
+        }
+    }
+}

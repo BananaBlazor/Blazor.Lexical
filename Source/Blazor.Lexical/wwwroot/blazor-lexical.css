@@ -394,6 +394,26 @@
   pointer-events: auto;
 }
 
+/* Ghost completion (setup.primitives.ghost): the muted "rest of the word" hint painted
+   after the caret by an extension. A JS-owned overlay parented to the root — outside the
+   contenteditable — so it is never part of the document, state or history. It shares the
+   overlay hidden/visible convention above, but stays pointer-events:none AND
+   user-select:none even when visible, like the placeholder: it must never intercept a
+   click or land in a copy, it only shows what typing would complete to. Hosts can restyle. */
+.blazor-lexical__ghost {
+  position: absolute;
+  z-index: 20;
+  visibility: hidden;
+  color: var(--blazor-lexical-muted);
+  pointer-events: none;
+  user-select: none;
+  white-space: pre;
+}
+
+.blazor-lexical__ghost[data-lexical-visible] {
+  visibility: visible;
+}
+
 /* The floating toolbar reuses the toolbar chrome but as a compact popover.
    Its left never crosses into the gutter (JS clamps it to the first text
    column); the higher z-index just keeps it above the other overlays. */

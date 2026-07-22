@@ -11,6 +11,8 @@
     <ProjectReference Include="..\..\Source\Blazor.Lexical\Blazor.Lexical.csproj" />
     <!-- The reference extension, exercised by the harness's badge section. -->
     <ProjectReference Include="..\..\Samples\Extensions.Badge\Samples.Extensions.Badge.csproj" />
+    <!-- The setup.primitives worked example, driven by the harness's reference-fields page. -->
+    <ProjectReference Include="..\..\Samples\Extensions.ReferenceFields\Samples.Extensions.ReferenceFields.csproj" />
   </ItemGroup>
 
 </Project>

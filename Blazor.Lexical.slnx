@@ -2,6 +2,7 @@
   <Folder Name="/Samples/">
     <Project Path="Samples/Extensions.Badge/Samples.Extensions.Badge.csproj" />
     <Project Path="Samples/Extensions.GutterMarkers/Samples.Extensions.GutterMarkers.csproj" />
+    <Project Path="Samples/Extensions.ReferenceFields/Samples.Extensions.ReferenceFields.csproj" />
   </Folder>
   <Folder Name="/Tests/">
     <File Path="Tests/README.md" />

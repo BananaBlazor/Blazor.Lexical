@@ -1,0 +1,46 @@
+/* Styling for the ReferenceFields sample. Like every extension stylesheet it is a manual
+   <link> the host adds (see the docs), never auto-injected. The ghost overlay itself is
+   styled by the core stylesheet (.blazor-lexical__ghost); everything here is the host-side
+   chrome the demo pages put around the field. */
+
+/* The reference field reads as a single-line tag input rather than a page of prose. */
+.reference-field .blazor-lexical__content {
+  min-height: 0;
+  padding: 10px 14px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+/* Committed-entity chips the demo pages render from the commit callbacks. */
+.reference-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  background: rgb(223, 232, 250);
+  color: rgb(33, 111, 219);
+}
+
+/* A freshly created (not-in-list) tag reads differently until it resolves. */
+.reference-chip.is-created {
+  background: rgb(227, 244, 233);
+  color: rgb(24, 128, 76);
+}
+
+.reference-chip.is-provisional {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+/* The "created ✕" dismiss control on a chip. */
+.reference-chip__remove {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  line-height: 1;
+}

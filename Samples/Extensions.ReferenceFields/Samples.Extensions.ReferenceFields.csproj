@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- The worked example for setup.primitives — the SDK's app-agnostic ghost-completion
+       and entity-commit primitives. Like Extensions.Badge it is a normal Razor Class
+       Library a consumer could publish as its own NuGet package: nothing here reaches into
+       the editor's internals — it only derives from the public LexicalExtension base and
+       serves its own JS/CSS as static web assets
+       (_content/Samples.Extensions.ReferenceFields/...).
+
+       Sample, not shipped: not packable, and its JS is hand-written ESM with no build step
+       (an extension needs no bundler — it takes Lexical and the primitives from the host at
+       runtime through `setup`). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\Blazor.Lexical\Blazor.Lexical.csproj" />
+  </ItemGroup>
+
+</Project>

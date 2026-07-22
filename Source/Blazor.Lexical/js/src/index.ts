@@ -76,6 +76,11 @@ import highlightsRuntime from './highlights';
 import statsRuntime from './stats';
 import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
 import tabIndentRuntime from './tabindent';
+// App-agnostic primitives handed to extensions as `setup.primitives`. Both are tiny,
+// dependency-free (only `lexical` types) and stateless, so — like mentions — they are
+// imported statically and cost no extra fetch. See extension.ts `LexicalPrimitives`.
+import { createGhostApi } from './ghost';
+import { createEntityCommitApi } from './entity-commit';
 // Consumer extension contract — types only (see extension.ts), so this import is
 // erased and the external modules stay entirely outside our bundle.
 import type {
@@ -797,6 +802,13 @@ export async function create(
     // the same classes the editor registers, which a copy bundled into the extension
     // would not be. `lexical` is already in the bundle, so this resolves locally.
     const lexicalRuntime = await import('lexical');
+    // The primitives namespace, built once and shared across every extension: both APIs
+    // are stateless (ghost.attach takes the editor as an argument, entityCommit.create is
+    // editor-free), so one object is safe for all of them.
+    const primitives: LexicalExtensionSetup['primitives'] = {
+      ghost: createGhostApi(),
+      entityCommit: createEntityCommitApi(),
+    };
     for (const desc of descriptors) {
       try {
         let factory: LexicalExtensionFactory | undefined;
@@ -849,6 +861,7 @@ export async function create(
           notifyDotNet: makeNotifyDotNet(invokeDotNet),
           canInvokeDotNet: desc.hasInvokeHandler === true,
           silentUpdateTag: SILENT_UPDATE_TAG,
+          primitives,
         };
         const module = factory(setup);
         const label = module.name ?? desc.builtIn ?? desc.moduleUrl ?? desc.id;

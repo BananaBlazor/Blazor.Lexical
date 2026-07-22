@@ -18,6 +18,7 @@
          the library's public extension SDK — exactly what a third-party package would. -->
     <ProjectReference Include="..\Samples\Extensions.Badge\Samples.Extensions.Badge.csproj" />
     <ProjectReference Include="..\Samples\Extensions.GutterMarkers\Samples.Extensions.GutterMarkers.csproj" />
+    <ProjectReference Include="..\Samples\Extensions.ReferenceFields\Samples.Extensions.ReferenceFields.csproj" />
   </ItemGroup>
 
   <!-- Documentation site. DocFX renders the RCL's /// XML doc comments plus the

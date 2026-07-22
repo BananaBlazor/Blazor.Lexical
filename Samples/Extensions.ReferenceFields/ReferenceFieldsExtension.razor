@@ -1,0 +1,110 @@
+@namespace Samples.Extensions.ReferenceFields
+@inherits LexicalExtension
+
+@* The worked example for setup.primitives — the SDK's ghost-completion and entity-commit
+   primitives — built as a "typed reference field": an editor whose whole content IS a
+   reference to a city tag, not free text. Its JS half (reference-fields.mjs) reads the
+   field text as the query, drives setup.primitives.entityCommit for the buffer→resolve→
+   commit→create-if-missing lifecycle, and paints the muted "rest of the word" hint with
+   setup.primitives.ghost. Nest it like any other editor child:
+
+     <LexicalEditor>
+       <ReferenceFieldsExtension OnEntityCommitted="Handle" />
+     </LexicalEditor>
+
+   It renders no markup of its own — declaring it is what loads the JS half. Interop is
+   opt-in (like Badge): with neither callback wired, HasInvokeHandler is false and the
+   field stays entirely client-side. *@
+
+@code {
+    // A small fixed set of travel-journal city tags. "Paris"/"Parma" share the "par"
+    // prefix so ↓ has two matches to cycle; the rest fill out the pool. Anything the user
+    // types that matches none of these drives the create-if-missing path.
+    private static readonly ReferenceCandidate[] Cities =
+    [
+        new("paris", "Paris"),
+        new("parma", "Parma"),
+        new("berlin", "Berlin"),
+        new("barcelona", "Barcelona"),
+        new("lisbon", "Lisbon"),
+        new("london", "London"),
+        new("rome", "Rome"),
+        new("tokyo", "Tokyo"),
+    ];
+
+    /// <summary>
+    /// Fired when the field commits to an entity — including the optimistic placeholder for
+    /// a create-if-missing (its <see cref="ReferenceCommit.Provisional"/> flag set). Wiring
+    /// this (or <see cref="OnEntityResolved"/>) is what opts the extension into JS→.NET
+    /// interop; leave both unset and the field stays entirely client-side.
+    /// </summary>
+    [Parameter] public EventCallback<ReferenceCommit> OnEntityCommitted { get; set; }
+
+    /// <summary>
+    /// Fired when a create-if-missing resolves, carrying the provisional id to swap for the
+    /// real one. Never fires for a match against an existing candidate.
+    /// </summary>
+    [Parameter] public EventCallback<ReferenceResolved> OnEntityResolved { get; set; }
+
+    /// <summary>The extension's ESM half, served as this library's own static web asset.</summary>
+    protected override string? ModuleUrl => "./_content/Samples.Extensions.ReferenceFields/reference-fields.mjs";
+
+    /// <summary>
+    /// The candidate pool handed to the JS factory as its options. Projected to anonymous
+    /// objects with lowercase member names: extension options travel through the default
+    /// serializer (no camelCase policy), so the JS half must see `{ id, text }`, not the
+    /// records' PascalCase properties.
+    /// </summary>
+    protected override object? GetOptions() =>
+        new { candidates = Cities.Select(c => new { id = c.Id, text = c.Text }).ToArray() };
+
+    /// <summary>
+    /// Narrows the base "does it override OnInvokeAsync" default to the consumer's actual
+    /// wiring, so an instance with no callbacks does zero interop.
+    /// </summary>
+    protected override bool HasInvokeHandler =>
+        OnEntityCommitted.HasDelegate || OnEntityResolved.HasDelegate;
+
+    /// <inheritdoc />
+    protected override async Task<string?> OnInvokeAsync(string method, string argsJson)
+    {
+        using var document = JsonDocument.Parse(argsJson);
+        var args = document.RootElement;
+        switch (method)
+        {
+            case "committed" when OnEntityCommitted.HasDelegate:
+                await OnEntityCommitted.InvokeAsync(new ReferenceCommit(
+                    Str(args, 0), Str(args, 1), Bool(args, 2), Bool(args, 3)));
+                break;
+            case "resolved" when OnEntityResolved.HasDelegate:
+                await OnEntityResolved.InvokeAsync(new ReferenceResolved(Str(args, 0), Str(args, 1)));
+                break;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Turns the ghost completion overlay off or on from C#. Off calls the teardown the JS
+    /// <c>ghost.attach</c> returned (removing the overlay and its listeners); on re-attaches
+    /// — the worked demonstration of that teardown.
+    /// </summary>
+    public Task SetGhostEnabledAsync(bool enabled) =>
+        InvokeJsAsync("setGhost", JsonSerializer.Serialize(new object[] { enabled }));
+
+    /// <summary>
+    /// Reads the field's current entity-commit state as JSON — <c>query</c>, the best match
+    /// text, and the alternate matches — so a host can show a live "what would ↓/Tab do"
+    /// readout. Round-trips through the JS controller's <c>current()</c>.
+    /// </summary>
+    public Task<string?> GetStateAsync() => InvokeJsAsync("inspect");
+
+    private static string Str(JsonElement array, int index) =>
+        array.ValueKind == JsonValueKind.Array && array.GetArrayLength() > index
+            ? array[index].GetString() ?? string.Empty
+            : string.Empty;
+
+    private static bool Bool(JsonElement array, int index) =>
+        array.ValueKind == JsonValueKind.Array
+            && array.GetArrayLength() > index
+            && array[index].ValueKind == JsonValueKind.True;
+}

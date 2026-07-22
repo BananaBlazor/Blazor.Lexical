@@ -1,0 +1,117 @@
+@page "/harness/reference-fields"
+
+<PageTitle>Harness — reference fields</PageTitle>
+
+<h1>Reference fields</h1>
+
+<section>
+    <h2>Reference fields — setup.primitives (ghost completion + entity commit)</h2>
+    @* The setup.primitives worked example (Samples/Extensions.ReferenceFields): a "typed
+       reference field" whose whole content is a reference to a city tag. The primitives are
+       exercised through the sample, which is the vehicle that consumes them — the ghost
+       overlay ([data-lexical-ghost]) and the commit/resolve callbacks below are what the
+       assertions read. Both callbacks are wired, so interop is on. *@
+    <div class="reference-field">
+        <LexicalEditor @ref="_editor"
+                       Id="editor-reference"
+                       CssClass="harness-reference"
+                       Placeholder="Type a city…"
+                       Theme="LexicalTheme.Default">
+            <ReferenceFieldsExtension @ref="_field"
+                                      OnEntityCommitted="OnCommitted"
+                                      OnEntityResolved="OnResolved" />
+        </LexicalEditor>
+    </div>
+
+    <div>
+        <button id="btn-ref-read" @onclick="ReadDocument">Read document / state</button>
+        <button id="btn-ref-inspect" @onclick="Inspect">Inspect field</button>
+        <button id="btn-ref-ghost-off" @onclick="() => SetGhost(false)">Ghost off</button>
+        <button id="btn-ref-ghost-on" @onclick="() => SetGhost(true)">Ghost on</button>
+    </div>
+
+    <p>Committed id: <span id="ref-committed-id">@_committedId</span></p>
+    <p>Committed text: <span id="ref-committed-text">@_committedText</span></p>
+    <p>Committed created: <span id="ref-committed-created">@_committedCreated</span></p>
+    <p>Committed provisional: <span id="ref-committed-provisional">@_committedProvisional</span></p>
+    <p>Resolved provisional id: <span id="ref-resolved-provisional">@_resolvedProvisional</span></p>
+    <p>Resolved real id: <span id="ref-resolved-real">@_resolvedReal</span></p>
+    <p>Commit count: <span id="ref-commit-count">@_commitCount</span></p>
+    <p>Field query: <span id="ref-query">@_query</span></p>
+    <p>Field best: <span id="ref-best">@_best</span></p>
+    <p>Field alternates: <span id="ref-alternates">@_alternates</span></p>
+    <p>Document text: <span id="ref-doc-text">@_docText</span></p>
+    <p>State JSON: <span id="ref-state-json">@_stateJson</span></p>
+    <p>Ghost enabled: <span id="ref-ghost-enabled">@_ghostEnabled</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _editor;
+    private ReferenceFieldsExtension? _field;
+
+    private string _committedId = "";
+    private string _committedText = "";
+    private bool _committedCreated;
+    private bool _committedProvisional;
+    private string _resolvedProvisional = "";
+    private string _resolvedReal = "";
+    private int _commitCount;
+    private string _query = "";
+    private string _best = "";
+    private string _alternates = "";
+    private string _docText = "";
+    private string _stateJson = "";
+    private bool _ghostEnabled = true;
+
+    private void OnCommitted(ReferenceCommit commit)
+    {
+        _committedId = commit.Id;
+        _committedText = commit.Text;
+        _committedCreated = commit.Created;
+        _committedProvisional = commit.Provisional;
+        _commitCount++;
+    }
+
+    private void OnResolved(ReferenceResolved resolved)
+    {
+        _resolvedProvisional = resolved.ProvisionalId;
+        _resolvedReal = resolved.RealId;
+    }
+
+    private async Task ReadDocument()
+    {
+        if (_editor is not null)
+        {
+            _docText = await _editor.GetTextAsync();
+            _stateJson = await _editor.GetEditorStateJsonAsync();
+        }
+    }
+
+    private async Task Inspect()
+    {
+        if (_field is null)
+        {
+            return;
+        }
+        var json = await _field.GetStateAsync();
+        if (json is null)
+        {
+            return;
+        }
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        _query = root.GetProperty("query").GetString() ?? "";
+        _best = root.GetProperty("best").GetString() ?? "";
+        _alternates = string.Join(",",
+            root.GetProperty("alternates").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    private async Task SetGhost(bool enabled)
+    {
+        if (_field is not null)
+        {
+            await _field.SetGhostEnabledAsync(enabled);
+            _ghostEnabled = enabled;
+        }
+    }
+}

@@ -108,6 +108,166 @@ export interface LexicalExtensionSetup {
    * Reserve it for updates the user did not make — a silent user edit would be lost.
    */
   silentUpdateTag: string;
+
+  /**
+   * App-agnostic building blocks the SDK owns because they are easy to get subtly
+   * wrong per-app. Unlike {@link lexical}/{@link utils} (which hand you a namespace to
+   * call), these are stateless factories: {@link GhostCompletionApi.attach} takes the
+   * editor as an argument and {@link EntityCommitApi.create} is editor-free, so one
+   * `primitives` object is shared across every extension on the page. See
+   * {@link LexicalPrimitives}.
+   */
+  primitives: LexicalPrimitives;
+}
+
+/**
+ * The SDK-owned primitives handed to every extension via {@link LexicalExtensionSetup.primitives}.
+ * Each generalizes a pattern the built-ins already solve internally but consumers keep
+ * re-implementing: an inline completion hint that must never touch the document, and the
+ * buffer→resolve→commit lifecycle of a field whose whole content is a reference to an entity.
+ */
+export interface LexicalPrimitives {
+  /** Inline ghost-completion overlay. See {@link GhostCompletionApi}. */
+  ghost: GhostCompletionApi;
+  /** The entity-commit state machine. See {@link EntityCommitApi}. */
+  entityCommit: EntityCommitApi;
+}
+
+/**
+ * One reading of what the ghost should show, returned by the `read` callback an
+ * extension hands {@link GhostCompletionApi.attach}. `null` from that callback hides the
+ * ghost.
+ */
+export interface GhostSession {
+  /** Key of the text node the caret sits in — the ghost's anchor. */
+  anchorKey: string;
+  /** The muted suffix to paint after the caret (e.g. `ken stock` for `chic│`). */
+  text: string;
+}
+
+/**
+ * Inline ghost completion: muted "rest of the word" text shown *after* the caret
+ * (`chi│cken stock` with the suffix dimmed), the way an autocomplete hint reads.
+ *
+ * The hard invariant is that the ghost is **visible but not real**. `attach` paints it
+ * into an overlay element parented to `root` — *outside* the `[data-lexical-content]`
+ * contenteditable — so it can never enter the document, the state JSON, the history/undo
+ * stack, or `getTextContent()`. Accepting a completion is the extension's own job (insert
+ * the real text through `editor.update()` like any edit); the primitive only renders and
+ * positions the hint.
+ */
+export interface GhostCompletionApi {
+  /**
+   * Starts painting a ghost for `editor`. `read` is run inside the editor's read context
+   * on every selection/content change and must return the {@link GhostSession} to show
+   * (or `null` to hide). The overlay is created under `root` and positioned at the
+   * caret's right edge. Returns a teardown that removes the overlay and every listener.
+   */
+  attach(
+    editor: LexicalEditor,
+    root: HTMLElement,
+    read: () => GhostSession | null,
+  ): () => void;
+}
+
+/**
+ * One selectable entity in an {@link EntityCommitApi} field: a stable `id` and the `text`
+ * that both displays it and is matched against the query. Extensions extend this with
+ * their own fields (`T extends EntityCandidate`).
+ */
+export interface EntityCandidate {
+  /** Stable identifier — what a commit ultimately resolves to. */
+  id: string;
+  /** Display/match text (the query is prefix-matched against this by default). */
+  text: string;
+}
+
+/** The snapshot {@link EntityCommitController.current} returns for the live query. */
+export interface EntityCommitState<T extends EntityCandidate> {
+  /** The query as last set via {@link EntityCommitController.setQuery}. */
+  query: string;
+  /** The active match (the one a `commit()` would take), or `null` for none. */
+  best: T | null;
+  /** The other matches, in candidate order — what {@link EntityCommitController.cycle} steps through. */
+  alternates: T[];
+}
+
+/** Configuration for one {@link EntityCommitApi.create} field. */
+export interface EntityCommitOptions<T extends EntityCandidate> {
+  /** The current candidate pool. Read fresh on every query, so it may change over time. */
+  candidates: () => T[];
+  /**
+   * Whether `candidate` matches `query`. Defaults to a case-insensitive prefix test on
+   * `candidate.text`.
+   */
+  match?: (query: string, candidate: T) => boolean;
+  /**
+   * Mints a brand-new entity when the query matches nothing — the create-if-missing path.
+   * Absent ⇒ a no-match commit is simply a no-op. See {@link commit} on
+   * {@link EntityCommitController} for the optimistic lifecycle this drives.
+   */
+  createIfMissing?: (query: string) => Promise<T>;
+  /**
+   * Fired synchronously when a commit resolves to an entity. `created` is true for the
+   * create-if-missing path; `provisional` is true only for the optimistic placeholder
+   * fired *before* `createIfMissing` resolves — a later {@link onResolved} swaps it for
+   * the real entity.
+   */
+  onCommit: (entity: T, info: { created: boolean; provisional: boolean }) => void;
+  /**
+   * Fired when a `createIfMissing` promise resolves, carrying the provisional id first
+   * handed to {@link onCommit} and the real entity to swap in. Never fired after
+   * {@link EntityCommitController.dispose}.
+   */
+  onResolved?: (provisionalId: string, entity: T) => void;
+  /**
+   * Fired when a `createIfMissing` promise rejects. The provisional entity is
+   * **deliberately left in place** — a half-committed field the user has moved on from is
+   * worse than a provisional that never resolved — so use this to surface the failure,
+   * not to roll back. Never fired after {@link EntityCommitController.dispose}.
+   */
+  onError?: (query: string, error: unknown) => void;
+}
+
+/** Drives one entity-commit field. Created by {@link EntityCommitApi.create}. */
+export interface EntityCommitController<T extends EntityCandidate> {
+  /** Sets the query (typically the field's current text) and resets the active match to the first. */
+  setQuery(query: string): void;
+  /** The current {@link EntityCommitState} — matches recomputed from the live candidates. */
+  current(): EntityCommitState<T>;
+  /**
+   * Advances the active match (wrapping) over the current matches, so `current().best` and
+   * a subsequent {@link commit} follow the cycled selection — the mechanism behind a
+   * dropdown-less "press ↓ to try the next match".
+   */
+  cycle(): void;
+  /**
+   * Commits the active match:
+   * - empty query, or no match and no `createIfMissing` ⇒ **no-op**;
+   * - a match ⇒ `onCommit(match, { created: false, provisional: false })`;
+   * - no match **with** `createIfMissing` ⇒ **optimistic**: `onCommit` fires immediately
+   *   with a provisional entity (`{ created: true, provisional: true }`), then
+   *   `createIfMissing(query)` is awaited and `onResolved` (or `onError`) fires. The
+   *   interactive path never awaits.
+   */
+  commit(): void;
+  /** Tears the field down; late `createIfMissing` settlements after this are ignored. */
+  dispose(): void;
+}
+
+/**
+ * The entity-commit lifecycle: the `buffer → resolve → commit → create-if-missing` state
+ * machine behind a **typed reference field** — an editable region whose whole content is
+ * conceptually a reference to an entity (a city, a tag, a person) rather than free text.
+ *
+ * It generalizes the built-in mentions (which insert a token for an *existing* entity) to
+ * a field that *is* the reference, and adds the create-if-missing path mentions lacks. It
+ * is DOM-free and editor-free — pure logic over a candidate list — so the same primitive
+ * drives a field, a chip, or anything else; wiring it to the editor is the extension's job.
+ */
+export interface EntityCommitApi {
+  /** Builds a controller for one field from its {@link EntityCommitOptions}. */
+  create<T extends EntityCandidate>(opts: EntityCommitOptions<T>): EntityCommitController<T>;
 }
 
 /**

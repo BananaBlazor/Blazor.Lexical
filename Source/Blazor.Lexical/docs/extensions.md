@@ -47,8 +47,9 @@ contract.
   would otherwise take the editor down. Upstream refuses to build the editor in all three
   cases; **we log and skip the later module**, per the invariant below.
 - **`setup` is the whole environment**: `options`, `lexical` and `utils` (the host's own
-  module namespaces), `invokeDotNet`/`notifyDotNet`/`canInvokeDotNet`, `silentUpdateTag`.
-  Anything an extension would otherwise import or hardcode belongs here.
+  module namespaces), `invokeDotNet`/`notifyDotNet`/`canInvokeDotNet`, `silentUpdateTag`,
+  and `primitives` (the ghost/entity-commit building blocks — see below). Anything an
+  extension would otherwise import or hardcode belongs here.
 - **Single-instance by default**: `RegisterExtension` **throws** on a second instance of a
   type unless it overrides `AllowMultiple`. Stricter than the mentions dedupe (instance
   identity only) — a duplicate would register nodes and listeners twice, so it fails loudly.
@@ -123,6 +124,64 @@ The math has one owner: `js/src/block-layout.ts` (`listTopLevelBlocks` / `comput
 which `overlays.ts` also runs on, so the gutter and an app extension can never drift.
 Worked example: `Samples/Extensions.GutterMarkers` (speaker tabs, a star toggle, a
 changed-indicator bar — all its own DOM, styling and state).
+
+## `setup.primitives` — ghost completion & entity commit
+
+`setup.primitives` carries two app-agnostic building blocks the SDK owns because they are
+easy to get subtly wrong per-app, both aimed at the **typed reference field** pattern — an
+editable region whose content is conceptually a reference to an entity (a city, a tag, a
+person) rather than free text. Unlike `lexical`/`utils` (namespaces to call), these are
+stateless factories, so one `primitives` object is shared across every extension on the
+page: `ghost.attach` takes the editor as an argument, `entityCommit.create` is editor-free.
+
+### `primitives.ghost` — inline ghost completion
+
+`ghost.attach(editor, root, read)` paints a muted "rest of the word" hint **after** the
+caret (`chi│cken stock`), the way an autocomplete suggestion reads. `read` runs in the
+editor's read context on every selection/content change and returns the `GhostSession`
+(`{ anchorKey, text }`) to show, or `null` to hide. Returns a teardown that removes the
+overlay and every listener.
+
+The load-bearing invariant is that the ghost is **visible but never real**. The overlay
+`<span>` is parented to `root` — *outside* the `[data-lexical-content]` contenteditable —
+which is what structurally guarantees it never enters the document, the state JSON, the
+history/undo stack, or `getTextContent()`. It is CSS `pointer-events: none` /
+`user-select: none` even when visible (like the placeholder), so it never intercepts a
+click or lands in a copy. Accepting a completion is the extension's own edit
+(`editor.update()` to insert the real text); the primitive only renders and positions the
+hint (at the caret's right edge, from the live selection rect).
+
+### `primitives.entityCommit` — the commit lifecycle
+
+`entityCommit.create(opts)` returns a controller for one field's `buffer → resolve →
+commit → create-if-missing` state machine. It is DOM-free and editor-free — pure logic
+over a candidate list — so wiring it to the editor (reading the text as the query,
+inserting on commit) is the extension's job. It generalizes the built-in mentions (insert
+a token for an *existing* entity) to a field that *is* the reference, and adds the
+create-if-missing path mentions lacks.
+
+- **`setQuery(q)`** stores the query and resets the active match to the first;
+  **`current()`** returns `{ query, best, alternates }` recomputed from the live
+  candidates (default match: case-insensitive prefix on `text`; empty query ⇒ no matches).
+- **`cycle()`** advances the active match (wrapping) over the matches, so `current().best`
+  and a subsequent `commit()` follow the cycled selection — the mechanism behind a
+  dropdown-less "press ↓ to try the next match".
+- **`commit()`**: empty query, or no match with no `createIfMissing`, is a **no-op**; a
+  match fires `onCommit(best, { created: false, provisional: false })`; no match **with**
+  `createIfMissing` is **optimistic** — `onCommit` fires *immediately* with a provisional
+  entity (`{ created: true, provisional: true }`, minted id `provisional:N`), then
+  `createIfMissing(query)` is awaited and `onResolved(provisionalId, realEntity)` fires.
+  The interactive path never awaits.
+- **Rejection**: a `createIfMissing` that rejects fires `onError(query, error)` and
+  **leaves the provisional in place** — a field the user has moved on from, half-rolled-
+  back, is worse than a provisional that never resolved. Surface it, don't roll back.
+- **`dispose()`** marks the field disposed; a late `createIfMissing` settlement after that
+  fires neither `onResolved` nor `onError`.
+
+Worked example: `Samples/Extensions.ReferenceFields` (a city-tag field: `par` ghosts
+`par│is`, ↓ cycles Paris→Parma, Tab/Enter accepts, an unknown city creates optimistically),
+demoed at the website's `/reference-fields` page and driven by
+`/harness/reference-fields` in `Tests/Integration/ReferenceFieldsTests.cs`.
 
 ## Adding a push channel
 

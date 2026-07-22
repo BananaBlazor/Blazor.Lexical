@@ -27,6 +27,13 @@ changing the bundle, the command tokens, or any overlay.
   and adds a non-signal selection painter; see `architecture.md` for why it is a port.
 - `tabindent.ts` — Tab/Shift+Tab block indentation. Static in core, behaviour only (no
   node, no theme). Also a port of upstream's `registerTabIndentation`.
+- `ghost.ts` — inline ghost completion: the muted "rest of the word" hint painted in an
+  overlay outside the contenteditable. Static in core (a few hundred bytes, only `lexical`
+  types). Surfaced to extensions as `setup.primitives.ghost` (not a `builtIn` factory — it
+  is a primitive, not a feature).
+- `entity-commit.ts` — the DOM-free, editor-free `buffer → resolve → commit →
+  create-if-missing` state machine behind a typed reference field. Static in core (types
+  only). Surfaced as `setup.primitives.entityCommit`.
 - `extension.ts` — the consumer extension contract. **Types only**, imported with
   `import type` so it never lands in the bundle.
 - `tags.ts` — shared update tags, its own module so producers and consumers of a tag never
@@ -50,8 +57,11 @@ each run.
 `wwwroot/blazor-lexical-extension.d.ts` (a shipped static web asset) so extension authors
 get the contract typed; the `.csproj` registers it alongside the generated `.mjs` files.
 That `.d.ts` is the whole asserted extension surface — `setup` (`lexical`/`utils`/
-`invokeDotNet`/…) and the `register(ctx)` context, `ctx.blockLayout` included (see
-[extensions.md](extensions.md)) — so a new context member is live the moment it lands here.
+`invokeDotNet`/…, and `setup.primitives` — the ghost/entity-commit primitives) and the
+`register(ctx)` context, `ctx.blockLayout` included (see [extensions.md](extensions.md)) —
+so a new `setup`/context member is live the moment it lands here. Adding
+`setup.primitives.*` is therefore purely: add the type to `extension.ts`, wire the runtime
+factory into the `primitives` object in `index.ts`, and rebuild.
 
 Only `index.ts`'s exports are the Blazor↔JS contract, asserted by
 `../../Tests/Integration/ModuleContractTests.cs` — update it when adding or removing

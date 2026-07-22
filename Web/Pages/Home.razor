@@ -162,6 +162,16 @@
     <GutterMarkersExtension />
 </LexicalEditor>
 
+<p style="margin-top: 1.5rem;">
+    A third sample, <code>&lt;ReferenceFieldsExtension&gt;</code>, is the worked example for
+    <code>setup.primitives</code> — the SDK's app-agnostic <strong>ghost completion</strong>
+    and <strong>entity commit</strong> primitives. It builds a "typed reference field" whose
+    whole content is a reference to a city tag: type <code>par</code> and the rest of
+    <em>Paris</em> ghosts in after the caret; <kbd>↓</kbd> cycles to <em>Parma</em>;
+    <kbd>Tab</kbd>/<kbd>Enter</kbd> accepts; a city that is not in the list is created
+    optimistically. <a href="/reference-fields">Open the reference-fields demo →</a>
+</p>
+
 @code {
     private LexicalEditor? _editor;
     private LexicalMarks? _marks;
