@@ -51,7 +51,7 @@ on:
       dry_run:
         description: 'Resolve and download only — do not push to nuget.org'
         type: boolean
-        default: true
+        default: false
       tag:
         description: 'On success, tag the built commit v<version> and cut a GitHub Release'
         type: boolean

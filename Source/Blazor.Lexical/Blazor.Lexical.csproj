@@ -60,7 +60,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>
@@ -153,16 +153,11 @@
        requirement (it builds the JS bundle); this only reads two committed JSON
        files, so it runs on every build as well as before pack. -->
   <Target Name="VerifyLexicalAlignment" BeforeTargets="BeforeBuild;GenerateNuspec" Condition="'$(DesignTimeBuild)' != 'true'">
-    <Error Condition="'$(LexicalVersion)' == ''"
-           Text="Could not derive the bundled Lexical version from js\package-lock.json. Ensure the lockfile exists and pins 'lexical' (run npm install / Scripts/update-lexical.ps1)." />
-    <Exec Command="node &quot;$(MSBuildThisFileDirectory)..\..\Scripts\lexical-version.mjs&quot;"
-          ConsoleToMSBuild="true"
-          StandardOutputImportance="low"
-          WorkingDirectory="$(MSBuildProjectDirectory)">
+    <Error Condition="'$(LexicalVersion)' == ''" Text="Could not derive the bundled Lexical version from js\package-lock.json. Ensure the lockfile exists and pins 'lexical' (run npm install / Scripts/update-lexical.ps1)." />
+    <Exec Command="node &quot;$(MSBuildThisFileDirectory)..\..\Scripts\lexical-version.mjs&quot;" ConsoleToMSBuild="true" StandardOutputImportance="low" WorkingDirectory="$(MSBuildProjectDirectory)">
       <Output TaskParameter="ConsoleOutput" PropertyName="_VerifiedLexicalVersion" />
     </Exec>
-    <Error Condition="'$(_VerifiedLexicalVersion.Trim())' != '$(LexicalVersion)'"
-           Text="Lexical version mismatch: the build derived '$(LexicalVersion)' from the lockfile, but the alignment check reports '$(_VerifiedLexicalVersion)'. The pin graph is inconsistent." />
+    <Error Condition="'$(_VerifiedLexicalVersion.Trim())' != '$(LexicalVersion)'" Text="Lexical version mismatch: the build derived '$(LexicalVersion)' from the lockfile, but the alignment check reports '$(_VerifiedLexicalVersion)'. The pin graph is inconsistent." />
   </Target>
 
   <!-- Generate the public LexicalPackage.LexicalVersion const from the single
