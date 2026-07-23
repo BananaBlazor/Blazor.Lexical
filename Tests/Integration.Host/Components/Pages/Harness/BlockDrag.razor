@@ -1,0 +1,56 @@
+@page "/harness/block-drag"
+
+<PageTitle>Harness — block drag</PageTitle>
+
+<h1>Block drag</h1>
+
+@* Two editors, both with a left rail carrying a drag grip:
+
+     * editor-nested-drag installs a ctx.blockDrag policy (HarnessNestedDrag) that makes
+       each list item draggable and reparentable. Its list carries a distinctive
+       --lexical-drop-color so the per-target indicator colour is asserted.
+     * editor-flat-drag installs NO policy — it proves the default top-level reorder is
+       unchanged when nested drag is not opted into. *@
+<section>
+    <h2>Nested drag — list items via a ctx.blockDrag policy</h2>
+    <LexicalEditor Id="editor-nested-drag"
+                   CssClass="harness-nested-drag"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@NestedSeed">
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside" CssClass="harness-nested-left">
+            <LexicalDragHandle />
+        </LexicalBlockGutter>
+        <HarnessNestedDrag />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Flat drag — no policy, top-level reorder unchanged</h2>
+    <LexicalEditor Id="editor-flat-drag"
+                   CssClass="harness-flat-drag"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@FlatSeed">
+        <LexicalBlockGutter Position="LexicalGutterPosition.LeftInside" CssClass="harness-flat-left">
+            <LexicalDragHandle />
+        </LexicalBlockGutter>
+    </LexicalEditor>
+</section>
+
+@* A per-target drop colour set on the list container — read by the drop indicator off the
+   gap parent's element (see showDropLine / --lexical-drop-color). Distinctive so a test can
+   assert it applied for a nested drop. *@
+<style>
+    .harness-nested-drag .blazor-lexical__content ul {
+        --lexical-drop-color: rgb(220, 20, 60);
+    }
+</style>
+
+@code {
+    // Seed a three-item list so the nested policy has siblings to reorder.
+    private static readonly LexicalContent NestedSeed =
+        LexicalContent.FromMarkdown("- alpha\n- beta\n- gamma");
+
+    // Seed three flat paragraphs for the default top-level reorder.
+    private static readonly LexicalContent FlatSeed =
+        LexicalContent.FromMarkdown("one\n\ntwo\n\nthree");
+}

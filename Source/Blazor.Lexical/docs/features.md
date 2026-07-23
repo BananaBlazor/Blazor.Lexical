@@ -258,3 +258,20 @@ The push stays opt-in: `notify.blockHover` is armed when `OnBlockHovered` has a 
 block it is on would be useless, so placing one is itself the opt-in. Deduped by node key.
 `LexicalBlockRef.NodeKey` is **ephemeral** (it does not survive a parse/serialize round
 trip), so anything persisted should use `Index` or a mark id.
+
+**Dragging is top-level by default; nested drag is a JS policy.** The grip reorders
+top-level blocks through Lexical node moves. A consumer opts into dragging *nested*
+block-level nodes (and reparenting) by installing a `BlockDragPolicy` via `ctx.blockDrag`
+from an extension — not through a C# knob, because the policy is pure logic over live
+Lexical nodes (invariant #1: no per-node interop). The SDK owns hit-testing, the grip and
+drop-indicator rendering, and the default move; the policy owns `source` (what drags),
+`targets` (where it may land, as `{ parent, index }` gaps) and `drop` (how — defaulting to a
+node move). The whole drag engine lives in `js/src/block-drag.ts`; `overlays.ts` runs it for
+both paths, and "no policy" is the empty policy, so the top-level behavior is the *same
+code*, not a parallel branch. Two details worth keeping: the drop target resolves purely
+from the pointer's **vertical** position (the grip's X is uninformative, and an `*-outside`
+drag has no X over the card — this is also why the drag listeners live on `document`, not
+`root`), and hovering a rail **freezes** the hit-test (re-resolving there would collapse a
+nested block back to its container as the pointer crosses onto the grip). The drop indicator
+is themeable per target via the `--lexical-drop-color` custom property. See
+`docs/extensions.md` (`ctx.blockDrag`) for the policy contract; harness: `harness/block-drag`.

@@ -89,6 +89,8 @@ import type {
   LexicalExtensionModule,
   LexicalExtensionSetup,
   LexicalBlockLayout,
+  LexicalBlockDrag,
+  BlockDragPolicy,
 } from './extension';
 
 // The table feature (nodes + @lexical/table, ~90kb) is a lazily-imported chunk —
@@ -1045,23 +1047,34 @@ export async function create(
   if (slashMenuEl) {
     cleanups.push(registerSlashMenu(editor, root, contentEl, slashMenuEl));
   }
+  // The block-gutter drag policy an extension may install via ctx.blockDrag (below). Held
+  // in a single mutable slot read lazily by the gutter's drag engine, because the gutter
+  // registers before extensions do — so the policy is set (if at all) after this point.
+  let blockDragPolicy: BlockDragPolicy | null = null;
   // Every block gutter at once (querySelectorAll, not querySelector): a host may place
   // several — a left rail with the grip and "+", a right rail with its own actions — and
-  // they share one hover hit-test, one drop line, and one delegated drag/click pair.
+  // they share one hover hit-test, one drop line, and one delegated drag/click set.
   const blockGutterEls = Array.from(
     root.querySelectorAll<HTMLElement>('[data-lexical-block-gutter]'),
   );
   if (blockGutterEls.length > 0) {
     cleanups.push(
-      registerBlockGutters(editor, root, contentEl, blockGutterEls, (block) => {
-        // The one overlay with an (opt-in) push: the host's OnBlockHovered. The flag is
-        // read at fire time so setNotifications can arm it after create().
-        if (notify.blockHover) {
-          dotNetRef
-            .invokeMethodAsync('OnBlockHoveredInternal', block === null ? null : JSON.stringify(block))
-            .catch(() => {});
-        }
-      }),
+      registerBlockGutters(
+        editor,
+        root,
+        contentEl,
+        blockGutterEls,
+        (block) => {
+          // The one overlay with an (opt-in) push: the host's OnBlockHovered. The flag is
+          // read at fire time so setNotifications can arm it after create().
+          if (notify.blockHover) {
+            dotNetRef
+              .invokeMethodAsync('OnBlockHoveredInternal', block === null ? null : JSON.stringify(block))
+              .catch(() => {});
+          }
+        },
+        () => blockDragPolicy,
+      ),
     );
   }
   const linkEditorEl = root.querySelector<HTMLElement>('[data-lexical-link-editor]');
@@ -1102,6 +1115,26 @@ export async function create(
     },
   };
 
+  // The block-gutter drag policy seam, handed to every extension's register(ctx). One
+  // policy per editor: a second setPolicy while one is installed wins and warns, the same
+  // last-writer-plus-warning contract as a node-type or theme collision. The teardown
+  // clears only its own policy, so an extension disposing does not stomp a later one.
+  const blockDrag: LexicalBlockDrag = {
+    setPolicy(policy) {
+      if (blockDragPolicy !== null && blockDragPolicy !== policy) {
+        console.warn(
+          '[Blazor.Lexical] a block-drag policy is already installed; the later setPolicy wins',
+        );
+      }
+      blockDragPolicy = policy;
+      return () => {
+        if (blockDragPolicy === policy) {
+          blockDragPolicy = null;
+        }
+      };
+    },
+  };
+
   // Extensions: now that the editor and the core plugins exist, let each loaded module
   // wire its own commands/listeners and keep its teardown. This is where the table
   // runtime + its overlays and the mentions typeahead get wired too — they are
@@ -1112,7 +1145,7 @@ export async function create(
       continue;
     }
     try {
-      const teardown = module.register({ editor, root, content: contentEl, blockLayout });
+      const teardown = module.register({ editor, root, content: contentEl, blockLayout, blockDrag });
       if (typeof teardown === 'function') {
         cleanups.push(teardown);
       }

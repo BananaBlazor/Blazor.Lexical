@@ -156,6 +156,14 @@ The mechanics are in [extensions.md](extensions.md); the consumer-facing guide i
   register their own Lexical commands and their own delegated DOM listeners under their
   own markers, or use the `@onclick` escape hatch.
 - **A broken extension is logged and skipped.** It never takes the editor down.
+- **Node-level behavior is a JS seam, not a C# knob.** `ctx.blockDrag` — the block gutter's
+  nested-drag policy — is the case in point. Which nodes drag and where they may land is
+  logic over live Lexical nodes; expressing it in C# would mean a per-node interop round
+  trip on the drag path, which invariant #1 forbids. So the SDK keeps the mechanics
+  (hit-testing, grip and indicator rendering, the default node move) and hands the semantics
+  out through `register(ctx)`, exactly as `ctx.blockLayout` does for positioning. The gutter
+  stays a plain overlay with no new C# surface; the policy defaults reproduce the historic
+  top-level behavior, so "no policy" and "no interop" remain the same, un-opted-into state.
 
 ## Why we borrow from `@lexical/extension` but don't build on it
 

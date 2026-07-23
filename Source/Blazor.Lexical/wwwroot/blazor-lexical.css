@@ -638,10 +638,12 @@
   color: inherit;
 }
 
-/* Horizontal indicator showing where a dragged block will drop. */
+/* Horizontal indicator showing where a dragged block will drop. --lexical-drop-color lets
+   a consumer theme the preview per target (set it on any drop-target container); it falls
+   back to the editor accent. */
 .blazor-lexical__drop-line {
   height: 2px;
-  background: var(--blazor-lexical-accent);
+  background: var(--lexical-drop-color, var(--blazor-lexical-accent));
   border-radius: 1px;
 }
 

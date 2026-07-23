@@ -1,8 +1,10 @@
 namespace Blazor.Lexical;
 
 /// <summary>
-/// The top-level block the pointer is over, as reported by
-/// <see cref="LexicalBlockGutter.OnBlockHovered"/>.
+/// The block the pointer is over, as reported by
+/// <see cref="LexicalBlockGutter.OnBlockHovered"/>. This is the document's top-level block
+/// by default; when an extension installs a block-drag policy that resolves a
+/// <i>nested</i> block, it is that resolved block instead.
 /// </summary>
 /// <param name="NodeKey">
 /// The block's Lexical node key.
@@ -15,7 +17,11 @@ namespace Blazor.Lexical;
 /// <see cref="LexicalMarks">mark</see> whose id you own.
 /// </para>
 /// </param>
-/// <param name="Index">The block's zero-based position among the document's top-level blocks.</param>
+/// <param name="Index">
+/// The block's zero-based position among its siblings — the document's top-level blocks by
+/// default, or, for a policy-resolved nested block, its position among its parent
+/// container's children.
+/// </param>
 /// <param name="BlockType">
 /// The rendered element's tag name, lowercased (<c>"p"</c>, <c>"h2"</c>, <c>"ul"</c>,
 /// <c>"blockquote"</c>, <c>"table"</c>…).

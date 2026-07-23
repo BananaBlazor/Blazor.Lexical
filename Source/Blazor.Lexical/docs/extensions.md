@@ -125,6 +125,50 @@ which `overlays.ts` also runs on, so the gutter and an app extension can never d
 Worked example: `Samples/Extensions.GutterMarkers` (speaker tabs, a star toggle, a
 changed-indicator bar — all its own DOM, styling and state).
 
+## `ctx.blockDrag` — dragging nested blocks
+
+`register(ctx)` also gets `blockDrag`, the seam that lets the built-in block gutter drag
+**nested** block-level nodes (a `<li>`, a cell, a layout column) and reparent across
+containers. By default the gutter's drag is top-level only — a nested block moves only as
+part of its container. An extension opts in by installing one `BlockDragPolicy`:
+
+```js
+register(ctx) {
+  return ctx.blockDrag.setPolicy({
+    source: ({ node }) => nearestListItem(node),      // what the grip drags
+    targets: (dragged) => gapsFor(dragged),           // where it may land
+    // drop omitted — the SDK's default node move is correct for most policies
+  });
+}
+```
+
+The division of labour matches `blockLayout`: the **SDK owns** hit-testing, the grip and
+drop-indicator rendering, and the default move; the **policy owns** the semantics. Three
+hooks, each optional and defaulted independently:
+
+- **`source({ element, node })`** — the node the grip should drag, given the block resolved
+  under the pointer. Runs in a read context. Default: `node.getTopLevelElement()`. Return a
+  nested block to make it independently draggable; return `null` for "nothing here".
+- **`targets(dragged)`** — the valid drop gaps, each `{ parent, index }` (an insertion index
+  among a container node's children, or the root's). Runs in a read context. Default: the
+  gaps before/after every top-level block. Yield gaps under container nodes for nested drops,
+  and under a *different* parent for a reparent. Order is the tiebreak when two gaps sit at
+  the same height.
+- **`drop(dragged, gap)`** — applies the chosen gap. Runs inside the SDK's `editor.update()`
+  (do not open your own), so history/serialization stay correct. Default: move `dragged` to
+  `gap.index` among `gap.parent`'s children.
+
+One policy per editor: a second `setPolicy` wins and warns. The drop target is resolved
+**purely from the pointer's vertical position** — the grip lives in a side rail, so its X
+says nothing about which (possibly indented) container is meant, and a drag travelling in an
+`*-outside` rail has no meaningful X over the card at all. Each gap has a distinct height, so
+a nested `<li>` boundary naturally wins over its enclosing `<ul>` when the pointer is beside
+the item. The drop indicator spans the gap parent's content box (so a nested gap draws
+indented) and honours a per-target `--lexical-drop-color` CSS custom property read off that
+parent. The engine has one owner: `js/src/block-drag.ts`, which `overlays.ts` runs on for
+both the policy and policy-free paths — "no policy" is just the empty policy, so the default
+top-level reorder is the same code.
+
 ## `setup.primitives` — ghost completion & entity commit
 
 `setup.primitives` carries two app-agnostic building blocks the SDK owns because they are

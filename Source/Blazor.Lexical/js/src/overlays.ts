@@ -23,7 +23,6 @@ import {
   $isRangeSelection,
   $isTextNode,
   $getNodeByKey,
-  $getNearestNodeFromDOMNode,
   $createParagraphNode,
   createCommand,
   COMMAND_PRIORITY_LOW,
@@ -35,6 +34,16 @@ import { $findMatchingParent } from '@lexical/utils';
 // The per-block geometry, factored out so the gutter and the extension-facing
 // `ctx.blockLayout` (index.ts) share one source of truth for it.
 import { computeBlockAnchor, keyForBlockElement, GUTTER_GAP } from './block-layout';
+// The drag engine: hit-testing, gap resolution and the default node move. Factored out
+// the way block-layout.ts is, so the policy-aware and policy-free paths share one owner.
+import type { BlockDragPolicy } from './extension';
+import {
+  blockElementAt,
+  resolveActiveBlock,
+  resolveDropGap,
+  applyDrop,
+  type GapGeometry,
+} from './block-drag';
 
 // Matches the Lexical playground's `setFloatingElemPosition` gaps.
 const FLOATING_VERTICAL_GAP = 10;
@@ -341,17 +350,6 @@ export function registerSlashMenu(
 // Block gutters — the per-block hover rails (drag grip, "+", host content)
 // ---------------------------------------------------------------------------
 
-/** Returns the top-level block element under `clientY`, or null. */
-function blockElementAt(contentEl: HTMLElement, clientY: number): HTMLElement | null {
-  for (const child of Array.from(contentEl.children) as HTMLElement[]) {
-    const rect = child.getBoundingClientRect();
-    if (clientY >= rect.top && clientY <= rect.bottom) {
-      return child;
-    }
-  }
-  return null;
-}
-
 /** The block under the pointer, as reported to a {@link trackHoveredBlock} subscriber. */
 export interface HoveredBlock {
   /** The block's DOM element (a direct child of the content surface). */
@@ -369,17 +367,34 @@ export interface HoveredBlock {
  * Split out from the rail engine so the hit-test and the `editor.read` key resolution
  * have exactly one owner: {@link registerBlockGutters} builds on it, and anything else
  * that needs "which block is the pointer over" should too rather than re-deriving it.
+ *
+ * `resolveBlock`, when supplied, is the policy-aware override: if it returns a block that
+ * block wins (this is what lets a drag policy resolve a *nested* block); returning null
+ * falls through to the default top-level Y-scan. Absent, only the default path runs.
  */
 export function trackHoveredBlock(
   editor: LexicalEditor,
   root: HTMLElement,
   contentEl: HTMLElement,
   onHover: (block: HoveredBlock | null) => void,
+  resolveBlock?: (x: number, y: number) => HoveredBlock | null,
 ): () => void {
   const onMouseMove = (e: MouseEvent): void => {
+    // Over a rail: freeze. The rail belongs to the block already resolved from the text, so
+    // re-hit-testing here would be wrong — with a nested policy it would collapse a resolved
+    // child back to its container as the pointer crosses onto the grip. The gutter's own
+    // mouseenter keeps the rail up meanwhile.
+    if ((e.target as HTMLElement).closest('[data-lexical-block-gutter]') !== null) {
+      return;
+    }
     const contentRect = contentEl.getBoundingClientRect();
     if (e.clientY < contentRect.top || e.clientY > contentRect.bottom) {
       onHover(null);
+      return;
+    }
+    const resolved = resolveBlock ? resolveBlock(e.clientX, e.clientY) : null;
+    if (resolved !== null) {
+      onHover(resolved);
       return;
     }
     const element = blockElementAt(contentEl, e.clientY);
@@ -438,8 +453,8 @@ type GutterPosition = 'left-inside' | 'left-outside' | 'right-inside' | 'right-o
  * ONE registration for ALL rails, rather than one per rail, because everything here is
  * genuinely shared: a single hover hit-test (running it per rail would repeat the same
  * `editor.read` N times per mousemove), a single drop-line indicator, and one delegated
- * drag/click listener pair on the root. Rails differ only in which side they sit on and
- * what the host put inside them.
+ * drag/click listener set. Rails differ only in which side they sit on and what the host
+ * put inside them.
  *
  * Rails are positioned outward from the content edge in declaration order, so several on
  * the same side stack instead of overlapping. Behaviour lives here rather than in the
@@ -447,6 +462,14 @@ type GutterPosition = 'left-inside' | 'left-outside' | 'right-inside' | 'right-o
  * (through Lexical node moves, so history and serialization stay correct),
  * `[data-lexical-add-block]` inserts a paragraph below and types "/" to pop the slash
  * menu, and anything else in a rail is the host's own Blazor `@onclick` markup.
+ *
+ * `getPolicy` returns the consumer's {@link BlockDragPolicy} (or null). It is the seam for
+ * dragging *nested* block-level nodes: with a policy the hover/grip resolve a nested block,
+ * the drop targets can be nested gaps, and the move can reparent. With none, the drag
+ * engine's defaults reproduce the historic top-level-only behavior exactly. Read lazily
+ * (never captured) because the policy is installed by an extension that registers *after*
+ * this does. The drag listeners live on `document`, not `root`, so a drag that travels into
+ * an `*-outside` rail — beyond the root's box — still resolves a drop target from its Y.
  *
  * `onHover` is the single opt-in .NET push (`notify.blockHover`), deduped by node key so
  * it fires once per *block* rather than once per mousemove.
@@ -457,6 +480,7 @@ export function registerBlockGutters(
   contentEl: HTMLElement,
   gutterEls: HTMLElement[],
   onHover: (block: BlockRefDto | null) => void,
+  getPolicy: () => BlockDragPolicy | null,
 ): () => void {
   // The block currently under the pointer (what every rail acts on).
   let hoveredKey: string | null = null;
@@ -507,13 +531,22 @@ export function registerBlockGutters(
 
   const hideDropLine = (): void => dropLine.removeAttribute('data-lexical-visible');
 
-  const showDropLine = (blockEl: HTMLElement, after: boolean): void => {
+  /**
+   * Draws the drop indicator at a resolved {@link GapGeometry} (client-space, converted to
+   * root-relative). The line spans the gap parent's content box, so a nested gap draws
+   * indented inside its container — the visual cue that the drop lands there rather than at
+   * top level. The colour honours a per-target `--lexical-drop-color` read off the gap
+   * parent's element (inheriting, so it can be set on any ancestor); absent, an empty inline
+   * value falls back to the stylesheet's `var(--lexical-drop-color, accent)`.
+   */
+  const showDropLine = (geo: GapGeometry): void => {
     const rootRect = root.getBoundingClientRect();
-    const contentRect = contentEl.getBoundingClientRect();
-    const rect = blockEl.getBoundingClientRect();
-    dropLine.style.left = `${contentRect.left - rootRect.left}px`;
-    dropLine.style.width = `${contentRect.width}px`;
-    dropLine.style.top = `${(after ? rect.bottom : rect.top) - rootRect.top}px`;
+    dropLine.style.left = `${geo.left - rootRect.left}px`;
+    dropLine.style.width = `${geo.width}px`;
+    dropLine.style.top = `${geo.top - rootRect.top}px`;
+    dropLine.style.background = getComputedStyle(geo.parentEl)
+      .getPropertyValue('--lexical-drop-color')
+      .trim();
     dropLine.setAttribute('data-lexical-visible', '');
   };
 
@@ -565,6 +598,14 @@ export function registerBlockGutters(
     }
   };
 
+  // Policy-aware hover: only engage when the policy overrides `source` (defines a nested
+  // draggable). Otherwise resolveBlock returns null and trackHoveredBlock's own top-level
+  // Y-scan runs — the historic path, byte-for-byte.
+  const resolveBlock = (x: number, y: number): HoveredBlock | null => {
+    const policy = getPolicy();
+    return policy && policy.source ? resolveActiveBlock(editor, contentEl, x, y, policy) : null;
+  };
+
   const untrack = trackHoveredBlock(editor, root, contentEl, (block) => {
     if (block === null) {
       // Deferred, not immediate: the pointer may simply be on its way to a rail. See
@@ -587,10 +628,11 @@ export function registerBlockGutters(
       blockType: block.element.tagName.toLowerCase(),
       textPreview: (block.element.textContent ?? '').slice(0, BLOCK_PREVIEW_CHARS),
     });
-  });
+  }, resolveBlock);
 
-  // Drag-to-reorder. A grip element carries draggable="true" (set in markup); it can sit
-  // in any rail, so this is delegated from the root rather than bound per gutter.
+  // Drag-to-reorder. A grip element carries draggable="true" (set in markup); it can sit in
+  // any rail, and the drag may travel outside the card, so the listeners are delegated from
+  // `document` rather than the root — see the header note on outside rails.
   const onDragStart = (e: DragEvent) => {
     if ((e.target as HTMLElement).closest('[data-lexical-drag-grip]') === null) {
       return;
@@ -607,36 +649,41 @@ export function registerBlockGutters(
       return;
     }
     e.preventDefault();
-    const blockEl = blockElementAt(contentEl, e.clientY);
-    if (blockEl === null) {
-      return;
+    const policy = getPolicy() ?? {};
+    const y = e.clientY;
+    // Resolve the gap at the pointer height through the engine — default top-level gaps
+    // with no policy, nested/reparent gaps with one — and paint its indicator.
+    const geometry = editor.read(() => {
+      const dragged = draggedKey === null ? null : $getNodeByKey(draggedKey);
+      if (dragged === null) {
+        return null;
+      }
+      const resolved = resolveDropGap(editor, dragged, y, policy);
+      return resolved === null ? null : resolved.geometry;
+    });
+    if (geometry === null) {
+      hideDropLine();
+    } else {
+      showDropLine(geometry);
     }
-    const rect = blockEl.getBoundingClientRect();
-    showDropLine(blockEl, e.clientY > rect.top + rect.height / 2);
   };
   const onDrop = (e: DragEvent) => {
     if (draggedKey === null) {
       return;
     }
     e.preventDefault();
-    const blockEl = blockElementAt(contentEl, e.clientY);
-    const rect = blockEl?.getBoundingClientRect();
-    const after = blockEl !== null && rect !== undefined && e.clientY > rect.top + rect.height / 2;
+    const policy = getPolicy() ?? {};
+    const y = e.clientY;
     editor.update(() => {
       const dragged = draggedKey === null ? null : $getNodeByKey(draggedKey);
-      const targetNode = blockEl === null ? null : $getNearestNodeFromDOMNode(blockEl);
-      const target = targetNode === null ? null : targetNode.getTopLevelElement();
-      if (dragged === null || target === null) {
+      if (dragged === null) {
         return;
       }
-      if (target.getKey() === dragged.getKey()) {
+      const resolved = resolveDropGap(editor, dragged, y, policy);
+      if (resolved === null) {
         return;
       }
-      if (after) {
-        target.insertAfter(dragged);
-      } else {
-        target.insertBefore(dragged);
-      }
+      applyDrop(dragged, resolved.gap, policy);
     });
     draggedKey = null;
     hideDropLine();
@@ -645,10 +692,10 @@ export function registerBlockGutters(
     draggedKey = null;
     hideDropLine();
   };
-  root.addEventListener('dragstart', onDragStart);
-  root.addEventListener('dragover', onDragOver);
-  root.addEventListener('drop', onDrop);
-  root.addEventListener('dragend', onDragEnd);
+  document.addEventListener('dragstart', onDragStart);
+  document.addEventListener('dragover', onDragOver);
+  document.addEventListener('drop', onDrop);
+  document.addEventListener('dragend', onDragEnd);
 
   // "+" inserts a fresh paragraph below the hovered block and types "/" so the slash
   // menu (if the host added one) opens on the new line. Delegated for the same reason
@@ -694,10 +741,10 @@ export function registerBlockGutters(
   return () => {
     untrack();
     cancelHide();
-    root.removeEventListener('dragstart', onDragStart);
-    root.removeEventListener('dragover', onDragOver);
-    root.removeEventListener('drop', onDrop);
-    root.removeEventListener('dragend', onDragEnd);
+    document.removeEventListener('dragstart', onDragStart);
+    document.removeEventListener('dragover', onDragOver);
+    document.removeEventListener('drop', onDrop);
+    document.removeEventListener('dragend', onDragEnd);
     root.removeEventListener('click', onAddClick);
     for (const el of gutterEls) {
       el.removeEventListener('mouseenter', onGutterEnter);

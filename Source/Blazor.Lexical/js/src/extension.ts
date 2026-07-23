@@ -325,6 +325,71 @@ export interface LexicalBlockLayout {
   onBlocksChanged(callback: () => void): () => void;
 }
 
+/**
+ * A drop position for the block gutter's drag: an insertion `index` among a container
+ * `parent`'s children. `parent` is a container {@link ElementNode} (a list, a cell, a
+ * layout column) or the editor root for a top-level drop; `index` is where the dragged
+ * node lands among that parent's children (0 = first, `childCount` = last).
+ */
+export interface BlockDragGap {
+  /** The container the dragged node lands inside — a container node, or the root. */
+  parent: LexicalNode;
+  /** Insertion index among {@link parent}'s children. */
+  index: number;
+}
+
+/**
+ * The consumer-owned policy that lets the built-in block gutter drag **nested** block-level
+ * nodes and reparent across containers. Installed through {@link LexicalBlockDrag.setPolicy}
+ * (`ctx.blockDrag`) from an extension's {@link LexicalExtensionModule.register}. The SDK
+ * owns hit-testing, grip/indicator rendering, and the default move; the policy owns the
+ * *semantics* — which node is draggable and where it may land.
+ *
+ * Every hook is optional and defaulted independently: a policy overriding only
+ * {@link source} still gets the default {@link targets}/{@link drop}. With **no** policy
+ * installed all three defaults apply, which is exactly today's top-level-only behavior.
+ */
+export interface BlockDragPolicy {
+  /**
+   * Which node the grip should drag, given the block-level element resolved under the
+   * pointer and its nearest Lexical `node`. Return `null` to make nothing draggable there.
+   * Called in an editor **read** context. Default: `node.getTopLevelElement()` — the flat,
+   * top-level-only behavior. Returning a nested block (a `ListItemNode`, say) is what lets
+   * a grip attach to, and drag, a child independently of its container.
+   */
+  source?(hovered: { element: HTMLElement; node: LexicalNode }): LexicalNode | null;
+
+  /**
+   * The valid drop gaps for `dragged`. Called in an editor **read** context. Default: the
+   * gaps before and after every top-level block. A policy may additionally (or instead)
+   * yield gaps between the children of container nodes — that is what surfaces a nested drop
+   * target and, by yielding gaps under a *different* parent, a reparent.
+   */
+  targets?(dragged: LexicalNode): BlockDragGap[];
+
+  /**
+   * Applies the chosen `gap`. Called inside the SDK's `editor.update()`, so history and
+   * serialization stay correct — do **not** open your own update. Default: move `dragged`
+   * to `gap.index` among `gap.parent`'s children, which suffices for most policies.
+   */
+  drop?(dragged: LexicalNode, gap: BlockDragGap): void;
+}
+
+/**
+ * The drag-policy registration seam, handed to every extension as `ctx.blockDrag`. Mirrors
+ * {@link LexicalBlockLayout}: the SDK exposes the machinery, the extension supplies the
+ * per-app logic (here a {@link BlockDragPolicy}) from its `register`.
+ */
+export interface LexicalBlockDrag {
+  /**
+   * Installs `policy` as the editor's block-drag policy and returns a teardown that clears
+   * it. One policy per editor: a second `setPolicy` while one is installed wins and warns
+   * (two extensions both claiming the drag is an authoring error, like a node-type or theme
+   * collision). Call it from `register` and return the teardown alongside your others.
+   */
+  setPolicy(policy: BlockDragPolicy): () => void;
+}
+
 /** The live editor + DOM, handed to {@link LexicalExtensionModule.register}. */
 export interface LexicalExtensionContext {
   /** The editor instance, already created and registered with rich-text/history. */
@@ -335,6 +400,8 @@ export interface LexicalExtensionContext {
   content: HTMLElement;
   /** Per-block positioning primitives — see {@link LexicalBlockLayout}. */
   blockLayout: LexicalBlockLayout;
+  /** Block-gutter drag policy seam — see {@link LexicalBlockDrag}. */
+  blockDrag: LexicalBlockDrag;
 }
 
 /** What an extension's factory returns. Every member is optional. */
