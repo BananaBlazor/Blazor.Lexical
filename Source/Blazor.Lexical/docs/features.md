@@ -1,7 +1,7 @@
-# Built-in features: tables, mentions, TOC, marks, highlights, stats, horizontal rule, tab indent, block gutter
+# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, stats, horizontal rule, tab indent, block gutter
 
 Read this before changing anything under `Extensions/` or the matching `js/src/*.ts`
-(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `highlights.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
+(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
 `registerBlockGutters` in `overlays.ts`). The DOM markers and command tokens these features use are in
 [js-contract.md](js-contract.md); the contract they ride is in [extensions.md](extensions.md).
 
@@ -133,6 +133,55 @@ The handler returns `false`, so it observes the click and never swallows it.
 from the update listener; it changes neither the document nor the undo stack.
 `RemoveMarkAsync(silent: true)` runs under `[silentUpdateTag, 'history-merge']` for
 app-driven cleanup.
+
+## Comment composer
+
+`js/src/comments.ts` + `Extensions/Comments/`. The Lexical playground's
+`CommentPlugin`/`CommentInputBox` as a primitive: a floating in-editor comment box that, on
+confirm, wraps the selection in a mark carrying an **app-owned** id and raises `OnSubmit`.
+Static in core; contributes no node of its own.
+
+**It is built ON marks, not beside them, and requires a sibling `<LexicalMarks>`.**
+Confirming calls `@lexical/mark`'s `$wrapSelectionInMarkNode` — the same node, and the same
+overlap-merge behaviour (via marks' `registerNestedElementResolver`), that
+[Marks](#marks) registers. Owning `MarkNode` here too would collide on `getType() ===
+'mark'` and the loader would skip the later module (see
+[extensions.md](extensions.md)), so it deliberately does **not**; the C# doc comment says
+so, and a composer without marks throws on wrap.
+
+**It is an extension that also owns a floating overlay** — the hybrid the other overlays
+(link editor, gutters) aren't. `register(ctx)` drives `[data-lexical-comment-composer]`
+from `ctx.root`, mirroring `registerLinkEditor` for show/hide + selection-rect positioning;
+but unlike the create()-scanned overlays it *also* has an id-routed extension channel, which
+is exactly what an app-driven `OpenAsync` and the opt-in `OnSubmit`/`OnCancel` pushes need.
+So it is a `LexicalExtension` (`BuiltIn = "comments"`) rendering markup, not a pure overlay.
+
+**The blur problem is solved by capturing at open.** A textarea taking focus collapses the
+editor's selection, so the span to wrap is gone by confirm time. `openBox` snapshots the
+Lexical `RangeSelection` (cloned) the instant it opens and wraps *that* on confirm. The DOM
+range for the compose-highlight and positioning is built from the Lexical selection with
+`@lexical/selection`'s `createDOMRange` — **not** `window.getSelection()` — so `OpenAsync`
+works even when called from a control outside the editor that has taken DOM focus (Lexical
+retains its selection across that; the browser's does not).
+
+**The compose-highlight follows the highlights precedent, not the marks one.** It is painted
+with the CSS Custom Highlight API (`CSS.highlights.set('blazor-lexical-comment-compose', …)`),
+so it survives the selection moving into the textarea, spans blocks, needs no node and no
+undo step — and therefore has **no `LexicalTheme` key** (there is no element to hang a class
+on; the mark it eventually creates is themed by marks' `Mark` key). Styling is
+`::highlight(blazor-lexical-comment-compose)` in the core CSS.
+
+**Mark ids stay app-owned, with a deliberate fallback.** Supply the id per open via
+`OpenAsync(markId)`, or a `NewMarkId` factory the bundled `<LexicalAddCommentButton>` calls.
+The button originates its click in JS, which can neither block on .NET for an id (invariant
+#5) nor — normally — mint one. So: with a factory, the button fires `compose`, the C# half
+mints via `NewMarkId()` and calls `OpenAsync` back (one round trip; the selection survives
+it); **without** one, the JS half mints a UUIDv7 locally (zero-interop open). Either way
+`OnSubmit` carries the final id, so an app using the mint fallback still learns the key to
+file its thread under. `HasInvokeHandler` is armed by `OnSubmit`/`OnCancel` **or** a factory
+(the `compose` request rides the same gated channel); `OpenAsync` itself is C#→JS and always
+works. `[data-lexical-comment-compose]` gets `data-lexical-disabled` toggled from selection
+state, so an add button in a fixed toolbar is live only over a non-collapsed range.
 
 ## Highlights
 

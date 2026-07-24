@@ -374,6 +374,7 @@
 .blazor-lexical__slash-menu,
 .blazor-lexical__mention-menu,
 .blazor-lexical__link-editor,
+.blazor-lexical__comment-composer,
 .blazor-lexical__table-menu,
 .blazor-lexical__drop-line {
   position: absolute;
@@ -388,6 +389,7 @@
 .blazor-lexical__slash-menu[data-lexical-visible],
 .blazor-lexical__mention-menu[data-lexical-visible],
 .blazor-lexical__link-editor[data-lexical-visible],
+.blazor-lexical__comment-composer[data-lexical-visible],
 .blazor-lexical__table-menu[data-lexical-visible] {
   visibility: visible;
   opacity: 1;
@@ -716,6 +718,104 @@
 
 .blazor-lexical__link-btn:hover:not([data-lexical-disabled]) {
   background: var(--blazor-lexical-btn-hover);
+}
+
+/* ------------------------------------------------------------------ */
+/* Comment composer (<LexicalCommentComposer>).                        */
+/* A floating textarea + actions, shown via the shared overlay         */
+/* [data-lexical-visible] rule above; JS floats it at the captured     */
+/* selection. The commented span stays visible while the textarea has  */
+/* focus via the CSS Custom Highlight API — no element, so the selector */
+/* is the registered highlight name (like <LexicalHighlights>).        */
+/* ------------------------------------------------------------------ */
+
+.blazor-lexical__comment-composer {
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 18rem;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 8px;
+  background: var(--blazor-lexical-surface);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 20%);
+}
+
+.blazor-lexical__comment-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 6px;
+  background: var(--blazor-lexical-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.blazor-lexical__comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.blazor-lexical__comment-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--blazor-lexical-border);
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.blazor-lexical__comment-btn:hover {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+.blazor-lexical__comment-btn--primary {
+  border-color: var(--blazor-lexical-accent);
+  background: var(--blazor-lexical-accent);
+  color: #fff;
+}
+
+.blazor-lexical__comment-btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+/* The "add comment" button, styled like a toolbar/floating-toolbar button. JS toggles
+   [data-lexical-disabled] so it is live only over a non-collapsed selection. */
+.blazor-lexical__comment-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.blazor-lexical__comment-add:hover:not([data-lexical-disabled]) {
+  background: var(--blazor-lexical-btn-hover);
+}
+
+.blazor-lexical__comment-add[data-lexical-disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The transient compose-highlight painted over the target while composing. */
+::highlight(blazor-lexical-comment-compose) {
+  background-color: var(--blazor-lexical-highlight-bg);
 }
 
 /* ------------------------------------------------------------------ */

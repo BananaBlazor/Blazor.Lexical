@@ -1,0 +1,28 @@
+@namespace Blazor.Lexical
+@inherits LexicalExtension
+
+@* Floating in-editor comment input (playground-style CommentInputBox). Rendered as a
+   child of <LexicalEditor>, it stays hidden until opened — by OpenAsync(markId) or the
+   <LexicalAddCommentButton> — then floats at the captured selection with the target
+   painted by a transient compose-highlight while the textarea has focus. JS (the
+   'comment-composer' built-in) owns show/hide, positioning, the highlight, and the
+   wrap-into-MarkNode on confirm. Marker: data-lexical-comment-composer. *@
+<div class="blazor-lexical__comment-composer @CssClass"
+     data-lexical-comment-composer
+     role="dialog"
+     aria-label="Add a comment">
+    <textarea class="blazor-lexical__comment-input"
+              data-lexical-comment-input
+              rows="3"
+              placeholder="@Placeholder"></textarea>
+    <div class="blazor-lexical__comment-actions">
+        <button type="button"
+                class="blazor-lexical__comment-btn"
+                data-lexical-comment-cancel
+                title="Cancel">Cancel</button>
+        <button type="button"
+                class="blazor-lexical__comment-btn blazor-lexical__comment-btn--primary"
+                data-lexical-comment-confirm
+                title="Comment">Comment</button>
+    </div>
+</div>

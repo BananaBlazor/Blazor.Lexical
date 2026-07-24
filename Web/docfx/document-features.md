@@ -119,6 +119,56 @@ document nor the undo stack. `RemoveMarkAsync(id, silent: true)` is for cleanup 
 performs (a resolved thread, a cleared search) — it adds no undo step and does not raise
 `OnContentChanged`, so the user is never asked to undo something they did not do.
 
+### The comment composer
+
+Marks give you the *storage* for a comment; `<LexicalCommentComposer />` gives you the
+*input*. It is the one piece you would not want to hand-roll — the Lexical playground's
+floating comment box, with the selection-rect positioning, the "keep the target highlighted
+while I type" decoration, and the fix for the textarea stealing the editor's selection all
+handled for you. It **builds on marks**, so place it alongside a `<LexicalMarks />`:
+
+```razor
+<LexicalEditor Theme="LexicalTheme.Default">
+    <LexicalMarks OnMarkClicked="ShowThread" />
+    <LexicalCommentComposer NewMarkId="() => Guid.NewGuid().ToString()"
+                            OnSubmit="SaveComment" />
+    <LexicalFloatingToolbar>
+        <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+        <LexicalAddCommentButton />   @* the 💬 affordance over a selection *@
+    </LexicalFloatingToolbar>
+</LexicalEditor>
+
+@code {
+    private void SaveComment(CommentComposition c) =>
+        _threads.Add(c.MarkId, c.Text);      // your id, your model
+}
+```
+
+Select text and press **💬** (the `<LexicalAddCommentButton>`, shown over the selection) —
+or call `await _composer.OpenAsync(yourId)` from anywhere. A textarea floats at the
+selection, the target stays lit while you type, and confirming (the button, or
+<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>) wraps the span in a mark and raises
+`OnSubmit` with `CommentComposition(MarkId, Text)`. <kbd>Esc</kbd> or a click away cancels
+(`OnCancel`).
+
+**Mark ids stay yours.** Supply one per open to `OpenAsync(markId)`, or a `NewMarkId`
+factory the add-comment button calls. `NewMarkId` is optional — omit it and the composer
+mints a UUIDv7, still handed back through `OnSubmit`, so you always learn the id to file
+your thread under. As with everything else here, interop is opt-in: `OpenAsync` always
+works, and the `OnSubmit`/`OnCancel` callbacks are the only JS→.NET traffic, armed only when
+you wire them.
+
+| Member | Does |
+|---|---|
+| `OpenAsync(markId)` | Opens over the current selection; `false` if it is collapsed/empty |
+| `NewMarkId` | Optional `Func<string>` the add-comment button calls; a UUIDv7 otherwise |
+| `OnSubmit` | `CommentComposition(MarkId, Text)` after the span is wrapped |
+| `OnCancel` | The box was dismissed without wrapping |
+| `Placeholder`, `CloseOnClickAway` | Textarea placeholder; whether a click away cancels |
+
+There is a [worked demo](../comments) — an editor with a live comment sidebar you can click
+back into.
+
 ## Highlights
 
 `<LexicalHighlights />` lights up text you can only describe by its **content**. Where a

@@ -1,0 +1,99 @@
+@page "/harness/comments"
+
+<PageTitle>Harness — comment composer</PageTitle>
+
+<h1>Comment composer</h1>
+
+<section>
+    <h2>Composer with a NewMarkId factory + callbacks</h2>
+    @* editor-comments: the add-comment button asks .NET for an id (NewMarkId), and both
+       OnSubmit/OnCancel are wired. OpenAsync is exercised by #btn-comment-open. Marks are
+       the substrate — <LexicalMarks> registers the MarkNode the composer wraps into. *@
+    <LexicalEditor @ref="_editor"
+                   Id="editor-comments"
+                   CssClass="harness-comments"
+                   Theme="LexicalTheme.Default">
+        <LexicalMarks OnMarkClicked="OnMarkClicked" />
+        <LexicalCommentComposer @ref="_composer"
+                                Placeholder="Add a comment…"
+                                NewMarkId="NextCommentId"
+                                OnSubmit="OnSubmit"
+                                OnCancel="OnCancel" />
+        @* Fixed toolbar add-button: always visible, so JS's data-lexical-disabled toggle
+           (live only over a non-collapsed selection) is observable. *@
+        <LexicalToolbar>
+            <LexicalAddCommentButton CssClass="comment-add-fixed" />
+        </LexicalToolbar>
+        <LexicalFloatingToolbar>
+            <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+            <LexicalAddCommentButton />
+        </LexicalFloatingToolbar>
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-comment-open" @onclick="@(() => OpenWith("open-id"))">Open (open-id)</button>
+    </div>
+    <p>Submitted mark id: <span id="comment-submit-id">@_submitId</span></p>
+    <p>Submitted text: <span id="comment-submit-text">@_submitText</span></p>
+    <p>Submit count: <span id="comment-submit-count">@_submitCount</span></p>
+    <p>Cancel count: <span id="comment-cancel-count">@_cancelCount</span></p>
+    <p>Mark clicked: <span id="comment-mark-clicked">@_markClicked</span></p>
+</section>
+
+<section>
+    <h2>Composer with no factory (JS mints a UUIDv7)</h2>
+    @* editor-comments-mint: no NewMarkId, so the add-comment button mints a UUIDv7 id.
+       OnSubmit still carries it, which is how the app learns the minted id. *@
+    <LexicalEditor @ref="_mintEditor"
+                   Id="editor-comments-mint"
+                   CssClass="harness-comments-mint"
+                   Theme="LexicalTheme.Default">
+        <LexicalMarks />
+        <LexicalCommentComposer @ref="_mintComposer"
+                                OnSubmit="OnMintSubmit" />
+        <LexicalFloatingToolbar>
+            <LexicalAddCommentButton />
+        </LexicalFloatingToolbar>
+    </LexicalEditor>
+    <p>Minted mark id: <span id="comment-mint-id">@_mintId</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _editor;
+    private LexicalEditor? _mintEditor;
+    private LexicalCommentComposer? _composer;
+    private LexicalCommentComposer? _mintComposer;
+
+    private int _seq;
+    private string _submitId = "";
+    private string _submitText = "";
+    private int _submitCount;
+    private int _cancelCount;
+    private string _markClicked = "";
+    private string _mintId = "";
+
+    // A deterministic id factory so the test can assert an exact value — a real app would
+    // hand back its own comment/thread id here.
+    private string NextCommentId() => $"comment-{++_seq}";
+
+    private async Task OpenWith(string markId)
+    {
+        if (_composer is not null)
+        {
+            await _composer.OpenAsync(markId);
+        }
+    }
+
+    private void OnSubmit(CommentComposition composition)
+    {
+        _submitId = composition.MarkId;
+        _submitText = composition.Text;
+        _submitCount++;
+    }
+
+    private void OnCancel() => _cancelCount++;
+
+    private void OnMarkClicked(IReadOnlyList<string> ids) => _markClicked = string.Join(",", ids);
+
+    private void OnMintSubmit(CommentComposition composition) => _mintId = composition.MarkId;
+}

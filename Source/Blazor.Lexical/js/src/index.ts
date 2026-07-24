@@ -72,6 +72,7 @@ import * as mentionsRuntime from './mentions';
 // here — swap the static import for a literal `import()`, mirroring './table'.
 import tocRuntime from './toc';
 import marksRuntime from './marks';
+import commentComposerRuntime from './comments';
 import highlightsRuntime from './highlights';
 import statsRuntime from './stats';
 import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
@@ -828,6 +829,8 @@ export async function create(
           factory = tocRuntime;
         } else if (desc.builtIn === 'marks') {
           factory = marksRuntime;
+        } else if (desc.builtIn === 'comments') {
+          factory = commentComposerRuntime;
         } else if (desc.builtIn === 'highlights') {
           factory = highlightsRuntime;
         } else if (desc.builtIn === 'stats') {

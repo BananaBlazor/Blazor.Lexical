@@ -1,0 +1,41 @@
+@namespace Blazor.Lexical
+
+@* "Add comment" button that opens the <LexicalCommentComposer> over the current
+   selection. Typically dropped into a <LexicalFloatingToolbar> so it appears beside the
+   format buttons on a selection:
+
+     <LexicalFloatingToolbar>
+         <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+         <LexicalAddCommentButton />
+     </LexicalFloatingToolbar>
+
+   Pure markup (marker: data-lexical-comment-compose). The composer's JS half delegates
+   the click from the editor root — opening the box (minting a UUIDv7, or asking .NET for
+   an id when a NewMarkId factory is set) — and toggles data-lexical-disabled so the
+   button is live only over a non-collapsed selection. No @@onclick, no interop of its
+   own. *@
+<button type="button"
+        class="blazor-lexical__comment-add @CssClass"
+        data-lexical-comment-compose
+        title="@Title"
+        aria-label="@Title">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <span>💬</span>
+    }
+</button>
+
+@code {
+    /// <summary>Custom content for the button (defaults to a speech-balloon glyph).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Tooltip / accessible label for the button.</summary>
+    [Parameter] public string Title { get; set; } = "Add comment";
+
+    /// <summary>Extra CSS class(es) applied to the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+}

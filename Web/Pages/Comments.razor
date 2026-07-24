@@ -1,0 +1,152 @@
+@page "/comments"
+
+<PageTitle>Comments</PageTitle>
+
+<h1>In-editor comments — <code>&lt;LexicalCommentComposer&gt;</code></h1>
+
+<p>
+    Select some text and press the <strong>💬</strong> button that appears above it (or the
+    one in the toolbar) to open a floating comment box, right where the Lexical playground
+    puts it. While you type, the commented span stays lit by a transient
+    <em>compose-highlight</em> — so you never lose sight of what you are commenting on, even
+    though the textarea has stolen the editor's selection. Confirm with the button or
+    <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>; dismiss with <kbd>Esc</kbd>.
+</p>
+
+<p>
+    On confirm the span is wrapped in a <a href="docs/document-features.html#marks">mark</a>
+    carrying <strong>this page's own id</strong> (from a <code>NewMarkId</code> factory), and
+    the comment lands in the thread list. Click a highlighted span to re-open its thread; the
+    matching mark lights up in return.
+</p>
+
+<div class="demo-comments" style="display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;">
+    <div style="flex: 1 1 24rem; min-width: 20rem;">
+        <LexicalEditor @ref="_editor"
+                       Theme="LexicalTheme.Default"
+                       InitialContent="@LexicalContent.FromText(SampleText)"
+                       OnSelectionChanged="s => _quote = s.Text">
+            <LexicalToolbar />
+            <LexicalMarks @ref="_marks" OnMarkClicked="OnMarkClicked" />
+            <LexicalCommentComposer @ref="_composer"
+                                    Placeholder="Add a comment…"
+                                    NewMarkId="NewMarkId"
+                                    OnSubmit="OnSubmit"
+                                    OnCancel="OnCancel" />
+            <LexicalFloatingToolbar>
+                <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+                <LexicalFormatButton Format="LexicalTextFormat.Italic" />
+                <LexicalAddCommentButton />
+            </LexicalFloatingToolbar>
+        </LexicalEditor>
+    </div>
+
+    <aside style="flex: 1 1 18rem; min-width: 16rem;">
+        <h2 style="margin-top: 0;">Comments</h2>
+        @if (_threads.Count == 0)
+        {
+            <p style="color:#999;">No comments yet — select some text and press 💬.</p>
+        }
+        @foreach (var thread in _threads)
+        {
+            var css = "comment-thread" + (thread.Id == _activeId ? " is-active" : "");
+            <div class="@css"
+                 style="border: 1px solid #ddd; border-radius: 8px; padding: 0.6rem 0.75rem; margin-bottom: 0.6rem; cursor: pointer;"
+                 @onclick="() => Activate(thread.Id)">
+                @if (!string.IsNullOrEmpty(thread.Quote))
+                {
+                    <blockquote style="margin: 0 0 0.35rem; padding-left: 0.5rem; border-left: 3px solid #ccc; color: #666; font-size: 0.9em;">
+                        @thread.Quote
+                    </blockquote>
+                }
+                <div>@thread.Text</div>
+                <button type="button" class="comment-thread__resolve"
+                        style="margin-top: 0.4rem; font-size: 0.8em;"
+                        @onclick:stopPropagation="true"
+                        @onclick="() => ResolveAsync(thread)">Resolve</button>
+            </div>
+        }
+    </aside>
+</div>
+
+<p style="margin-top: 1rem;">
+    <a href="/">← Back to the main demo</a>
+</p>
+
+@code {
+    private const string SampleText =
+        "Select any of these words and comment on them. Each comment wraps its span in a "
+        + "mark keyed by an id this page mints, and clicking a marked span re-opens its thread.";
+
+    private LexicalEditor? _editor;
+    private LexicalMarks? _marks;
+    private LexicalCommentComposer? _composer;
+
+    private readonly List<Thread> _threads = [];
+    private string? _activeId;
+    // The text the selection carried, captured at selection time — so the quote survives the
+    // add-comment button's own click (which the LexicalSelectionState.Text push makes free).
+    private string _quote = "";
+
+    private sealed class Thread
+    {
+        public required string Id { get; init; }
+        public required string Text { get; init; }
+        public required string Quote { get; init; }
+    }
+
+    // This page's own id scheme — the library never mints one for a mark.
+    private string NewMarkId() => $"comment-{Guid.NewGuid():N}";
+
+    private void OnSubmit(CommentComposition composition)
+    {
+        _threads.Add(new Thread
+        {
+            Id = composition.MarkId,
+            Text = composition.Text,
+            Quote = _quote,
+        });
+        _activeId = composition.MarkId;
+    }
+
+    private void OnCancel() { /* nothing to store — the compose was dismissed */ }
+
+    // Clicking a marked span reports every id covering it; light up the first we know.
+    private async Task OnMarkClicked(IReadOnlyList<string> ids)
+    {
+        var id = ids.FirstOrDefault(i => _threads.Exists(t => t.Id == i));
+        if (id is not null)
+        {
+            await Activate(id);
+        }
+    }
+
+    private async Task Activate(string id)
+    {
+        _activeId = id;
+        if (_marks is not null)
+        {
+            await _marks.SetActiveMarkAsync(id);
+            await _marks.ScrollToMarkAsync(id);
+        }
+    }
+
+    // Resolving a thread is app-driven cleanup: remove the mark silently (no undo step, no
+    // dirtying) and drop the thread.
+    private async Task ResolveAsync(Thread thread)
+    {
+        if (_marks is not null)
+        {
+            await _marks.RemoveMarkAsync(thread.Id, silent: true);
+        }
+        _threads.Remove(thread);
+        if (_activeId == thread.Id)
+        {
+            _activeId = null;
+            if (_marks is not null)
+            {
+                await _marks.SetActiveMarkAsync(null);
+            }
+        }
+    }
+}

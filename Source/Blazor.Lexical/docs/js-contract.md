@@ -19,6 +19,13 @@ changing the bundle, the command tokens, or any overlay.
 - `marks.ts` — the `@lexical/mark` MarkNode plus wrap/remove/query/decorate. Static in
   core (+1.5 kb gzipped measured, package included) — the mentions precedent, not the
   table one.
+- `comments.ts` — the floating comment composer (`<LexicalCommentComposer>`). Static in
+  core; contributes no node — it wraps into `marks.ts`'s MarkNode, so it *requires* a
+  sibling marks extension. An extension that also owns a floating overlay: its
+  `register(ctx)` drives `[data-lexical-comment-composer]` from `ctx.root` (positioning,
+  the CSS Custom Highlight compose-decoration, the `[data-lexical-comment-compose]` add
+  button), while `invoke('open')` and the `submit`/`cancel`/`compose` notifies ride the
+  extension channel — not a create()-scanned overlay like the link editor.
 - `stats.ts` — word/character/paragraph counts and reading time. Static in core.
 - `table.ts` — table node runtime, in-cell action menu, insert grid picker. Lazy chunk.
 - `markdown.ts` — lazily `import()`ed `@lexical/markdown`, keeping it and

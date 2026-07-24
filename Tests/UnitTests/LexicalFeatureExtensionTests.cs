@@ -116,6 +116,51 @@ public class LexicalFeatureExtensionTests
         Assert.Null(dto.Options);
     }
 
+    // --- Comment composer ------------------------------------------------
+
+    [Fact] // OpenAsync is C#→JS; with nothing that needs JS→.NET, no handler is reported
+    public void CommentComposer_reports_no_invoke_handler_by_default()
+    {
+        Assert.False(new LexicalCommentComposer().ToDto().HasInvokeHandler);
+    }
+
+    [Fact] // either push arms it — and so does a factory (the add button's compose request)
+    public void CommentComposer_reports_an_invoke_handler_for_a_callback_or_a_factory()
+    {
+        Assert.True(
+            new LexicalCommentComposer { OnSubmit = Wired<CommentComposition>() }
+                .ToDto().HasInvokeHandler);
+        Assert.True(
+            new LexicalCommentComposer
+            {
+                OnCancel = EventCallback.Factory.Create(new object(), () => { }),
+            }.ToDto().HasInvokeHandler);
+        Assert.True(
+            new LexicalCommentComposer { NewMarkId = () => "id" }.ToDto().HasInvokeHandler);
+    }
+
+    [Fact]
+    public void CommentComposer_is_a_built_in_module()
+    {
+        Assert.Equal("comments", new LexicalCommentComposer().ToDto().BuiltIn);
+    }
+
+    [Fact] // the JS side reads these exact camelCase keys off the options payload
+    public void CommentComposer_options_carry_the_factory_flag_and_click_away()
+    {
+        var withFactory = Options(new LexicalCommentComposer
+        {
+            NewMarkId = () => "id",
+            CloseOnClickAway = false,
+        });
+        Assert.True(withFactory.GetProperty("hasMarkIdFactory").GetBoolean());
+        Assert.False(withFactory.GetProperty("closeOnClickAway").GetBoolean());
+
+        var bare = Options(new LexicalCommentComposer());
+        Assert.False(bare.GetProperty("hasMarkIdFactory").GetBoolean());
+        Assert.True(bare.GetProperty("closeOnClickAway").GetBoolean());
+    }
+
     // --- Stats -----------------------------------------------------------
 
     [Fact]
@@ -208,6 +253,7 @@ public class LexicalFeatureExtensionTests
     [Theory] // a duplicate would register nodes and listeners twice, so it fails loudly
     [InlineData(typeof(LexicalToc))]
     [InlineData(typeof(LexicalMarks))]
+    [InlineData(typeof(LexicalCommentComposer))]
     [InlineData(typeof(LexicalStats))]
     [InlineData(typeof(LexicalHorizontalRule))]
     [InlineData(typeof(LexicalTabIndent))]

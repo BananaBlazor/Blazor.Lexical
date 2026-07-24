@@ -223,6 +223,23 @@ internal sealed class TabIndentExtensionOptionsDto
 }
 
 /// <summary>
+/// The comment composer built-in's <c>GetOptions()</c> payload — the mirror of the JS
+/// <c>CommentComposerOptionsDto</c>.
+/// </summary>
+internal sealed class CommentComposerExtensionOptionsDto
+{
+    /// <summary>
+    /// Whether the host supplied a <c>NewMarkId</c> factory. When true the add-comment
+    /// button asks .NET for an id (the <c>compose</c> push) before the box opens; when
+    /// false the JS half mints a UUIDv7 and reports it back through <c>OnSubmit</c>.
+    /// </summary>
+    public bool HasMarkIdFactory { get; set; }
+
+    /// <summary>Whether a mousedown outside the open box cancels the compose.</summary>
+    public bool CloseOnClickAway { get; set; } = true;
+}
+
+/// <summary>
 /// One highlight request on its way to the highlights built-in — the flattened
 /// <see cref="LexicalTextQuote"/> plus the id it paints under. Mirrored JS-side by the
 /// object <c>highlights.ts</c>'s <c>invoke</c> destructures.
@@ -299,6 +316,7 @@ internal sealed class LexicalSelectionStateDto
 [JsonSerializable(typeof(LexicalTocEntry[]))]
 [JsonSerializable(typeof(StatsExtensionOptionsDto))]
 [JsonSerializable(typeof(TabIndentExtensionOptionsDto))]
+[JsonSerializable(typeof(CommentComposerExtensionOptionsDto))]
 [JsonSerializable(typeof(LexicalDocumentStats))]
 [JsonSerializable(typeof(LexicalBlockRef))]
 [JsonSerializable(typeof(HighlightRequestDto[]))]
