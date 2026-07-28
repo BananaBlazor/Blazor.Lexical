@@ -1,0 +1,93 @@
+@page "/harness/comment-form"
+
+<PageTitle>Harness — comment form</PageTitle>
+
+<h1>Comment form</h1>
+
+<section>
+    <h2>Composer with a custom form (ChildContent)</h2>
+    @* ChildContent replaces the built-in textarea with an app-owned form. OnOpened tells the
+       form when the box floats and over what text; the form's own buttons drive
+       ConfirmAsync/CancelAsync. The wrap-into-mark on confirm is unchanged, so OnSubmit still
+       carries the app-owned mark id. *@
+    <LexicalEditor @ref="_editor"
+                   Id="editor-comment-form"
+                   CssClass="harness-comment-form"
+                   Theme="LexicalTheme.Default">
+        <LexicalMarks OnMarkClicked="OnMarkClicked" />
+        <LexicalCommentComposer @ref="_composer"
+                                NewMarkId="NextCommentId"
+                                OnOpened="OnOpened"
+                                OnSubmit="OnSubmit"
+                                OnCancel="OnCancel">
+            <div class="harness-comment-fields">
+                <p>Commenting on: <span id="form-quote">@_openedText</span></p>
+                <textarea id="form-body" @bind="_body" @bind:event="oninput" rows="2"></textarea>
+                <button type="button" id="form-confirm" @onclick="Confirm">Save</button>
+                <button type="button" id="form-cancel" @onclick="Cancel">Discard</button>
+            </div>
+        </LexicalCommentComposer>
+        <LexicalFloatingToolbar>
+            <LexicalFormatButton Format="LexicalTextFormat.Bold" />
+            <LexicalAddCommentButton />
+        </LexicalFloatingToolbar>
+    </LexicalEditor>
+
+    <p>Opened id: <span id="form-opened-id">@_openedId</span></p>
+    <p>Opened text: <span id="form-opened-text">@_openedText</span></p>
+    <p>Submit id: <span id="form-submit-id">@_submitId</span></p>
+    <p>Submit count: <span id="form-submit-count">@_submitCount</span></p>
+    <p>Cancel count: <span id="form-cancel-count">@_cancelCount</span></p>
+    <p>Confirm result: <span id="form-confirm-result">@_confirmResult</span></p>
+    <p>Mark clicked: <span id="form-mark-clicked">@_markClicked</span></p>
+</section>
+
+@code {
+    private LexicalEditor? _editor;
+    private LexicalCommentComposer? _composer;
+
+    private int _seq;
+    private string _body = "";
+    private string _openedId = "";
+    private string _openedText = "";
+    private string _submitId = "";
+    private int _submitCount;
+    private int _cancelCount;
+    private string _confirmResult = "";
+    private string _markClicked = "";
+
+    private string NextCommentId() => $"form-comment-{++_seq}";
+
+    private void OnOpened(CommentComposerOpened opened)
+    {
+        _openedId = opened.MarkId;
+        _openedText = opened.SelectedText;
+        _body = "";
+    }
+
+    private async Task Confirm()
+    {
+        if (_composer is not null)
+        {
+            _confirmResult = (await _composer.ConfirmAsync()).ToString();
+        }
+    }
+
+    private async Task Cancel()
+    {
+        if (_composer is not null)
+        {
+            await _composer.CancelAsync();
+        }
+    }
+
+    private void OnSubmit(CommentComposition composition)
+    {
+        _submitId = composition.MarkId;
+        _submitCount++;
+    }
+
+    private void OnCancel() => _cancelCount++;
+
+    private void OnMarkClicked(IReadOnlyList<string> ids) => _markClicked = string.Join(",", ids);
+}

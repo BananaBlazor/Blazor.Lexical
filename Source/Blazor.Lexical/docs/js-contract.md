@@ -26,6 +26,18 @@ changing the bundle, the command tokens, or any overlay.
   the CSS Custom Highlight compose-decoration, the `[data-lexical-comment-compose]` add
   button), while `invoke('open')` and the `submit`/`cancel`/`compose` notifies ride the
   extension channel — not a create()-scanned overlay like the link editor.
+- `suggestions.ts` — inline suggested-edit diff (`<LexicalSuggestions>`): the
+  `SuggestionDeletionNode`/`SuggestionInsertionNode` (both `TextNode` subclasses) plus
+  show/remove/clear. Static in core; default-exports the extension factory (`builtIn:
+  'suggestions'`). Resolves its target with `text-quote.ts` and `dom-selection.ts`.
+- `text-quote.ts` — the shared TextQuoteSelector anchor engine: `flatten` the editor to
+  matchable text, `resolve` a `Quote` to the best-scoring DOM `Range` (prefix/suffix
+  disambiguate, never gate). One owner for the matching `marks` (`wrapQuote`), `highlights`,
+  and `suggestions` all run on. No Lexical imports beyond types.
+- `dom-selection.ts` — the read-only selection bridge (invariant #8):
+  `$rangeSelectionFromDom` (from the live `window.getSelection()`) and
+  `$selectionFromDomRange` (from an arbitrary DOM `Range`), both over Lexical's own
+  `$createRangeSelectionFromDom`. Used by `comments`, `marks` and `suggestions`.
 - `stats.ts` — word/character/paragraph counts and reading time. Static in core.
 - `table.ts` — table node runtime, in-cell action menu, insert grid picker. Lazy chunk.
 - `markdown.ts` — lazily `import()`ed `@lexical/markdown`, keeping it and
@@ -46,10 +58,11 @@ changing the bundle, the command tokens, or any overlay.
 - `tags.ts` — shared update tags, its own module so producers and consumers of a tag never
   import each other (a cycle that would drag the core entry into any lazy chunk).
 
-`mentions.ts`, `table.ts`, `toc.ts`, `marks.ts` and `stats.ts` all **default-export a
+`mentions.ts`, `table.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`,
+`suggestions.ts`, `stats.ts`, `hr.ts` and `tabindent.ts` all **default-export a
 `LexicalExtensionFactory`**, so `create()` loads them through the same contract as a
-consumer extension — resolved by the closed `builtIn` switch
-(`'table' | 'mentions' | 'toc' | 'marks' | 'stats'`).
+consumer extension — resolved by the closed `builtIn` switch (`'table' | 'mentions' | 'toc'
+| 'marks' | 'comments' | 'highlights' | 'suggestions' | 'stats' | 'hr' | 'tabIndent'`).
 
 ## Bundling
 

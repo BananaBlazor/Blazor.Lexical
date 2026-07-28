@@ -253,6 +253,39 @@ Two other design points generalize:
   and extensions reach it as `setup.silentUpdateTag` — reserve it for edits the user
   didn't make, since a silently-tagged *user* edit would never reach the host.
 
+## Read-only selection: the review experience
+
+Lexical only syncs `$getSelection()` from the DOM while the editor is **editable**. A
+read-only editor — the review view, where a reviewer selects text to comment on or annotate
+but never types — therefore leaves `$getSelection()` null, so anything that reads the
+Lexical selection (mark-wrapping, the comment composer) silently finds nothing to act on.
+The floating toolbar was already immune because it reads `window.getSelection()` directly;
+the composer and mark-wrap were not.
+
+The fix is one bridge, `js/src/dom-selection.ts`, used only on the read-only path (callers
+gate on `!editor.isEditable()`, so an editable editor keeps Lexical's own synced selection):
+
+- `$rangeSelectionFromDom(editor)` reconstructs a `RangeSelection` from the live
+  `window.getSelection()` via Lexical's own `$createRangeSelectionFromDom` — the same DOM→node
+  point resolution Lexical uses internally, so it is robust rather than a hand-rolled mapping.
+  The comment composer's `openBox` and marks' `wrap` fall back to it.
+- `$selectionFromDomRange(editor, range)` resolves an *arbitrary* DOM `Range` — for hydrating
+  a mark or a suggestion from a text-quote match, where there is no user selection at all. It
+  briefly installs the range as the window selection to feed the same resolver, then restores
+  the user's selection so nothing visible moves.
+
+Both must run where the **active editor** is set (`editor.read`/`editor.update`), because
+resolving DOM nodes to keys needs it — the same constraint the marks click hit-test lives
+under. This is why `openBox` switched from `getEditorState().read` to `editor.read`.
+
+**Mutating the document to render an annotation or a suggestion is acceptable here** because
+the viewer never persists editor state: the consuming app repaints from its own source of
+truth on every load, so nothing round-trips back out. That is what lets a read-only editor
+grow marks (from a live selection or a hydrated quote) and suggestion nodes (a struck-through
+deletion plus a proposed insertion) without a `contenteditable` and without a save path. The
+`click` DOM event is registered even when not editable (Lexical special-cases it), so
+`CLICK_COMMAND` still fires — which is what lets a click on a mark or a suggestion report back.
+
 ## Initial content ordering
 
 `InitialContent` is applied inside `create()` — after the core plugins, but *before*

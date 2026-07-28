@@ -161,6 +161,34 @@ public class LexicalFeatureExtensionTests
         Assert.True(bare.GetProperty("closeOnClickAway").GetBoolean());
     }
 
+    // --- Suggestions -----------------------------------------------------
+
+    [Fact] // rendering the diff is C#→JS; without OnSuggestionClicked, no JS→.NET calls
+    public void Suggestions_reports_no_invoke_handler_without_a_callback()
+    {
+        Assert.False(new LexicalSuggestions().ToDto().HasInvokeHandler);
+    }
+
+    [Fact] // wiring the click callback arms the channel
+    public void Suggestions_reports_an_invoke_handler_once_OnSuggestionClicked_is_wired()
+    {
+        var suggestions = new LexicalSuggestions
+        {
+            OnSuggestionClicked = Wired<IReadOnlyList<string>>(),
+        };
+
+        Assert.True(suggestions.ToDto().HasInvokeHandler);
+    }
+
+    [Fact]
+    public void Suggestions_is_a_built_in_module_with_no_options()
+    {
+        var dto = new LexicalSuggestions().ToDto();
+
+        Assert.Equal("suggestions", dto.BuiltIn);
+        Assert.Null(dto.Options);
+    }
+
     // --- Stats -----------------------------------------------------------
 
     [Fact]
@@ -254,6 +282,7 @@ public class LexicalFeatureExtensionTests
     [InlineData(typeof(LexicalToc))]
     [InlineData(typeof(LexicalMarks))]
     [InlineData(typeof(LexicalCommentComposer))]
+    [InlineData(typeof(LexicalSuggestions))]
     [InlineData(typeof(LexicalStats))]
     [InlineData(typeof(LexicalHorizontalRule))]
     [InlineData(typeof(LexicalTabIndent))]

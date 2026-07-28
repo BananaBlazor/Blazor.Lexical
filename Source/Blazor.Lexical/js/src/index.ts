@@ -74,6 +74,7 @@ import tocRuntime from './toc';
 import marksRuntime from './marks';
 import commentComposerRuntime from './comments';
 import highlightsRuntime from './highlights';
+import suggestionsRuntime from './suggestions';
 import statsRuntime from './stats';
 import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
 import tabIndentRuntime from './tabindent';
@@ -833,6 +834,8 @@ export async function create(
           factory = commentComposerRuntime;
         } else if (desc.builtIn === 'highlights') {
           factory = highlightsRuntime;
+        } else if (desc.builtIn === 'suggestions') {
+          factory = suggestionsRuntime;
         } else if (desc.builtIn === 'stats') {
           factory = statsRuntime;
         } else if (desc.builtIn === 'hr') {

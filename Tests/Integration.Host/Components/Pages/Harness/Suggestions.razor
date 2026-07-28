@@ -1,0 +1,94 @@
+@page "/harness/suggestions"
+
+<PageTitle>Harness — suggestions</PageTitle>
+
+<h1>Suggestions</h1>
+
+<section>
+    <h2>Inline suggested edits (display-only diff)</h2>
+    @* editor-suggestions-notify wires OnSuggestionClicked (opt-in interop);
+       editor-suggestions-quiet wires nothing and still renders the diff from C# while JS
+       never calls back. Read-only, the review use case. Suggestion ids are the app's. *@
+    <LexicalEditor @ref="_notify"
+                   Id="editor-suggestions-notify"
+                   CssClass="harness-suggestions-notify"
+                   ReadOnly="true"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromHtml(DocHtml)">
+        <LexicalSuggestions @ref="_notifyExt" OnSuggestionClicked="OnClicked" />
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-sg-show" @onclick="@(() => Show(new LexicalTextQuote("quick brown fox"), "swift red fox"))">Show suggestion</button>
+        <button id="btn-sg-show2" @onclick="@(() => Show(new LexicalTextQuote("lazy dog"), "sleepy hound", "sg-2"))">Show suggestion 2</button>
+        <button id="btn-sg-show-missing" @onclick="@(() => Show(new LexicalTextQuote("a unicorn"), "a dragon"))">Show missing</button>
+        <button id="btn-sg-remove" @onclick="@(() => Remove("sg-1"))">Remove sg-1</button>
+        <button id="btn-sg-clear" @onclick="Clear">Clear all</button>
+    </div>
+    <p>Show result: <span id="sg-show-result">@_showResult</span></p>
+    <p>Suggestion clicked: <span id="sg-clicked">@_clicked</span></p>
+    <p>Remove count: <span id="sg-remove-count">@_removeCount</span></p>
+    <p>Clear count: <span id="sg-clear-count">@_clearCount</span></p>
+
+    <LexicalEditor @ref="_quiet"
+                   Id="editor-suggestions-quiet"
+                   CssClass="harness-suggestions-quiet"
+                   ReadOnly="true"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromHtml(DocHtml)">
+        <LexicalSuggestions @ref="_quietExt" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-sg-quiet-show" @onclick="ShowQuiet">Show (quiet)</button>
+    </div>
+</section>
+
+@code {
+    private const string DocHtml =
+        "<p>The quick brown fox jumps over the lazy dog.</p>"
+        + "<p>A second paragraph, well below, about the steering committee.</p>";
+
+    private LexicalEditor? _notify;
+    private LexicalEditor? _quiet;
+    private LexicalSuggestions? _notifyExt;
+    private LexicalSuggestions? _quietExt;
+
+    private string _showResult = "";
+    private string _clicked = "";
+    private int _removeCount;
+    private int _clearCount;
+
+    private async Task Show(LexicalTextQuote target, string proposed, string id = "sg-1")
+    {
+        if (_notifyExt is not null)
+        {
+            _showResult = (await _notifyExt.ShowSuggestionAsync(id, target, proposed)).ToString();
+        }
+    }
+
+    private async Task ShowQuiet()
+    {
+        if (_quietExt is not null)
+        {
+            await _quietExt.ShowSuggestionAsync("sg-q", new LexicalTextQuote("quick brown fox"), "swift red fox");
+        }
+    }
+
+    private async Task Remove(string id)
+    {
+        if (_notifyExt is not null)
+        {
+            _removeCount = await _notifyExt.RemoveSuggestionAsync(id);
+        }
+    }
+
+    private async Task Clear()
+    {
+        if (_notifyExt is not null)
+        {
+            _clearCount = await _notifyExt.ClearSuggestionsAsync();
+        }
+    }
+
+    private void OnClicked(IReadOnlyList<string> ids) => _clicked = string.Join(",", ids);
+}

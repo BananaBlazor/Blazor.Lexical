@@ -37,6 +37,7 @@ import {
 } from 'lexical';
 import { $wrapSelectionInMarkNode } from '@lexical/mark';
 import { createDOMRange } from '@lexical/selection';
+import { $rangeSelectionFromDom } from './dom-selection';
 import type { LexicalExtensionModule, LexicalExtensionSetup } from './extension';
 
 /** The compose-highlight's registered name — its `::highlight()` selector in the CSS. */
@@ -127,9 +128,12 @@ export default function commentComposerExtension(
   const closeOnClickAway = options.closeOnClickAway !== false;
 
   let editorRef: LexicalEditor | null = null;
-  // Open the floating box, called by the C# half's OpenAsync. Set in register(); until
-  // then (and after teardown) there is nothing to open, so it is a no-op returning false.
+  // The box's controls, called by the C# half (OpenAsync / ConfirmAsync / CancelAsync).
+  // Set in register(); until then (and after teardown) there is nothing to drive, so
+  // they are no-ops. Confirm returns whether the captured span was wrapped.
   let openImpl: (markId: string) => boolean = () => false;
+  let confirmImpl: () => boolean = () => false;
+  let cancelImpl: () => void = () => {};
 
   return {
     name: 'blazor-lexical/comment-composer',
@@ -137,9 +141,12 @@ export default function commentComposerExtension(
       editorRef = editor;
 
       const boxEl = root.querySelector<HTMLElement>('[data-lexical-comment-composer]');
+      // The built-in textarea is OPTIONAL: with a custom form (ChildContent) there is no
+      // [data-lexical-comment-input], and the app drives confirm/cancel from C# and reads
+      // its own fields. Null here just means "no built-in input to focus, read, or clear".
       const inputEl = boxEl?.querySelector<HTMLTextAreaElement>('[data-lexical-comment-input]') ?? null;
       // No box markup ⇒ nothing to drive. Still return a teardown so create()'s list is uniform.
-      if (boxEl === null || inputEl === null) {
+      if (boxEl === null) {
         return () => {
           editorRef = null;
         };
@@ -152,6 +159,9 @@ export default function commentComposerExtension(
       let domRange: Range | null = null;
       // The id the confirmed mark will carry: the app's (OpenAsync / factory) or a UUIDv7.
       let markId = '';
+      // The text of the captured span, snapshotted at open and reported via the `opened`
+      // push so a custom form can show what is being commented on.
+      let selectedText = '';
       let open = false;
 
       const paintHighlight = (range: Range): void => {
@@ -186,7 +196,10 @@ export default function commentComposerExtension(
         selection = null;
         domRange = null;
         markId = '';
-        inputEl.value = '';
+        selectedText = '';
+        if (inputEl !== null) {
+          inputEl.value = '';
+        }
         boxEl.removeAttribute('data-lexical-visible');
         clearHighlight();
       };
@@ -197,8 +210,16 @@ export default function commentComposerExtension(
       // works even when called from a control outside the editor that has taken DOM focus:
       // Lexical retains its selection across that, the browser's does not.
       const openBox = (id: string): boolean => {
-        const captured = editor.getEditorState().read(() => {
-          const sel = $getSelection();
+        // editor.read (not getEditorState().read) so the active editor is set — the
+        // read-only fallback below resolves DOM nodes to keys, which needs it.
+        const captured = editor.read(() => {
+          let sel = $getSelection();
+          // Read-only editors don't sync Lexical's selection from the DOM, so a
+          // reviewer's text selection leaves $getSelection() empty. Rebuild it from
+          // window.getSelection() so the composer can open over the selected span.
+          if ((!$isRangeSelection(sel) || sel.isCollapsed()) && !editor.isEditable()) {
+            sel = $rangeSelectionFromDom(editor);
+          }
           if (!$isRangeSelection(sel) || sel.isCollapsed()) {
             return null;
           }
@@ -209,7 +230,9 @@ export default function commentComposerExtension(
             sel.focus.getNode(),
             sel.focus.offset,
           );
-          return range === null ? null : { selection: sel.clone(), range };
+          return range === null
+            ? null
+            : { selection: sel.clone(), range, text: sel.getTextContent() };
         });
         if (captured === null) {
           return false;
@@ -217,32 +240,43 @@ export default function commentComposerExtension(
         selection = captured.selection;
         domRange = captured.range;
         markId = id;
+        selectedText = captured.text;
         open = true;
         paintHighlight(domRange);
         boxEl.setAttribute('data-lexical-visible', '');
         position();
         // Focus after the current click/dispatch settles, so the delegated editor.focus()
         // in a button's click handler can't steal it straight back (as the link editor does).
-        requestAnimationFrame(() => {
-          inputEl.focus();
-        });
+        // A custom form has no built-in textarea; the app focuses its own field from OnOpened.
+        if (inputEl !== null) {
+          requestAnimationFrame(() => {
+            inputEl.focus();
+          });
+        }
+        // Tell .NET the box opened, carrying the id and the quoted text — a custom form
+        // (ChildContent) uses this to reset/populate itself. Opt-in like every push.
+        setup.notifyDotNet('opened', markId, selectedText);
         return true;
       };
       openImpl = openBox;
 
-      const confirm = (): void => {
+      const confirm = (): boolean => {
         if (!open || selection === null) {
-          return;
+          return false;
         }
-        const text = inputEl.value.trim();
+        // The built-in textarea's text, or '' with a custom form — the app reads its own
+        // fields from OnSubmit's mark id there. Trimmed to match the playground.
+        const text = inputEl !== null ? inputEl.value.trim() : '';
         const captured = selection;
         const id = markId;
+        let wrapped = false;
         editor.update(
           () => {
             $setSelection(captured.clone());
             const sel = $getSelection();
             if ($isRangeSelection(sel) && !sel.isCollapsed()) {
               $wrapSelectionInMarkNode(sel, sel.isBackward(), id);
+              wrapped = true;
             }
           },
           { discrete: true },
@@ -250,7 +284,9 @@ export default function commentComposerExtension(
         reset();
         editor.focus();
         setup.notifyDotNet('submit', id, text);
+        return wrapped;
       };
+      confirmImpl = confirm;
 
       const cancel = (): void => {
         if (!open) {
@@ -260,6 +296,7 @@ export default function commentComposerExtension(
         editor.focus();
         setup.notifyDotNet('cancel');
       };
+      cancelImpl = cancel;
 
       // Keep the editor selection intact when the box's own buttons are clicked; the
       // textarea still needs focus, so let its mousedown through (as the link editor does).
@@ -280,7 +317,8 @@ export default function commentComposerExtension(
       };
       boxEl.addEventListener('click', onBoxClick);
 
-      // Ctrl/Cmd+Enter confirms; Escape cancels — matching the playground.
+      // Ctrl/Cmd+Enter confirms; Escape cancels — matching the playground. Wired only when
+      // the built-in textarea exists; a custom form binds its own keys.
       const onInputKeyDown = (e: KeyboardEvent): void => {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
@@ -290,7 +328,7 @@ export default function commentComposerExtension(
           cancel();
         }
       };
-      inputEl.addEventListener('keydown', onInputKeyDown);
+      inputEl?.addEventListener('keydown', onInputKeyDown);
 
       // The add-comment button ([data-lexical-comment-compose], e.g. <LexicalAddCommentButton>).
       // mousedown preventDefault keeps the selection alive across the click (it may sit in the
@@ -353,7 +391,7 @@ export default function commentComposerExtension(
       return () => {
         boxEl.removeEventListener('mousedown', onBoxMouseDown);
         boxEl.removeEventListener('click', onBoxClick);
-        inputEl.removeEventListener('keydown', onInputKeyDown);
+        inputEl?.removeEventListener('keydown', onInputKeyDown);
         root.removeEventListener('mousedown', onRootMouseDown);
         root.removeEventListener('click', onRootClick);
         document.removeEventListener('mousedown', onDocMouseDown);
@@ -363,6 +401,8 @@ export default function commentComposerExtension(
         unregisterUpdate();
         reset();
         openImpl = () => false;
+        confirmImpl = () => false;
+        cancelImpl = () => {};
         editorRef = null;
       };
     },
@@ -373,6 +413,12 @@ export default function commentComposerExtension(
       switch (method) {
         case 'open':
           return openImpl(String(args[0] ?? ''));
+        case 'confirm':
+          // C#-driven confirm (a custom form's own submit button calls ConfirmAsync).
+          return confirmImpl();
+        case 'cancel':
+          cancelImpl();
+          return undefined;
         default:
           return undefined;
       }

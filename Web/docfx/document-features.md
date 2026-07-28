@@ -99,6 +99,7 @@ The API, all of it driven from C#:
 | Method | Does |
 |---|---|
 | `WrapSelectionInMarkAsync(id)` | Marks the current selection; `false` if there was none |
+| `WrapTextQuoteInMarkAsync(id, quote)` | Marks a stored text quote with no live selection |
 | `RemoveMarkAsync(id, silent)` | Unwraps the mark, returning how many nodes it cleared |
 | `GetMarkIdsAsync()` | Every mark id in the document, in document order |
 | `GetMarkIdsAtSelectionAsync()` | The ids covering the caret/selection |
@@ -118,6 +119,18 @@ so you can make the overlap visible.
 document nor the undo stack. `RemoveMarkAsync(id, silent: true)` is for cleanup *your app*
 performs (a resolved thread, a cleared search) — it adds no undo step and does not raise
 `OnContentChanged`, so the user is never asked to undo something they did not do.
+
+### Read-only review, and re-hydrating annotations
+
+Marks work in a **read-only** editor (`ReadOnly="true"`) — the review experience, where a
+reviewer selects text to annotate but never edits. Selecting text and `WrapSelectionInMarkAsync`
+both work; so does the comment composer over that selection.
+
+The library persists nothing, so an app that wants annotations to *survive a reload* stores its
+own anchor data (a text quote, as with highlights) and repaints on load. `WrapTextQuoteInMarkAsync(id, quote)`
+is the re-hydration path: it finds the quote in the freshly-loaded document and wraps it in a
+mark, with no user selection involved. A hydrated mark is a normal mark —
+`ScrollToMarkAsync`, `SetActiveMarkAsync`, and the click callback all work on it.
 
 ### The comment composer
 
@@ -164,7 +177,17 @@ you wire them.
 | `NewMarkId` | Optional `Func<string>` the add-comment button calls; a UUIDv7 otherwise |
 | `OnSubmit` | `CommentComposition(MarkId, Text)` after the span is wrapped |
 | `OnCancel` | The box was dismissed without wrapping |
+| `ChildContent` | A custom form to float in place of the built-in textarea |
+| `OnOpened` | `CommentComposerOpened(MarkId, SelectedText)` when the box opens |
+| `ConfirmAsync()` / `CancelAsync()` | Drive the box from C# (your form's own buttons) |
 | `Placeholder`, `CloseOnClickAway` | Textarea placeholder; whether a click away cancels |
+
+**Need more than a textarea?** Supply `ChildContent` and the composer floats *your* form at
+the selection instead of the built-in textarea — a review form with a department, a severity,
+a body, a suggested-edit field. Your form's own buttons call `ConfirmAsync()` (wraps the span
+and raises `OnSubmit`, so you still get the mark id) and `CancelAsync()`; `OnOpened` tells you
+when the box appears and over what text so you can reset your fields. The built-in textarea is
+unchanged if you leave `ChildContent` unset.
 
 There is a [worked demo](../comments) — an editor with a live comment sidebar you can click
 back into.
@@ -245,6 +268,47 @@ sets coexist and are styled independently:
 The bundled stylesheet styles only the default id. There is no `LexicalTheme` key here —
 a highlight is not a node, so there is no element to put a class on. Ids must be valid CSS
 identifiers.
+
+## Suggestions
+
+`<LexicalSuggestions />` renders inline **suggested edits** — the "reviewer with a pen" diff.
+Given a span of existing text and a proposed replacement, it strikes the original through and
+inserts the proposal after it, highlighted (Google Docs suggestion mode, but display-only).
+
+```razor
+<LexicalEditor ReadOnly="true" InitialContent="@_doc" Theme="LexicalTheme.Default">
+    <LexicalSuggestions @ref="_suggestions" OnSuggestionClicked="OpenReviewCard" />
+</LexicalEditor>
+
+@code {
+    private LexicalSuggestions? _suggestions;
+
+    private async Task Paint(SuggestedEdit e) =>
+        await _suggestions!.ShowSuggestionAsync(
+            e.Id, new LexicalTextQuote(e.Quote, e.Prefix, e.Suffix), e.Proposed);
+
+    private void OpenReviewCard(IReadOnlyList<string> ids) => /* your accept/reject chrome */;
+}
+```
+
+It is **display-only**: it mutates the in-memory document to paint the diff, which is safe
+because the viewer never saves — you load content and repaint from your own store on every
+load. There are deliberately **no accept/reject buttons** built in; you render your own chrome
+(a review card, a sidebar) and, when the reviewer decides, call `RemoveSuggestionAsync(id)`
+(restores the struck text to plain prose and drops the proposal) or `ClearSuggestionsAsync()`,
+then repaint from your store.
+
+| Member | Does |
+|---|---|
+| `ShowSuggestionAsync(id, target, proposedText)` | Paints the diff; `false` if the target is not found |
+| `RemoveSuggestionAsync(id)` | Removes one suggestion, restoring the original text |
+| `ClearSuggestionsAsync()` | Removes every suggestion |
+| `OnSuggestionClicked` | The app-owned id(s) when the reviewer clicks either half |
+
+Suggestion ids are yours, exactly like mark ids — the library never mints or interprets one.
+Style the two halves with the `LexicalTheme.SuggestionDeletion` and `SuggestionInsertion`
+classes (the bundled stylesheet styles both by default). Everything works with
+`ReadOnly="true"`, which is the point.
 
 ## Document statistics
 

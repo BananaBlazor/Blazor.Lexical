@@ -29,6 +29,13 @@ Hard constraints. Violating one needs an explicit, deliberate decision.
    hazard and breaks the `IsFixed` cascade.
 7. **Binding is `InitialContent` (in, once) + `OnContentChanged` (out, opt-in) + the
    `Get*Async`/`Set*Async` pairs (on demand)** — never `@bind-Value`. Don't "fix" this.
+8. **Read-only features read the DOM selection, not `$getSelection()`.** Lexical only syncs
+   its selection while `editable`, so any feature usable in a read-only editor (the review
+   view) must, when `!editor.isEditable()` and `$getSelection()` is empty, fall back to
+   `window.getSelection()` via `js/src/dom-selection.ts` (`$rangeSelectionFromDom` /
+   `$selectionFromDomRange`) — never hand-roll DOM→node mapping. Mutating the document to
+   paint an annotation/suggestion is fine (the viewer never persists state), but only ever
+   through that bridge. See `docs/architecture.md`, "Read-only selection".
 
 ## Reference — read the relevant file before changing that area
 
@@ -36,7 +43,7 @@ Hard constraints. Violating one needs an explicit, deliberate decision.
 |---|---|
 | Command tokens, overlay markers, bundling/chunks, update tags, initial-content ordering | `docs/js-contract.md` |
 | Extension contract, editor plumbing, `setup`, adding a push channel | `docs/extensions.md` |
-| Built-in features: tables, mentions, TOC, marks, comment composer, highlights, stats, horizontal rule, tab indent, block gutter | `docs/features.md` |
+| Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, tab indent, block gutter | `docs/features.md` |
 | *Why* the invariants above exist — read when a rule looks arbitrary | `docs/architecture.md` |
 
 ## Public API surface

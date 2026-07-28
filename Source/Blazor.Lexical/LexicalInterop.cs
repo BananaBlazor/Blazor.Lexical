@@ -320,6 +320,7 @@ internal sealed class LexicalSelectionStateDto
 [JsonSerializable(typeof(LexicalDocumentStats))]
 [JsonSerializable(typeof(LexicalBlockRef))]
 [JsonSerializable(typeof(HighlightRequestDto[]))]
+[JsonSerializable(typeof(LexicalTextQuote))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(string[]))]
 internal partial class LexicalJsonSerializerContext : JsonSerializerContext

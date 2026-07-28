@@ -77,6 +77,29 @@ public sealed class LexicalMarks : LexicalExtension
     public async Task<bool> WrapSelectionInMarkAsync(string markId) =>
         await InvokeJsAsync("wrap", Args(markId)) == "true";
 
+    /// <summary>
+    /// Wraps the span of text <paramref name="quote"/> describes in a mark carrying
+    /// <paramref name="markId"/> — without a live user selection. This is how an app
+    /// <b>re-hydrates</b> its stored annotations after (re)loading a document: it keeps its
+    /// own anchor data (a text quote, optionally with the words either side) and repaints
+    /// the marks programmatically, rather than the library persisting them. The quote is
+    /// resolved against the live document with the same <c>TextQuoteSelector</c> matching
+    /// <see cref="LexicalHighlights"/> uses.
+    /// </summary>
+    /// <param name="markId">Your own opaque id for this mark — the same one you stored beside the quote.</param>
+    /// <param name="quote">The text to mark, optionally with the words either side of it to disambiguate.</param>
+    /// <returns>
+    /// <c>true</c> when the quote resolved and the span was wrapped; <c>false</c> when it
+    /// did not appear in the document (an orphaned anchor), or before the editor is created.
+    /// </returns>
+    public async Task<bool> WrapTextQuoteInMarkAsync(string markId, LexicalTextQuote quote)
+    {
+        ArgumentNullException.ThrowIfNull(quote);
+        var markIdJson = JsonSerializer.Serialize(markId, LexicalJsonSerializerContext.Default.String);
+        var quoteJson = JsonSerializer.Serialize(quote, LexicalJsonSerializerContext.Default.LexicalTextQuote);
+        return await InvokeJsAsync("wrapQuote", $"[{markIdJson},{quoteJson}]") == "true";
+    }
+
     /// <summary>The extension channel's JSON argument array for a single mark id.</summary>
     private static string Args(string markId) => JsonSerializer.Serialize(
         new[] { markId }, LexicalJsonSerializerContext.Default.StringArray);

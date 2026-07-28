@@ -32,6 +32,9 @@
   --blazor-lexical-mark-overlap-bg: rgb(255, 160, 0);   /* … where two marks overlap */
   --blazor-lexical-mark-active-outline: rgb(33, 111, 219);
   --blazor-lexical-highlight-bg: rgb(255, 235, 130);    /* <LexicalHighlights> default set */
+  --blazor-lexical-suggestion-deletion: rgb(197, 48, 48);   /* struck-through original */
+  --blazor-lexical-suggestion-insertion-bg: rgb(198, 246, 213); /* proposed insertion */
+  --blazor-lexical-suggestion-insertion: rgb(34, 84, 61);
   --blazor-lexical-hr-color: rgb(206, 208, 212);        /* horizontal rule line */
   --blazor-lexical-toc-indent: 0.9rem;                  /* per-level outline indent */
   --blazor-lexical-toc-active: rgb(33, 111, 219);
@@ -519,6 +522,22 @@
    properties — background-color, color, text-decoration — by design. */
 ::highlight(blazor-lexical-default) {
   background-color: var(--blazor-lexical-highlight-bg);
+}
+
+/* Suggested edits (<LexicalSuggestions>). Display-only inline diff: the original text is
+   struck through (the deletion) and the proposed replacement follows it, highlighted (the
+   insertion). Both carry data-suggestion-id and are clickable, so the app can open its own
+   accept/reject chrome. */
+.blazor-lexical__suggestion-deletion {
+  color: var(--blazor-lexical-suggestion-deletion);
+  text-decoration: line-through;
+  cursor: pointer;
+}
+
+.blazor-lexical__suggestion-insertion {
+  background-color: var(--blazor-lexical-suggestion-insertion-bg);
+  color: var(--blazor-lexical-suggestion-insertion);
+  cursor: pointer;
 }
 
 /* Horizontal rule: a thematic break. Clicking one selects it (so Delete removes it),

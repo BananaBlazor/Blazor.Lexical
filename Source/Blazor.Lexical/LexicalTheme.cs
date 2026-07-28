@@ -78,6 +78,20 @@ public sealed class LexicalTheme
     public string? MarkOverlap { get; set; }
 
     /// <summary>
+    /// Class for the struck-through original text of a suggested edit — the
+    /// <c>suggestion-deletion</c> node <see cref="LexicalSuggestions"/> contributes. The
+    /// default renders it with a line-through so it reads as "proposed for removal".
+    /// </summary>
+    public string? SuggestionDeletion { get; set; }
+
+    /// <summary>
+    /// Class for the proposed replacement text of a suggested edit — the
+    /// <c>suggestion-insertion</c> node <see cref="LexicalSuggestions"/> inserts after the
+    /// struck-through original. The default gives it a tinted "added" highlight.
+    /// </summary>
+    public string? SuggestionInsertion { get; set; }
+
+    /// <summary>
     /// Class for a horizontal rule — the <c>&lt;hr&gt;</c> node
     /// <see cref="LexicalHorizontalRule"/> contributes. Named <c>hr</c> on the wire, the
     /// same key Lexical's own horizontal-rule node reads, so a theme written for another
@@ -106,6 +120,8 @@ public sealed class LexicalTheme
         MentionHighlight = "blazor-lexical__mention-highlight",
         Mark = "blazor-lexical__mark",
         MarkOverlap = "blazor-lexical__mark--overlap",
+        SuggestionDeletion = "blazor-lexical__suggestion-deletion",
+        SuggestionInsertion = "blazor-lexical__suggestion-insertion",
         Hr = "blazor-lexical__hr",
         HrSelected = "blazor-lexical__hr--selected",
         Table = "blazor-lexical__table",

@@ -1,8 +1,10 @@
-# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, stats, horizontal rule, tab indent, block gutter
+# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, tab indent, block gutter
 
 Read this before changing anything under `Extensions/` or the matching `js/src/*.ts`
-(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
-`registerBlockGutters` in `overlays.ts`). The DOM markers and command tokens these features use are in
+(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `suggestions.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
+`registerBlockGutters` in `overlays.ts`). The text-quote anchor engine `marks`, `highlights` and
+`suggestions` share lives in `text-quote.ts`; the read-only selection bridge those first two use
+lives in `dom-selection.ts`. The DOM markers and command tokens these features use are in
 [js-contract.md](js-contract.md); the contract they ride is in [extensions.md](extensions.md).
 
 ## Tables (lazy chunk + chrome gating)
@@ -134,6 +136,17 @@ from the update listener; it changes neither the document nor the undo stack.
 `RemoveMarkAsync(silent: true)` runs under `[silentUpdateTag, 'history-merge']` for
 app-driven cleanup.
 
+**Two annotation entry points beyond a live selection.** `WrapSelectionInMarkAsync` (the
+`wrap` invoke) works read-only via the `dom-selection.ts` fallback (invariant #8) — a reviewer
+selecting text in a `ReadOnly` editor. `WrapTextQuoteInMarkAsync` (the `wrapQuote` invoke)
+needs no selection at all: it resolves a stored `LexicalTextQuote` against the live DOM with
+the shared `text-quote.ts` engine (the same matcher [Highlights](#highlights) uses), turns the
+matched `Range` into a Lexical selection via `$selectionFromDomRange`, and wraps that. It is
+how an app **re-hydrates** its annotations after a load — the library persists nothing, so the
+app keeps its own anchor data and repaints. Both paths share the wrap/overlap-merge code, so a
+hydrated mark is indistinguishable from a user-wrapped one (`ScrollToMarkAsync`,
+`SetActiveMarkAsync`, the click channel all work on it).
+
 ## Comment composer
 
 `js/src/comments.ts` + `Extensions/Comments/`. The Lexical playground's
@@ -162,7 +175,21 @@ Lexical `RangeSelection` (cloned) the instant it opens and wraps *that* on confi
 range for the compose-highlight and positioning is built from the Lexical selection with
 `@lexical/selection`'s `createDOMRange` — **not** `window.getSelection()` — so `OpenAsync`
 works even when called from a control outside the editor that has taken DOM focus (Lexical
-retains its selection across that; the browser's does not).
+retains its selection across that; the browser's does not). `openBox` reads through
+`editor.read` and, when the editor is read-only and `$getSelection()` is empty, falls back to
+`$rangeSelectionFromDom` (invariant #8) — so the composer opens over a reviewer's selection in
+a `ReadOnly` editor.
+
+**The textarea is optional: `ChildContent` swaps in a full form.** The built-in box is a
+single textarea; a review app needs a whole form (department/severity/body, a suggested-edit
+field) floating at the selection. Supplying `ChildContent` renders it *in place of* the
+textarea — the box, its positioning, the compose-highlight and the wrap-into-mark are
+unchanged. JS detects the absence of `[data-lexical-comment-input]` and switches to
+form-driven mode: the app drives the box with C#-side `ConfirmAsync()`/`CancelAsync()` (the
+`confirm`/`cancel` invokes) from its own buttons and reads its own fields, and `OnOpened`
+(`CommentComposerOpened(markId, selectedText)`, the `opened` push captured at open) tells it
+when the box appears and over what text so it can reset/populate. The built-in textarea path
+is untouched and back-compatible; `OnSubmit` still carries the app-owned mark id either way.
 
 **The compose-highlight follows the highlights precedent, not the marks one.** It is painted
 with the CSS Custom Highlight API (`CSS.highlights.set('blazor-lexical-comment-compose', …)`),
@@ -228,6 +255,38 @@ blank the other.
 **Selection is deliberately not here.** A `SelectTextAsync` belongs with the core selection
 push (`LexicalSelectionState`), not in this extension — selection is document state, a
 highlight is not.
+
+## Suggestions
+
+`js/src/suggestions.ts` + `Extensions/Suggestions/`. The inline "suggested edit" diff —
+`<LexicalSuggestions>`, a built-in following the same C#+ESM-factory pattern as everything
+else (`BuiltIn = "suggestions"`; contributes two nodes, an opt-in click channel, and
+`ShowSuggestion`/`RemoveSuggestion`/`ClearSuggestions` over `invoke`). It renders a targeted
+span struck through and a proposed replacement inserted after it, highlighted — Google Docs
+suggestion mode, **display-only**.
+
+**It deliberately mutates the in-memory document, and that is safe here.** The review viewer
+never persists editor state (the app repaints from its own source of truth on every load), so
+`ShowSuggestionAsync` resolves the target quote against the live DOM (the shared `text-quote.ts`
+engine again), turns it into a Lexical selection via `dom-selection.ts`'s `$selectionFromDomRange`,
+`extract()`s the covered text nodes, and replaces them. Nothing round-trips back out — see
+`architecture.md`, "Read-only selection", for why this is acceptable where mutating a *saved*
+document would not be.
+
+**Two nodes, both `TextNode` subclasses so they flow inline.** `SuggestionDeletionNode` holds
+the original text with the `suggestionDeletion` theme class (line-through) + `data-suggestion-id`;
+it keeps the run's real format/style, so removing the suggestion restores it verbatim.
+`SuggestionInsertionNode` holds the proposed text with the `suggestionInsertion` class +
+`data-suggestion-id`, in **token mode** so it reads as one atomic inserted unit. Grow
+`LexicalTheme` (`SuggestionDeletion`, `SuggestionInsertion`) alongside them — the extension
+ships in-box, so typed theme keys are the norm (the mark/hr precedent).
+
+**Suggestion ids are app-owned and opaque** (the marks convention). A click on either half
+reports the id through `OnSuggestionClicked`, resolved from the clicked *element* like marks;
+the click channel is armed only when that callback is wired. There are deliberately **no
+accept/reject affordances** — the consuming app renders its own chrome and drives accept/reject
+in its own store, then calls `RemoveSuggestionAsync(id)` (restores the struck text to plain
+prose, drops the insertion) or `ClearSuggestionsAsync()`.
 
 ## Document statistics
 

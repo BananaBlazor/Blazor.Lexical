@@ -7,22 +7,33 @@
    painted by a transient compose-highlight while the textarea has focus. JS (the
    'comment-composer' built-in) owns show/hide, positioning, the highlight, and the
    wrap-into-MarkNode on confirm. Marker: data-lexical-comment-composer. *@
+@* ChildContent replaces the built-in textarea with a caller-supplied form (a full
+   review form, a suggested-edit field). The box, its marker, and JS positioning stay the
+   same; the app drives confirm/cancel via ConfirmAsync/CancelAsync and reads its own
+   fields. With no ChildContent the built-in textarea path below is unchanged. *@
 <div class="blazor-lexical__comment-composer @CssClass"
      data-lexical-comment-composer
      role="dialog"
      aria-label="Add a comment">
-    <textarea class="blazor-lexical__comment-input"
-              data-lexical-comment-input
-              rows="3"
-              placeholder="@Placeholder"></textarea>
-    <div class="blazor-lexical__comment-actions">
-        <button type="button"
-                class="blazor-lexical__comment-btn"
-                data-lexical-comment-cancel
-                title="Cancel">Cancel</button>
-        <button type="button"
-                class="blazor-lexical__comment-btn blazor-lexical__comment-btn--primary"
-                data-lexical-comment-confirm
-                title="Comment">Comment</button>
-    </div>
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <textarea class="blazor-lexical__comment-input"
+                  data-lexical-comment-input
+                  rows="3"
+                  placeholder="@Placeholder"></textarea>
+        <div class="blazor-lexical__comment-actions">
+            <button type="button"
+                    class="blazor-lexical__comment-btn"
+                    data-lexical-comment-cancel
+                    title="Cancel">Cancel</button>
+            <button type="button"
+                    class="blazor-lexical__comment-btn blazor-lexical__comment-btn--primary"
+                    data-lexical-comment-confirm
+                    title="Comment">Comment</button>
+        </div>
+    }
 </div>

@@ -1,0 +1,116 @@
+@page "/harness/readonly-annotate"
+
+<PageTitle>Harness — read-only annotate</PageTitle>
+
+<h1>Read-only annotate</h1>
+
+<section>
+    <h2>Annotating a read-only document</h2>
+    @* The review experience: a read-only editor a reviewer selects text in to comment on or
+       annotate. Lexical does not sync $getSelection() when editable=false, so the composer
+       and mark-wrap use the window.getSelection() fallback (L1). Hydration by text quote (L2)
+       paints stored annotations back as marks with no live selection. Marks are the substrate;
+       a deterministic NewMarkId keeps the wrapped id assertable. *@
+    <LexicalEditor @ref="_editor"
+                   Id="editor-readonly-annotate"
+                   CssClass="harness-readonly-annotate"
+                   ReadOnly="true"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromHtml(DocHtml)">
+        <LexicalMarks @ref="_marks" OnMarkClicked="OnMarkClicked" />
+        <LexicalCommentComposer @ref="_composer"
+                                NewMarkId="NextCommentId"
+                                OnSubmit="OnSubmit" />
+        <LexicalFloatingToolbar>
+            <LexicalAddCommentButton />
+        </LexicalFloatingToolbar>
+    </LexicalEditor>
+
+    <div>
+        <button id="btn-ro-open" @onclick="@(() => OpenWith("open-id"))">Open (open-id)</button>
+        <button id="btn-ro-wrap" @onclick="WrapSelection">Wrap selection</button>
+        <button id="btn-ro-hydrate" @onclick="@(() => Hydrate(new LexicalTextQuote("risky sections")))">Hydrate quote</button>
+        <button id="btn-ro-hydrate-missing" @onclick="@(() => Hydrate(new LexicalTextQuote("a unicorn")))">Hydrate missing</button>
+        <button id="btn-ro-scroll" @onclick="ScrollToHydrated">Scroll to hydrated</button>
+        <button id="btn-ro-active" @onclick="SetActiveHydrated">Activate hydrated</button>
+    </div>
+    <p>Submit id: <span id="ro-submit-id">@_submitId</span></p>
+    <p>Submit text: <span id="ro-submit-text">@_submitText</span></p>
+    <p>Mark clicked: <span id="ro-mark-clicked">@_markClicked</span></p>
+    <p>Wrap result: <span id="ro-wrap-result">@_wrapResult</span></p>
+    <p>Hydrate result: <span id="ro-hydrate-result">@_hydrateResult</span></p>
+    <p>Scroll result: <span id="ro-scroll-result">@_scrollResult</span></p>
+</section>
+
+@code {
+    // "flagship" is unique (double-clickable to select), "risky sections" is the hydration
+    // target, and a third paragraph gives the scroll something to move to.
+    private const string DocHtml =
+        "<p>The flagship proposal needs review before launch.</p>"
+        + "<p>Reviewers should annotate the risky sections carefully.</p>"
+        + "<p>The final decision rests with the steering committee.</p>";
+
+    private const string HydratedMarkId = "hydrated-mark";
+
+    private LexicalEditor? _editor;
+    private LexicalMarks? _marks;
+    private LexicalCommentComposer? _composer;
+
+    private int _seq;
+    private string _submitId = "";
+    private string _submitText = "";
+    private string _markClicked = "";
+    private string _wrapResult = "";
+    private string _hydrateResult = "";
+    private string _scrollResult = "";
+
+    private string NextCommentId() => $"comment-{++_seq}";
+
+    private async Task OpenWith(string markId)
+    {
+        if (_composer is not null)
+        {
+            await _composer.OpenAsync(markId);
+        }
+    }
+
+    private async Task WrapSelection()
+    {
+        if (_marks is not null)
+        {
+            _wrapResult = (await _marks.WrapSelectionInMarkAsync("mark-sel")).ToString();
+        }
+    }
+
+    private async Task Hydrate(LexicalTextQuote quote)
+    {
+        if (_marks is not null)
+        {
+            _hydrateResult = (await _marks.WrapTextQuoteInMarkAsync(HydratedMarkId, quote)).ToString();
+        }
+    }
+
+    private async Task ScrollToHydrated()
+    {
+        if (_marks is not null)
+        {
+            _scrollResult = (await _marks.ScrollToMarkAsync(HydratedMarkId)).ToString();
+        }
+    }
+
+    private async Task SetActiveHydrated()
+    {
+        if (_marks is not null)
+        {
+            await _marks.SetActiveMarkAsync(HydratedMarkId);
+        }
+    }
+
+    private void OnSubmit(CommentComposition composition)
+    {
+        _submitId = composition.MarkId;
+        _submitText = composition.Text;
+    }
+
+    private void OnMarkClicked(IReadOnlyList<string> ids) => _markClicked = string.Join(",", ids);
+}
