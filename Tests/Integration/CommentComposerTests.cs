@@ -173,14 +173,20 @@ public class CommentComposerTests : HarnessTestBase
         await TypeAsync(page, Content, "hello comment world");
         await SelectRangeAsync(page, Content, 6, 7);
         await page.ClickAsync($"{Root} .blazor-lexical__floating-toolbar [data-lexical-comment-compose]");
-        await Expect(page.Locator($"{Root} [data-lexical-comment-input]")).ToBeVisibleAsync();
+        var input = page.Locator($"{Root} [data-lexical-comment-input]");
+        await Expect(input).ToBeVisibleAsync();
 
         var painted = await page.EvaluateAsync<bool>(
             "() => CSS.highlights.has('blazor-lexical-comment-compose')");
         Assert.True(painted);
 
-        // Cancelling clears it.
-        await page.Keyboard.PressAsync("Escape");
+        // Cancelling clears it. Press Escape on the input locator (not the page) so Playwright
+        // focuses the textarea first — the composer's Escape handler is bound to it, and it is
+        // focused asynchronously (requestAnimationFrame) after the box opens, so a global
+        // keypress can race that focus and never reach the cancel path.
+        await input.PressAsync("Escape");
+        await Expect(page.Locator($"{Root} [data-lexical-comment-composer]"))
+            .Not.ToHaveAttributeAsync("data-lexical-visible", "");
         var cleared = await page.EvaluateAsync<bool>(
             "() => CSS.highlights.has('blazor-lexical-comment-compose')");
         Assert.False(cleared);
