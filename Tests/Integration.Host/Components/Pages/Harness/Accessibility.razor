@@ -1,0 +1,58 @@
+@page "/harness/accessibility"
+
+@* The content element's textbox semantics: default role/aria, the naming parameters,
+   read-only (created and toggled), and ContentAttributes precedence. Driven by
+   AccessibilityTests. *@
+
+<PageTitle>Harness — accessibility</PageTitle>
+
+<h1>Accessibility</h1>
+
+<section>
+    <h2>Default (no new parameters)</h2>
+    <LexicalEditor Id="editor-a11y-default" />
+</section>
+
+<section>
+    <h2>Named with placeholder</h2>
+    <LexicalEditor Id="editor-a11y-named" AriaLabel="New comment" Placeholder="Enter comment..." />
+</section>
+
+<section>
+    <h2>Labelled and described by visible text</h2>
+    <label id="a11y-label">Description</label>
+    <LexicalEditor Id="editor-a11y-labelled" AriaLabelledBy="a11y-label" AriaDescribedBy="a11y-help" />
+    <p id="a11y-help">Describe the change.</p>
+</section>
+
+<section>
+    <h2>Toggle read-only</h2>
+    <LexicalEditor Id="editor-a11y-readonly" ReadOnly="_readOnly" />
+    <button id="btn-a11y-toggle" @onclick="() => _readOnly = !_readOnly">Toggle read-only</button>
+</section>
+
+<section>
+    <h2>ContentAttributes precedence</h2>
+    <LexicalEditor Id="editor-a11y-attrs"
+                   AriaLabel="Explicit label"
+                   ContentAttributes="_contentAttributes" />
+</section>
+
+@code {
+    private bool _readOnly = true;
+
+    // AriaLabel beats the aria-label key; class/id/contenteditable/aria-readonly and
+    // data-lexical-* are ignored; everything else lands.
+    private readonly Dictionary<string, object> _contentAttributes = new()
+    {
+        ["data-testid"] = "comment-box",
+        ["aria-required"] = "true",
+        ["aria-label"] = "Ignored label",
+        ["aria-describedby"] = "from-attributes",
+        ["class"] = "ignored-class",
+        ["id"] = "ignored-id",
+        ["contenteditable"] = "false",
+        ["aria-readonly"] = "true",
+        ["data-lexical-content"] = "ignored",
+    };
+}

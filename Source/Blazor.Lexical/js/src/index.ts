@@ -991,6 +991,19 @@ export async function create(
   editor.setEditable(!options.readOnly);
 
   const cleanups: Array<() => void> = [];
+  // Lexical core never touches the root's contenteditable, so mirror the editable
+  // state onto it — and aria-readonly with it — whoever flips it. Blazor renders the
+  // same values for ReadOnly; this keeps them right for setEditable from JS as well.
+  const syncEditable = (editable: boolean): void => {
+    contentEl.contentEditable = editable ? 'true' : 'false';
+    if (editable) {
+      contentEl.removeAttribute('aria-readonly');
+    } else {
+      contentEl.setAttribute('aria-readonly', 'true');
+    }
+  };
+  syncEditable(editor.isEditable());
+  cleanups.push(editor.registerEditableListener(syncEditable));
   cleanups.push(registerRichText(editor));
   cleanups.push(registerList(editor));
   if (mentionsModule) {

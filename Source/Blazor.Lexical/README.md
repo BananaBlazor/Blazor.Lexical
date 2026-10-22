@@ -97,9 +97,34 @@ the JS boundary continuously. Instead the two halves are separate and each is op
 | `Theme` | `object?` | Lexical `EditorThemeClasses` for this instance. |
 | `EnableHistory` | `bool` | Enables undo/redo (default `true`). |
 | `Id` | `string` | Stable element id; auto-generated when omitted. |
+| `AriaLabel` | `string?` | Accessible name for the editing surface (`aria-label`). |
+| `AriaLabelledBy` | `string?` | Id(s) of a visible label or heading naming the surface (`aria-labelledby`). |
+| `AriaDescribedBy` | `string?` | Id(s) of helper or error text (`aria-describedby`). |
+| `ContentAttributes` | `IReadOnlyDictionary<string, object>?` | Extra attributes on the editable element, e.g. `data-testid`, `aria-required`. |
 | `InitialContent` | `LexicalContent?` | Document to load as the editor is created. |
 | `OnContentChanged` | `EventCallback<LexicalContent>` | Fires (debounced) with the document, in the format `ContentPayload` names. |
 | `ContentPayload` | `LexicalContentPayload` | `Text` (default), `Html`, `Markdown`, `EditorStateJson`, or `SignalOnly`. |
+
+### Accessibility
+
+The editable element is a multi-line textbox (`role="textbox"`, `aria-multiline="true"`),
+with `aria-placeholder` from `Placeholder` and `aria-readonly` kept in step with
+`ReadOnly`. Give it a name the way you would a `<textarea>`:
+
+```razor
+<label id="comment-label">New comment</label>
+<LexicalEditor AriaLabelledBy="comment-label"
+               AriaDescribedBy="comment-help"
+               Placeholder="Enter comment…"
+               ContentAttributes="@(new Dictionary<string, object> { ["aria-required"] = "true" })" />
+<p id="comment-help">Markdown shortcuts work here.</p>
+```
+
+`AriaLabel`, `AriaLabelledBy`, `AriaDescribedBy` and `Placeholder` win over the same keys in
+`ContentAttributes`; `class`, `id`, `contenteditable`, `aria-readonly` and `data-lexical-*`
+can't be overridden. While a `LexicalMention` picker is open, the editor acts as a WAI-ARIA
+combobox: focus stays in the text, and `aria-activedescendant` follows the highlighted
+suggestion so screen readers announce each one.
 
 ### Watching for changes
 

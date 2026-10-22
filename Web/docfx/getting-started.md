@@ -30,6 +30,7 @@ From your host page (`App.razor` for Server, `wwwroot/index.html` for WebAssembl
 @using Blazor.Lexical
 
 <LexicalEditor @ref="_editor"
+               AriaLabel="Notes"
                Placeholder="Start typing…"
                OnContentChanged="OnChanged" />
 
