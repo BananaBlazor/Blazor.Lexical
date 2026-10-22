@@ -43,9 +43,11 @@ configs; each is independent. `Initiator` starts a session; by default the query
 `[\w-]*` run, so the first space ends it. `AllowSpacesInQuery` (opt-in, default off) widens
 `makeTriggerRegex` to up to four single-space-separated words plus one trailing space, so
 `@jane do` stays open and the provider gets `"jane do"`; a double space, newline, fifth word,
-ArrowRight or Escape still ends it. `triggerOffset` is derived from the whole match, so commit
-replaces every word. ArrowRight and Escape record the trigger as `dismissed`, which keeps a
-selection-only update from reopening it until its query changes. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
+←/→ or Escape still ends it. `triggerOffset` is derived from the whole match, so commit
+replaces every word. ←/→ and Escape record the trigger as `dismissed`: it stays closed while
+that trigger (node key + offset) keeps matching — typing on or moving the caret inside the
+query does not reopen it — and clears once it stops matching or a new trigger starts. ↑/↓
+cycle the highlighted row (wrapping) and keep it scrolled into view. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
 
 - **Two custom nodes**, both `TextNode` subclasses in `createEditor`'s `nodes[]` (added
   only when configs exist): `MentionNode` — segmented/atomic, carrying an opaque

@@ -82,7 +82,7 @@
     /// When <c>true</c>, a typeahead session survives single spaces in the query, so
     /// <c>@jane do</c> keeps the picker open and queries the <see cref="Provider"/> with
     /// <c>"jane do"</c>. The session still ends at a double space, a newline, a fifth
-    /// word, ArrowRight, or Escape. Defaults to <c>false</c>: the first space ends the session.
+    /// word, ArrowLeft/ArrowRight, or Escape. Defaults to <c>false</c>: the first space ends the session.
     /// </summary>
     [Parameter] public bool AllowSpacesInQuery { get; set; }
 

@@ -645,7 +645,9 @@ export function registerMentions(
   root.appendChild(menuEl);
 
   let session: MentionMatch | null = null;
-  // A trigger the user dismissed (Escape / ArrowRight); it stays closed until its query changes.
+  // A trigger the user dismissed (Escape / ArrowLeft / ArrowRight). It stays closed while
+  // the same trigger keeps matching — typing on or moving the caret within the query does
+  // not reopen it — and clears once the trigger stops matching or another one starts.
   let dismissed: MentionMatch | null = null;
   let items: MentionItemDto[] = [];
   let activeIndex = 0;
@@ -728,6 +730,10 @@ export function registerMentions(
     activeIndex = index;
     menuEl.querySelectorAll<HTMLElement>('[data-lexical-mention-item]').forEach((el, i) => {
       el.toggleAttribute('data-lexical-mention-active', i === index);
+      if (i === index) {
+        // The menu scrolls (max-height), so keep the highlighted row in view.
+        el.scrollIntoView({ block: 'nearest' });
+      }
     });
   };
 
@@ -859,8 +865,7 @@ export function registerMentions(
         dismissed !== null &&
         (match === null ||
           match.nodeKey !== dismissed.nodeKey ||
-          match.triggerOffset !== dismissed.triggerOffset ||
-          match.query !== dismissed.query)
+          match.triggerOffset !== dismissed.triggerOffset)
       ) {
         dismissed = null;
       }
@@ -895,8 +900,8 @@ export function registerMentions(
       close();
       return;
     }
-    // ArrowRight dismisses too, but keeps its default so the caret still moves.
-    if (e.key === 'ArrowRight') {
+    // ArrowLeft/ArrowRight dismiss too, but keep their default so the caret still moves.
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       dismissed = session;
       close();
       return;

@@ -99,6 +99,24 @@ public class MentionTests : HarnessTestBase
         await Expect(editor.Locator("span[data-lexical-mention]")).ToHaveTextAsync("Leia Organa");
     }
 
+    [Fact] // ArrowUp from the first candidate wraps to the last and highlights it
+    public async Task Typeahead_ArrowUp_WrapsToLastCandidate()
+    {
+        var page = await OpenAsync();
+        var rows = page.Locator(Menu).Locator("[data-lexical-mention-item]");
+
+        await TypeAsync(page, PeopleEditor, "@a");
+        await Expect(rows).ToHaveCountAsync(3);
+        await Expect(rows.Nth(0)).ToHaveAttributeAsync("data-lexical-mention-active", "");
+
+        await page.Keyboard.PressAsync("ArrowUp");
+        await Expect(rows.Nth(2)).ToHaveAttributeAsync("data-lexical-mention-active", "");
+        await Expect(rows.Nth(0)).Not.ToHaveAttributeAsync("data-lexical-mention-active", "");
+        await page.Keyboard.PressAsync("Enter");
+
+        await Expect(page.Locator(PeopleEditor).Locator("span[data-lexical-mention]")).ToHaveTextAsync("Han Solo");
+    }
+
     [Fact] // freeform "#" highlights typed tags live with no provider and no interop
     public async Task Freeform_HighlightsHashtag_WithZeroInterop()
     {
@@ -207,10 +225,10 @@ public class MentionTests : HarnessTestBase
     public async Task AllowSpacesInQuery_KeepsSessionOpenAcrossASpace()
     {
         var page = await OpenAsync();
-        var editor = page.Locator("#editor-mention-spaces");
-        var menu = page.Locator(".harness-mention-spaces .blazor-lexical__mention-menu");
+        var editor = page.Locator(SpacesEditor);
+        var menu = page.Locator(SpacesMenu);
 
-        await TypeAsync(page, "#editor-mention-spaces", "@luke sky");
+        await TypeAsync(page, SpacesEditor, "@luke sky");
 
         await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
         await Expect(menu.Locator("[data-lexical-mention-item]")).ToHaveTextAsync(new Regex("Luke Skywalker"));
@@ -222,15 +240,20 @@ public class MentionTests : HarnessTestBase
         await Expect(editor).ToHaveTextAsync(new Regex(@"^\s*Luke Skywalker\s*$"));
     }
 
-    [Theory] // even with the flag, a double space or ArrowRight ends the session
+    private const string SpacesEditor = "#editor-mention-spaces";
+    private const string SpacesMenu = ".harness-mention-spaces .blazor-lexical__mention-menu";
+
+    [Theory] // even with the flag, a double space, Escape, or ←/→ ends the session
     [InlineData("Space")]
+    [InlineData("Escape")]
+    [InlineData("ArrowLeft")]
     [InlineData("ArrowRight")]
-    public async Task AllowSpacesInQuery_DoubleSpaceOrArrowRight_ClosesThePicker(string key)
+    public async Task AllowSpacesInQuery_DismissKeys_ClosePicker(string key)
     {
         var page = await OpenAsync();
-        var menu = page.Locator(".harness-mention-spaces .blazor-lexical__mention-menu");
+        var menu = page.Locator(SpacesMenu);
 
-        await TypeAsync(page, "#editor-mention-spaces", key == "Space" ? "@luke " : "@luke");
+        await TypeAsync(page, SpacesEditor, key == "Space" ? "@luke " : "@luke");
         await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
 
         await page.Keyboard.PressAsync(key);
@@ -238,6 +261,27 @@ public class MentionTests : HarnessTestBase
         // Stays closed: the debounced query of the dismissed trigger must not reopen it.
         await page.WaitForTimeoutAsync(500);
         await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-visible", "");
+    }
+
+    [Fact] // typing on after a dismissal keeps that trigger closed; a new trigger opens again
+    public async Task Dismissal_HoldsForTheTrigger_UntilANewOneStarts()
+    {
+        var page = await OpenAsync();
+        var menu = page.Locator(SpacesMenu);
+
+        await TypeAsync(page, SpacesEditor, "@lu");
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+        await page.Keyboard.PressAsync("Escape");
+
+        // The query still matches (and grows) — the dismissed trigger must not reopen.
+        await page.Keyboard.TypeAsync("ke sky");
+        await page.WaitForTimeoutAsync(500);
+        await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-visible", "");
+
+        // A double space ends that trigger; a fresh one opens the picker again.
+        await page.Keyboard.TypeAsync("  @le");
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(menu.Locator("[data-lexical-mention-item]")).ToHaveTextAsync(new Regex("Leia Organa"));
     }
 
     [Fact] // without the flag, the space after "@luke" ends the session and closes the picker
@@ -322,15 +366,19 @@ public class MentionTests : HarnessTestBase
         Assert.Equal(link, await GetMarkdownAsync(page));
     }
 
-    [Fact] // a formatted mention keeps its format and the Markdown stays balanced
-    public async Task Mention_MarkdownRoundTrip_KeepsSurroundingFormat()
+    // a formatted mention keeps its format and the Markdown stays balanced
+    [Theory]
+    [InlineData("**see {0} now**", "strong")] // format spans the mention and its siblings
+    [InlineData("**{0}** now", "strong")]     // the mention opens and closes the tag itself
+    [InlineData("see *{0}*", "em")]
+    public async Task Mention_MarkdownRoundTrip_KeepsSurroundingFormat(string template, string tag)
     {
         var page = await OpenAsync();
-        var markdown = $"**see {RequestLink} now**";
+        var markdown = string.Format(template, RequestLink);
 
         await SetMarkdownAsync(page, markdown);
-        // A bold mention renders as <strong>, not <span>.
-        var mention = page.Locator(MarkdownEditor).Locator("strong[data-lexical-mention]");
+        // A formatted mention renders as its format element (<strong>/<em>), not <span>.
+        var mention = page.Locator(MarkdownEditor).Locator($"{tag}[data-lexical-mention]");
         await Expect(mention).ToHaveTextAsync("#12 · Budget");
 
         Assert.Equal(markdown, await GetMarkdownAsync(page));

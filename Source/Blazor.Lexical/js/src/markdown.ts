@@ -99,6 +99,10 @@ function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
       // exportFormat opens/closes the node's format tags in step with its siblings; a
       // placeholder stands in for the link so the label is not escaped a second time.
       const link = `[${escapeLabel(node.getTextContent())}](${href})`;
+      // Inside a code span the link would be literal text, so code format is dropped.
+      if ((node as MentionNode).hasFormat('code')) {
+        return link;
+      }
       return exportFormat(node as MentionNode, PLACEHOLDER).replace(PLACEHOLDER, () => link);
     },
   };
