@@ -906,7 +906,11 @@ export function registerMentions(
     });
     if (active.config.notifySelected) {
       invokeDotNet('selected', active.config.id, item.id, item.text, item.url ?? null).catch(
-        () => {},
+        (error: unknown) =>
+          console.warn(
+            `[Blazor.Lexical] OnSelected for the '${active.config.initiator}' mention failed.`,
+            error,
+          ),
       );
     }
     close();
@@ -926,7 +930,15 @@ export function registerMentions(
       menuEl.replaceChildren();
       setActive(-1);
       setLoading(true);
-      showMenuAtCaret();
+      // With no caret to anchor to, an invisible session would still take the keys.
+      if (!showMenuAtCaret()) {
+        console.warn(
+          `[Blazor.Lexical] no caret to show the '${match.config.initiator}' mention picker ` +
+            `at; closing it.`,
+        );
+        close();
+        return;
+      }
 
       // Soft timeout: a hung provider must not strand the session forever. Bumping the
       // sequence makes the eventual response stale, so it is ignored if it ever lands.
@@ -962,9 +974,18 @@ export function registerMentions(
             return;
           }
           renderItems();
-          showMenuAtCaret();
+          if (!showMenuAtCaret()) {
+            close();
+          }
         })
-        .catch(() => close());
+        .catch((error: unknown) => {
+          console.warn(
+            `[Blazor.Lexical] mention provider for '${match.config.initiator}' failed; ` +
+              `closing the picker.`,
+            error,
+          );
+          close();
+        });
     }, QUERY_DEBOUNCE_MS);
   };
 
