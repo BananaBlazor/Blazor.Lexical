@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.9" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.9" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.13" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,27 +52,19 @@
          doc (from the prior build) so an XML-comment-only edit still retriggers the
          API pages. Convergent, not perfect: on a clean first build the XML isn't
          globbed yet, but the target runs anyway because the output is missing. -->
-    <DocFxSource Include="docfx\**\*.md;docfx\**\*.yml;docfx\docfx.json"
-                 Exclude="docfx\api\**;docfx\_input\**" />
-    <DocFxSource Include="$(RclBuildDir)**\Blazor.Lexical.xml"
-                 Exclude="$(RclBuildDir)**\ref\**;$(RclBuildDir)**\refint\**" />
+    <DocFxSource Include="docfx\**\*.md;docfx\**\*.yml;docfx\docfx.json" Exclude="docfx\api\**;docfx\_input\**" />
+    <DocFxSource Include="$(RclBuildDir)**\Blazor.Lexical.xml" Exclude="$(RclBuildDir)**\ref\**;$(RclBuildDir)**\refint\**" />
   </ItemGroup>
 
   <!-- Generate the site. Runs after the RCL is built (ResolveProjectReferences) and
        before static web assets are collected. Incremental via Inputs/Outputs. -->
-  <Target Name="GenerateDocFx"
-          Condition="'$(BuildDocs)' == 'true'"
-          AfterTargets="ResolveProjectReferences"
-          BeforeTargets="ResolveProjectStaticWebAssets"
-          Inputs="@(DocFxSource)"
-          Outputs="wwwroot\docs\index.html">
+  <Target Name="GenerateDocFx" Condition="'$(BuildDocs)' == 'true'" AfterTargets="ResolveProjectReferences" BeforeTargets="ResolveProjectStaticWebAssets" Inputs="@(DocFxSource)" Outputs="wwwroot\docs\index.html">
     <Message Importance="high" Text="Blazor.Lexical demo: generating API docs into wwwroot\docs (BuildDocs=true) ..." />
 
     <!-- Stage the freshly built RCL assembly + XML doc for DocFX metadata. Exclude
          ref/refint so DocFX never reads a metadata-only reference assembly. -->
     <ItemGroup>
-      <_DocFxLibInput Include="$(RclBuildDir)**\Blazor.Lexical.dll;$(RclBuildDir)**\Blazor.Lexical.xml"
-                      Exclude="$(RclBuildDir)**\ref\**;$(RclBuildDir)**\refint\**" />
+      <_DocFxLibInput Include="$(RclBuildDir)**\Blazor.Lexical.dll;$(RclBuildDir)**\Blazor.Lexical.xml" Exclude="$(RclBuildDir)**\ref\**;$(RclBuildDir)**\refint\**" />
     </ItemGroup>
     <Copy SourceFiles="@(_DocFxLibInput)" DestinationFolder="docfx\_input" SkipUnchangedFiles="true" />
 
@@ -84,10 +76,7 @@
        GenerateDocFx skipped as up-to-date), mirroring the RCL's RegisterLexicalBundle.
        BeforeTargets is load-bearing — it is what schedules this target into the build;
        DependsOnTargets only orders GenerateDocFx ahead of it. -->
-  <Target Name="RegisterDocFx"
-          Condition="'$(BuildDocs)' == 'true'"
-          BeforeTargets="ResolveProjectStaticWebAssets"
-          DependsOnTargets="GenerateDocFx">
+  <Target Name="RegisterDocFx" Condition="'$(BuildDocs)' == 'true'" BeforeTargets="ResolveProjectStaticWebAssets" DependsOnTargets="GenerateDocFx">
     <ItemGroup>
       <Content Include="wwwroot\docs\**" />
     </ItemGroup>
