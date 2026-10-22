@@ -16,7 +16,8 @@ extensible rich-text editor, behind a single `<LexicalEditor>` component.
   item, and the in-cell action menu.
 - **Mentions and hashtags** — `<LexicalMention />` configs. An `@` config with a
   `Provider` queries C# (debounced) for suggestions; a `Freeform` `#` config
-  highlights tokens live with zero JS→.NET calls.
+  highlights tokens live with zero JS→.NET calls. Set `MarkdownUrlPrefix` and
+  mentions round-trip through Markdown as ordinary `[text](url)` links.
 - **Toolbar and overlays** — a fixed `<LexicalToolbar />`, a floating selection
   toolbar, a link editor, a `/`-triggered slash menu, and a hover drag handle.
   All are optional child markup, and none add interop: they position

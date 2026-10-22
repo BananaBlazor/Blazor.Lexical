@@ -79,6 +79,18 @@ schedule via `GetMentionsAsync` + `RefreshMentionAsync`/`RefreshMentionsByValueA
 applied with `SILENT_UPDATE_TAG` + `history-merge` so they add no undo step and the content
 push skips them. So opening a document and refreshing stale names never marks it dirty.
 
+**Markdown round-trip is opt-in per config** via `MarkdownUrlPrefix`. `markdown.ts` prepends
+a text-match transformer (ahead of stock `LINK`, since on an equal start index the import
+loop keeps the first match) when any config has a prefix: export writes a mention with a
+`url` as `[label](url)` (label backslash-escaped for `[`/`]` and emphasis characters), and
+import turns a link whose url starts with a prefix (longest wins) into a `MentionNode` of
+that config, `value` = the url minus the prefix. Imported nodes take the *current*
+`configId`/`color`, so stale per-session ids never enter the document. Url-less mentions,
+or configs without a prefix, still export as plain text. The chunk finds configs through
+`getMentionConfigs(editor)`, which `create()` binds via `bindMentionConfigs` right after
+`createEditor` — before initial content, which runs ahead of extension `register()` — so
+Markdown `InitialContent` maps mentions too. The import direction stays core ← chunk.
+
 ## Table of contents
 
 `js/src/toc.ts` + `Extensions/Toc/`. Register-only (no nodes), static in core — it needs

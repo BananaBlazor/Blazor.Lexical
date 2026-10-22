@@ -111,6 +111,15 @@ round-trip by design — that is the only expected interop for toolbar/menu acti
 - **Mentions** are configured by nesting one or more `<LexicalMention>` children (each
   with its own initiator character, colour, optional provider, and freeform flag). A
   config with no `Provider` does zero JS→.NET calls; only a provider config queries .NET.
+  Mentions keep their id and url in HTML and editor-state JSON. For Markdown, set
+  `MarkdownUrlPrefix`: a mention with a url is written as a plain `[text](url)` link, and
+  on load any link whose url starts with the prefix becomes a mention again, with the rest
+  of the url as its id.
+
+  ```razor
+  <LexicalMention Initiator="#" MarkdownUrlPrefix="#ticket:" Provider="SearchTickets" />
+  @* "[#12 · Budget](#ticket:42)" loads as a mention with id "42" *@
+  ```
 
 See the [API Reference](xref:Blazor.Lexical) for the full parameter set of each
 component.
