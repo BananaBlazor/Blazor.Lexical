@@ -94,6 +94,18 @@ schedule via `GetMentionsAsync` + `RefreshMentionAsync`/`RefreshMentionsByValueA
 applied with `SILENT_UPDATE_TAG` + `history-merge` so they add no undo step and the content
 push skips them. So opening a document and refreshing stale names never marks it dirty.
 
+**Starting a session from a button.** `StartMentionAsync(initiator)` → `startMention` inserts
+the initiator as an ordinary (undoable, notifying) edit and focuses the editor; the update
+listener then opens the picker exactly as for a typed trigger, so there is no second open
+path. The trigger regex only fires at a text node's start or after whitespace, so the insert
+adds a space when `$charBeforeCaret` is not whitespace; it reads across formatting runs,
+links and mentions, so across nodes the space is what the user sees rather than what the
+regex needs. No selection (a never-focused editor) inserts at the document end; a range is
+removed first. A click on the host's button needs no `mousedown` handling: Lexical ignores
+a DOM selection outside the editor, so its own selection survives, and `editor.focus()`
+restores it to the DOM the picker positions from. Refused (false) for a read-only editor, a
+node or table selection, or an initiator with no provider config.
+
 **Markdown round-trip is opt-in per config** via `MarkdownUrlPrefix`. `markdown.ts` prepends
 a text-match transformer (ahead of stock `LINK`, since on an equal start index the import
 loop keeps the first match) when any config has a prefix. Both directions key on the

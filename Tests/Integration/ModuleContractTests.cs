@@ -53,6 +53,7 @@ public class ModuleContractTests : HarnessTestBase
         "getMentions",
         "refreshMention",
         "refreshMentionsByValue",
+        "startMention",
         "invokeExtension",
         "setNotifications",
         "dispose",

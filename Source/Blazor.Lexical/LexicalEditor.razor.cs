@@ -928,6 +928,27 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>
+    /// Starts a mention as if the user typed <paramref name="initiator"/>: inserts it at the
+    /// caret (replacing any selected range; at the end when the editor has no selection),
+    /// preceded by a space when the caret follows a non-space character, and focuses the
+    /// editor; the picker then opens exactly as for a typed trigger. The insert is an
+    /// ordinary edit: it adds an undo step and raises <see cref="OnContentChanged"/>.
+    /// Use it from a button that teaches the trigger: the editor keeps its caret while
+    /// the button has focus. Returns <see langword="false"/>, changing nothing, when the editor is not ready or
+    /// read-only, a node or table selection is active, or no <see cref="LexicalMention"/>
+    /// with a <see cref="LexicalMention.Provider"/> uses <paramref name="initiator"/>.
+    /// </summary>
+    public async Task<bool> StartMentionAsync(string initiator)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(initiator);
+        if (_module is null)
+        {
+            return false;
+        }
+        return await _module.InvokeAsync<bool>("startMention", Id, initiator);
+    }
+
+    /// <summary>
     /// JS interop entry point — invoked from the JS glue when the selection changes;
     /// not part of the public API. It must be <c>public</c> for <c>[JSInvokable]</c>
     /// dispatch, so it is hidden from IntelliSense. Do not call it directly.
