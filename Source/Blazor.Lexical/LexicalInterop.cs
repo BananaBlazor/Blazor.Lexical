@@ -144,6 +144,9 @@ internal sealed class MentionConfigDto
     /// config does not round-trip through Markdown.
     /// </summary>
     public string? MarkdownUrlPrefix { get; set; }
+
+    /// <summary>When true, the typeahead query may be up to four single-space-separated words.</summary>
+    public bool AllowSpacesInQuery { get; set; }
 }
 
 /// <summary>

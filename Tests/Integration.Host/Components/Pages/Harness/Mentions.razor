@@ -55,6 +55,20 @@
 </section>
 
 <section>
+    <h2>Mentions — spaces in the query (AllowSpacesInQuery)</h2>
+    @* "@luke sky" keeps the picker open and queries the full name. The @@ people editor
+       above, without the flag, is the control: there the space closes the session. *@
+    <LexicalEditor Id="editor-mention-spaces"
+                   CssClass="harness-mention-spaces"
+                   Placeholder="Type a full name…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator"
+                        AllowSpacesInQuery="true"
+                        Provider="ResolvePeople" />
+    </LexicalEditor>
+</section>
+
+<section>
     <h2>Mentions — Markdown round-trip (MarkdownUrlPrefix)</h2>
     @* A "#" config with MarkdownUrlPrefix: a mention exports as [text](url) and a link
        whose url starts with the prefix imports back as a mention. The second editor

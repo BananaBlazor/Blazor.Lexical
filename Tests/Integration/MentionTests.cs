@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 
@@ -11,6 +12,7 @@ namespace Tests.Integration;
 ///   channel, so opening a doc and updating stale names never marks it dirty);
 /// - <c>#editor-mention-hashtag</c> (.harness-mention-hashtag): a freeform-only "#"
 ///   config with no provider — pure-JS hashtag highlighting, zero interop;
+/// - <c>#editor-mention-spaces</c>: an "@" config with <c>AllowSpacesInQuery</c>;
 /// - <c>#editor-mention-markdown</c> / <c>#editor-mention-markdown-initial</c>: "#"
 ///   configs with a <c>MarkdownUrlPrefix</c> — mentions round-trip through Markdown.
 /// </summary>
@@ -197,6 +199,58 @@ public class MentionTests : HarnessTestBase
         var restored = editor.Locator("span[data-lexical-mention]");
         await Expect(restored).ToHaveCountAsync(1);
         await Expect(restored).ToHaveTextAsync("Luke Skywalker");
+    }
+
+    // --- Spaces in the query (#editor-mention-spaces): AllowSpacesInQuery ---
+
+    [Fact] // with the flag, "@luke sky" keeps the picker open and commits the full-name match
+    public async Task AllowSpacesInQuery_KeepsSessionOpenAcrossASpace()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator("#editor-mention-spaces");
+        var menu = page.Locator(".harness-mention-spaces .blazor-lexical__mention-menu");
+
+        await TypeAsync(page, "#editor-mention-spaces", "@luke sky");
+
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(menu.Locator("[data-lexical-mention-item]")).ToHaveTextAsync(new Regex("Luke Skywalker"));
+        await page.Keyboard.PressAsync("Enter");
+
+        var mention = editor.Locator("span[data-lexical-mention]");
+        await Expect(mention).ToHaveTextAsync("Luke Skywalker");
+        // The whole "@luke sky" run was replaced, not just "@luke".
+        await Expect(editor).ToHaveTextAsync(new Regex(@"^\s*Luke Skywalker\s*$"));
+    }
+
+    [Theory] // even with the flag, a double space or ArrowRight ends the session
+    [InlineData("Space")]
+    [InlineData("ArrowRight")]
+    public async Task AllowSpacesInQuery_DoubleSpaceOrArrowRight_ClosesThePicker(string key)
+    {
+        var page = await OpenAsync();
+        var menu = page.Locator(".harness-mention-spaces .blazor-lexical__mention-menu");
+
+        await TypeAsync(page, "#editor-mention-spaces", key == "Space" ? "@luke " : "@luke");
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+
+        await page.Keyboard.PressAsync(key);
+        await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-visible", "");
+        // Stays closed: the debounced query of the dismissed trigger must not reopen it.
+        await page.WaitForTimeoutAsync(500);
+        await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-visible", "");
+    }
+
+    [Fact] // without the flag, the space after "@luke" ends the session and closes the picker
+    public async Task WithoutAllowSpacesInQuery_SpaceClosesThePicker()
+    {
+        var page = await OpenAsync();
+        var menu = page.Locator(Menu);
+
+        await TypeAsync(page, PeopleEditor, "@luke");
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+
+        await page.Keyboard.TypeAsync(" sky");
+        await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-visible", "");
     }
 
     // --- Markdown round-trip (#editor-mention-markdown): MarkdownUrlPrefix ---

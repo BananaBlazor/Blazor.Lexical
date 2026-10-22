@@ -104,6 +104,8 @@ export interface MentionConfigDto {
    * config, and mentions whose url starts with it export as `[text](url)`.
    */
   markdownUrlPrefix?: string | null;
+  /** When true, the typeahead query may contain single spaces (see makeTriggerRegex). */
+  allowSpacesInQuery?: boolean;
 }
 
 /** A candidate returned by a .NET provider, mirrored from the C# `MentionItem`. */
@@ -441,10 +443,14 @@ function escapeRegExp(value: string): string {
 /**
  * A trigger regex for the typeahead: the initiator at line start or after
  * whitespace, then a run of word characters (the query, possibly empty). Any other
- * character — a space included — ends the match and closes the session.
+ * character — a space included — ends the match and closes the session. With
+ * `allowSpaces`, the query may be up to four words separated by single spaces (plus
+ * one trailing space), so a stray initiator in prose cannot hold a session open for a
+ * whole sentence; a double space still ends it.
  */
-function makeTriggerRegex(initiator: string): RegExp {
-  return new RegExp(`(?:^|\\s)${escapeRegExp(initiator)}([\\w-]*)$`);
+function makeTriggerRegex(initiator: string, allowSpaces: boolean): RegExp {
+  const query = allowSpaces ? '[\\w-]*(?: [\\w-]+){0,3} ?' : '[\\w-]*';
+  return new RegExp(`(?:^|\\s)${escapeRegExp(initiator)}(${query})$`);
 }
 
 /**
@@ -626,7 +632,9 @@ export function registerMentions(
     return () => cleanups.forEach((fn) => fn());
   }
 
-  const triggers = new Map(providerConfigs.map((c) => [c.id, makeTriggerRegex(c.initiator)]));
+  const triggers = new Map(
+    providerConfigs.map((c) => [c.id, makeTriggerRegex(c.initiator, !!c.allowSpacesInQuery)]),
+  );
 
   // The floating menu is created here (not authored in Blazor) because its rows are
   // built from provider data. It lives under root so it positions with the caret.
@@ -637,6 +645,8 @@ export function registerMentions(
   root.appendChild(menuEl);
 
   let session: MentionMatch | null = null;
+  // A trigger the user dismissed (Escape / ArrowRight); it stays closed until its query changes.
+  let dismissed: MentionMatch | null = null;
   let items: MentionItemDto[] = [];
   let activeIndex = 0;
   let requestSeq = 0;
@@ -845,7 +855,16 @@ export function registerMentions(
   cleanups.push(
     editor.registerUpdateListener(() => {
       const match = editor.getEditorState().read(readMentionMatch);
-      if (match === null) {
+      if (
+        dismissed !== null &&
+        (match === null ||
+          match.nodeKey !== dismissed.nodeKey ||
+          match.triggerOffset !== dismissed.triggerOffset ||
+          match.query !== dismissed.query)
+      ) {
+        dismissed = null;
+      }
+      if (match === null || dismissed !== null) {
         if (session !== null) {
           close();
         }
@@ -872,6 +891,13 @@ export function registerMentions(
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
+      dismissed = session;
+      close();
+      return;
+    }
+    // ArrowRight dismisses too, but keeps its default so the caret still moves.
+    if (e.key === 'ArrowRight') {
+      dismissed = session;
       close();
       return;
     }

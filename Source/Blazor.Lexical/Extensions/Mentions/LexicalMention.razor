@@ -78,6 +78,14 @@
     /// </summary>
     [Parameter] public string? MarkdownUrlPrefix { get; set; }
 
+    /// <summary>
+    /// When <c>true</c>, a typeahead session survives single spaces in the query, so
+    /// <c>@jane do</c> keeps the picker open and queries the <see cref="Provider"/> with
+    /// <c>"jane do"</c>. The session still ends at a double space, a newline, a fifth
+    /// word, ArrowRight, or Escape. Defaults to <c>false</c>: the first space ends the session.
+    /// </summary>
+    [Parameter] public bool AllowSpacesInQuery { get; set; }
+
     /// <summary>Stable id for this config, generated once; routes provider queries and tags inserted nodes.</summary>
     internal string ConfigId { get; } = $"mention-{Guid.NewGuid():N}";
 
@@ -104,6 +112,7 @@
         NotifySelected = NotifiesSelected,
         QueryTimeoutMs = QueryTimeout > TimeSpan.Zero ? (int)QueryTimeout.TotalMilliseconds : 0,
         MarkdownUrlPrefix = string.IsNullOrWhiteSpace(MarkdownUrlPrefix) ? null : MarkdownUrlPrefix,
+        AllowSpacesInQuery = AllowSpacesInQuery,
     };
 
     /// <summary>Resolves candidates for a query via the <see cref="Provider"/> (empty when none).</summary>

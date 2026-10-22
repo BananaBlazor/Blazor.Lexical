@@ -38,8 +38,14 @@ initial-content tests hold that down; keep them green.
 ## Mentions
 
 `js/src/mentions.ts` + `LexicalMention.razor`. Hosts nest one or more
-`<LexicalMention Initiator="@" Color=… Provider=… Freeform=…/>` configs; each is
-independent. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
+`<LexicalMention Initiator="@" Color=… Provider=… Freeform=… AllowSpacesInQuery=…/>`
+configs; each is independent. `Initiator` starts a session; by default the query is one
+`[\w-]*` run, so the first space ends it. `AllowSpacesInQuery` (opt-in, default off) widens
+`makeTriggerRegex` to up to four single-space-separated words plus one trailing space, so
+`@jane do` stays open and the provider gets `"jane do"`; a double space, newline, fifth word,
+ArrowRight or Escape still ends it. `triggerOffset` is derived from the whole match, so commit
+replaces every word. ArrowRight and Escape record the trigger as `dismissed`, which keeps a
+selection-only update from reopening it until its query changes. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
 
 - **Two custom nodes**, both `TextNode` subclasses in `createEditor`'s `nodes[]` (added
   only when configs exist): `MentionNode` — segmented/atomic, carrying an opaque
