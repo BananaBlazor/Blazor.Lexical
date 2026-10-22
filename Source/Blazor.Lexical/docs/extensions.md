@@ -204,7 +204,8 @@ inserting on commit) is the extension's job. It generalizes the built-in mention
 a token for an *existing* entity) to a field that *is* the reference, and adds the
 create-if-missing path mentions lacks.
 
-- **`setQuery(q)`** stores the query and resets the active match to the first;
+- **`setQuery(q)`** stores the query and, when it changed, resets the active match to
+  the first (re-setting the same query is a no-op, so calling it on every update is safe);
   **`current()`** returns `{ query, best, alternates }` recomputed from the live
   candidates (default match: case-insensitive prefix on `text`; empty query ⇒ no matches).
 - **`cycle()`** advances the active match (wrapping) over the matches, so `current().best`

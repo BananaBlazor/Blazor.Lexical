@@ -56,8 +56,8 @@ jobs:
 
       - name: Unit tests
         run: >-
-          dotnet test Tests/UnitTests/Tests.UnitTests.csproj -c Release
-          --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+          dotnet test --project Tests/UnitTests/Tests.UnitTests.csproj -c Release
+          --no-build --report-xunit-trx --report-xunit-trx-filename unit.trx --results-directory TestResults
 
       # Playwright drives real browsers; the install script is emitted next to the
       # test assembly by the Microsoft.Playwright package during build. Build output
@@ -72,8 +72,8 @@ jobs:
 
       - name: Integration tests
         run: >-
-          dotnet test Tests/Integration/Tests.Integration.csproj -c Release
-          --no-build --logger "trx;LogFileName=integration.trx" --results-directory TestResults
+          dotnet test --project Tests/Integration/Tests.Integration.csproj -c Release
+          --no-build --report-xunit-trx --report-xunit-trx-filename integration.trx --results-directory TestResults
 
       - name: Upload test results
         if: always()

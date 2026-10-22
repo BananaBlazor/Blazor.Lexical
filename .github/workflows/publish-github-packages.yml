@@ -67,7 +67,7 @@ jobs:
 
       # A package is only publishable if the tests guarding its behavior pass.
       - name: Unit tests
-        run: dotnet test Tests/UnitTests/Tests.UnitTests.csproj -c Release --no-build
+        run: dotnet test --project Tests/UnitTests/Tests.UnitTests.csproj -c Release --no-build
 
       # Build output is redirected by Directory.Build.props to
       # .build/<platform>/<project>/bin/..., so locate the install script rather
@@ -79,7 +79,7 @@ jobs:
           pwsh "$SCRIPT" install --with-deps chromium
 
       - name: Integration tests
-        run: dotnet test Tests/Integration/Tests.Integration.csproj -c Release --no-build
+        run: dotnet test --project Tests/Integration/Tests.Integration.csproj -c Release --no-build
 
       # Ask MSBuild for the version it derived rather than re-deriving it here —
       # there is exactly one source of truth (Version.props + the lockfile) and it

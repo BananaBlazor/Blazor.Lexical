@@ -107,6 +107,11 @@ export function createEntityCommitApi(): EntityCommitApi {
 
       return {
         setQuery(next: string): void {
+          // Only a NEW query resets the cycle: callers re-set the same text on every
+          // editor update, and a stray update must not undo a cycle().
+          if (next === query) {
+            return;
+          }
           query = next;
           activeIndex = 0;
         },

@@ -28,14 +28,19 @@ automatically when `node_modules` is missing.
 
 ```
 dotnet build Blazor.Lexical.slnx
-dotnet test Tests/UnitTests/Tests.UnitTests.csproj      # fast, no browser
-dotnet test Tests/Integration/Tests.Integration.csproj  # Playwright
-dotnet test Blazor.Lexical.slnx                         # everything
-dotnet run --project Web                                # the demo site (WebAssembly)
+dotnet test --project Tests/UnitTests/Tests.UnitTests.csproj      # fast, no browser
+dotnet test --project Tests/Integration/Tests.Integration.csproj  # Playwright
+dotnet test --solution Blazor.Lexical.slnx                        # everything
+dotnet run --project Web                                          # the demo site (WebAssembly)
 ```
 
-The integration tests drive system Chrome (override with `LEXICAL_TEST_CHROME`), so
-no `playwright install` step is needed. The harness includes a no-callback editor
+Tests run on Microsoft.Testing.Platform (opted in by `global.json`), so `dotnet test`
+takes `--project`/`--solution` rather than a bare path.
+
+The integration tests drive system Chrome when it is installed at the default path
+(override with `LEXICAL_TEST_CHROME`); otherwise they fall back to Playwright's bundled
+Chromium, which needs a one-time `pwsh <test output dir>/playwright.ps1 install chromium`
+(and again after a `Microsoft.Playwright` bump). The harness includes a no-callback editor
 (`.harness-format`) and an opt-in editor (`.harness-notify`) that together prove the
 library's interop invariants — keep both when editing it.
 

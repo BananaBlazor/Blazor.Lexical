@@ -42,7 +42,7 @@ Hard constraints. Violating one needs an explicit, deliberate decision.
 | Area | File |
 |---|---|
 | Command tokens, overlay markers, bundling/chunks, update tags, initial-content ordering | `docs/js-contract.md` |
-| Extension contract, editor plumbing, `setup`, adding a push channel | `docs/extensions.md` |
+| Extension contract, editor plumbing, `setup`, `ctx.blockLayout`/`ctx.blockDrag`, `setup.primitives` (ghost completion, entity commit), adding a push channel | `docs/extensions.md` |
 | Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, tab indent, block gutter | `docs/features.md` |
 | *Why* the invariants above exist — read when a rule looks arbitrary | `docs/architecture.md` |
 
@@ -69,7 +69,7 @@ Hard constraints. Violating one needs an explicit, deliberate decision.
 `LexicalEditor.razor` + `.razor.cs` sit at the project root with the config/wire types
 (`LexicalOptions`, `LexicalTheme`, enums, `LexicalContent`, `LexicalInterop.cs`);
 **every other component lives under `Extensions/`**, sub-foldered by feature
-(`Mentions/`, `Table/`, `Toolbar/`, `Overlays/`) — the "one feature contract" idea made
+(e.g. `Mentions/`, `Table/`, `Toolbar/`, `Overlays/`) — the "one feature contract" idea made
 physical.
 
 **Namespaces stay flat.** Everything is `Blazor.Lexical` regardless of folder, so a consumer

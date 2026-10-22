@@ -231,6 +231,10 @@ export function registerSlashMenu(
   let open = false;
   let visible: HTMLElement[] = [];
   let activeIndex = 0;
+  // The trigger Escape dismissed ("nodeKey:slashOffset"). Its `/query` text is still in
+  // the document, so without this any later update (a trailing selectionchange, say)
+  // would reopen the menu. Cleared once that trigger is gone.
+  let dismissed: string | null = null;
 
   const setActive = (index: number) => {
     activeIndex = index;
@@ -276,7 +280,11 @@ export function registerSlashMenu(
   const unregister = editor.registerUpdateListener(() => {
     const match = editor.getEditorState().read(readSlashMatch);
     const sel = window.getSelection();
-    if (match === null || !sel || sel.rangeCount === 0) {
+    const trigger = match === null ? null : `${match.nodeKey}:${match.slashOffset}`;
+    if (trigger !== dismissed) {
+      dismissed = null;
+    }
+    if (match === null || dismissed !== null || !sel || sel.rangeCount === 0) {
       if (open) {
         close();
       }
@@ -329,11 +337,14 @@ export function registerSlashMenu(
         editor.focus();
         break;
       }
-      case 'Escape':
+      case 'Escape': {
         e.preventDefault();
         e.stopPropagation();
+        const match = editor.getEditorState().read(readSlashMatch);
+        dismissed = match === null ? null : `${match.nodeKey}:${match.slashOffset}`;
         close();
         break;
+      }
     }
   };
   contentEl.addEventListener('keydown', onKeyDown, true);
