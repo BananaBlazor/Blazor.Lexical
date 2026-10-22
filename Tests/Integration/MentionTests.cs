@@ -10,7 +10,9 @@ namespace Tests.Integration;
 ///   getMentions, and the silent-refresh guarantee (a refresh must not fire the content
 ///   channel, so opening a doc and updating stale names never marks it dirty);
 /// - <c>#editor-mention-hashtag</c> (.harness-mention-hashtag): a freeform-only "#"
-///   config with no provider — pure-JS hashtag highlighting, zero interop.
+///   config with no provider — pure-JS hashtag highlighting, zero interop;
+/// - <c>#editor-mention-markdown</c> / <c>#editor-mention-markdown-initial</c>: "#"
+///   configs with a <c>MarkdownUrlPrefix</c> — mentions round-trip through Markdown.
 /// </summary>
 public class MentionTests : HarnessTestBase
 {
@@ -19,7 +21,7 @@ public class MentionTests : HarnessTestBase
     protected override string Route => "harness/mentions";
 
     protected override string ReadySelector =>
-        "#editor-mention-slow[data-lexical-editor='true']";
+        "#editor-mention-markdown-initial[data-lexical-editor='true']";
 
     private const string PeopleEditor = "#editor-mention-people";
     private const string Menu = ".harness-mention-people .blazor-lexical__mention-menu";
@@ -195,6 +197,106 @@ public class MentionTests : HarnessTestBase
         var restored = editor.Locator("span[data-lexical-mention]");
         await Expect(restored).ToHaveCountAsync(1);
         await Expect(restored).ToHaveTextAsync("Luke Skywalker");
+    }
+
+    // --- Markdown round-trip (#editor-mention-markdown): MarkdownUrlPrefix ---
+
+    private const string MarkdownEditor = "#editor-mention-markdown";
+    private const string MarkdownMenu = ".harness-mention-markdown .blazor-lexical__mention-menu";
+    private const string RequestId = "6f1c2a9e-0b7d-4e5a-9c3f-2d8e1a4b5c6d";
+    private const string RequestLink = $"[#12 · Budget](#req:{RequestId})";
+
+    private static async Task SetMarkdownAsync(IPage page, string markdown)
+    {
+        await page.FillAsync("#mention-markdown-input", markdown);
+        await page.ClickAsync("#btn-mention-markdown-set");
+    }
+
+    private static async Task<string> GetMarkdownAsync(IPage page)
+    {
+        var output = page.Locator("#mention-markdown-output");
+        await page.ClickAsync("#btn-mention-markdown-get");
+        await Expect(output).Not.ToBeEmptyAsync();
+        return await output.InnerTextAsync();
+    }
+
+    [Fact] // a prefixed mention exports as a link and imports back as a mention of the live config
+    public async Task Mention_SurvivesMarkdownRoundTrip()
+    {
+        var page = await OpenAsync();
+        var errors = CaptureErrors(page);
+        var editor = page.Locator(MarkdownEditor);
+        var mention = editor.Locator("span[data-lexical-mention]");
+        var list = page.Locator("#mention-markdown-list");
+
+        await TypeAsync(page, MarkdownEditor, "#bu");
+        await Expect(page.Locator(MarkdownMenu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        await page.Keyboard.PressAsync("Enter");
+        await Expect(mention).ToHaveCountAsync(1);
+
+        // The inserted mention's config id, to compare against the re-imported one.
+        await page.ClickAsync("#btn-mention-markdown-list");
+        await Expect(list).Not.ToBeEmptyAsync();
+        var configId = (await list.InnerTextAsync()).Split('|')[^1];
+
+        Assert.StartsWith(RequestLink, await GetMarkdownAsync(page));
+
+        await SetMarkdownAsync(page, $"See {RequestLink} and [x](https://example.com)");
+
+        await Expect(mention).ToHaveCountAsync(1);
+        await Expect(mention).ToHaveTextAsync("#12 · Budget");
+        await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-url", $"#req:{RequestId}");
+        // An unprefixed link in the same text stays an ordinary link.
+        await Expect(editor.Locator("a[href='https://example.com']")).ToHaveTextAsync("x");
+
+        await page.ClickAsync("#btn-mention-markdown-list");
+        await Expect(list).ToHaveTextAsync($"#12 · Budget|{RequestId}|#|#req:{RequestId}|{configId}");
+        Assert.Empty(errors);
+    }
+
+    [Fact] // a "]" in a mention's label is escaped on export and restored on import
+    public async Task Mention_MarkdownRoundTrip_EscapesBracketsInLabel()
+    {
+        var page = await OpenAsync();
+        var mention = page.Locator(MarkdownEditor).Locator("span[data-lexical-mention]");
+        var link = $@"[Q\[3\] \*draft\*](#req:{RequestId})";
+
+        await SetMarkdownAsync(page, link);
+        await Expect(mention).ToHaveCountAsync(1);
+        await Expect(mention).ToHaveTextAsync("Q[3] *draft*");
+
+        Assert.Equal(link, await GetMarkdownAsync(page));
+    }
+
+    [Fact] // Markdown initial content is applied before extensions register, yet still maps mentions
+    public async Task Mention_ImportsFromMarkdownInitialContent()
+    {
+        var page = await OpenAsync();
+        var mention = page.Locator("#editor-mention-markdown-initial span[data-lexical-mention]");
+
+        await Expect(mention).ToHaveCountAsync(1);
+        await Expect(mention).ToHaveTextAsync("#12 · Budget");
+        await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-url", $"#req:{RequestId}");
+    }
+
+    [Fact] // without MarkdownUrlPrefix a matching link stays a plain link
+    public async Task Mention_WithoutPrefix_LeavesMarkdownLinksAlone()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+        var moduleUrl = Fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs";
+
+        var markdown = await page.EvaluateAsync<string>(
+            @"async ([url, id, md]) => {
+                const mod = await import(url);
+                await mod.setMarkdown(id, md);
+                return mod.getMarkdown(id);
+            }",
+            new[] { moduleUrl, "editor-mention-people", RequestLink });
+
+        await Expect(editor.Locator("span[data-lexical-mention]")).ToHaveCountAsync(0);
+        await Expect(editor.Locator($"a[href='#req:{RequestId}']")).ToHaveTextAsync("#12 · Budget");
+        Assert.Equal(RequestLink, markdown);
     }
 
     // --- Slow provider (#editor-mention-slow): the graceful-degradation contract ---

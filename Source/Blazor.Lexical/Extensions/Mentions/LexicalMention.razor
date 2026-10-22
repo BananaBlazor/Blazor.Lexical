@@ -67,6 +67,16 @@
     /// </summary>
     [Parameter] public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Opts this config into Markdown round-tripping. A mention whose <see cref="MentionItem.Url"/>
+    /// is set exports as an ordinary <c>[text](url)</c> link, and on import a Markdown link
+    /// whose URL starts with this prefix becomes a mention of this config, with the rest of
+    /// the URL as its <see cref="MentionItem.Id"/> (e.g. <c>"#req:"</c> turns
+    /// <c>[#12 · Budget](#req:42)</c> into a mention with id <c>42</c>). When unset, mentions
+    /// export to Markdown as plain text and no link imports as a mention.
+    /// </summary>
+    [Parameter] public string? MarkdownUrlPrefix { get; set; }
+
     /// <summary>Stable id for this config, generated once; routes provider queries and tags inserted nodes.</summary>
     internal string ConfigId { get; } = $"mention-{Guid.NewGuid():N}";
 
@@ -92,6 +102,7 @@
         HasProvider = HasProvider,
         NotifySelected = NotifiesSelected,
         QueryTimeoutMs = QueryTimeout > TimeSpan.Zero ? (int)QueryTimeout.TotalMilliseconds : 0,
+        MarkdownUrlPrefix = string.IsNullOrEmpty(MarkdownUrlPrefix) ? null : MarkdownUrlPrefix,
     };
 
     /// <summary>Resolves candidates for a query via the <see cref="Provider"/> (empty when none).</summary>

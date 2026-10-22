@@ -9,7 +9,9 @@
 //   * MentionNode          — a segmented (atomic) reference token inserted when a
 //                            suggestion is confirmed; carries an app-owned id
 //                            (value) + optional url so the host can re-resolve it
-//                            later. Serializable for HTML/JSON round-trips.
+//                            later. Serializable for HTML/JSON round-trips, and for
+//                            Markdown when its config sets a markdownUrlPrefix
+//                            (the transformer lives in markdown.ts).
 //   * MentionHighlightNode  — a text-entity node used for freeform highlighting
 //                            (the playground's hashtag behaviour), wrapped/unwrapped
 //                            live as the user types via registerLexicalTextEntity.
@@ -97,6 +99,11 @@ export interface MentionConfigDto {
    * closing the session. 0 (or absent) disables the timeout.
    */
   queryTimeoutMs: number;
+  /**
+   * Markdown links whose URL starts with this prefix import as mentions of this
+   * config; mentions with a url export as `[text](url)`. Absent = no Markdown mapping.
+   */
+  markdownUrlPrefix?: string | null;
 }
 
 /** A candidate returned by a .NET provider, mirrored from the C# `MentionItem`. */
@@ -288,6 +295,11 @@ function $convertMentionElement(domNode: HTMLElement): DOMConversionOutput {
   const color = domNode.getAttribute('data-lexical-mention-color') ?? '';
   const text = domNode.textContent ?? '';
   return { node: $createMentionNode(configId, trigger, value, url, color, text) };
+}
+
+/** Type guard for {@link MentionNode}. */
+export function $isMentionNode(node: unknown): node is MentionNode {
+  return node instanceof MentionNode;
 }
 
 /** Creates a segmented, directionless {@link MentionNode}. */
@@ -529,6 +541,26 @@ export function refreshMentionsByValue(
 // ---------------------------------------------------------------------------
 // registerMentions — the runtime wiring
 // ---------------------------------------------------------------------------
+
+// Each editor's mention configs, so the lazily-loaded Markdown chunk can build its
+// mention transformer without a back-channel into the extension.
+const configsByEditor = new WeakMap<LexicalEditor, MentionConfigDto[]>();
+
+/**
+ * Binds the mentions extension's options to `editor` for Markdown conversion. create()
+ * calls this right after createEditor — before initial content, which runs ahead of
+ * extension register() — so Markdown initial content already imports mentions.
+ * Returns the unbind.
+ */
+export function bindMentionConfigs(editor: LexicalEditor, options: unknown): () => void {
+  configsByEditor.set(editor, (options as MentionsOptionsDto | undefined)?.configs ?? []);
+  return () => configsByEditor.delete(editor);
+}
+
+/** The mention configs bound to `editor` (empty when it declares none). */
+export function getMentionConfigs(editor: LexicalEditor): MentionConfigDto[] {
+  return configsByEditor.get(editor) ?? [];
+}
 
 /** Positions `el` absolutely (relative to `root`) just below `rect`'s bottom-left. */
 function positionBelow(el: HTMLElement, rect: DOMRect, root: HTMLElement): void {
