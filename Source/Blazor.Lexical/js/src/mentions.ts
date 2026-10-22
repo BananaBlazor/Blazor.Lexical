@@ -9,7 +9,9 @@
 //   * MentionNode          — a segmented (atomic) reference token inserted when a
 //                            suggestion is confirmed; carries an app-owned id
 //                            (value) + optional url so the host can re-resolve it
-//                            later. Serializable for HTML/JSON round-trips.
+//                            later. Serializable for HTML/JSON round-trips, and for
+//                            Markdown when its config sets a markdownUrlPrefix
+//                            (the transformer lives in markdown.ts).
 //   * MentionHighlightNode  — a text-entity node used for freeform highlighting
 //                            (the playground's hashtag behaviour), wrapped/unwrapped
 //                            live as the user types via registerLexicalTextEntity.
@@ -97,6 +99,13 @@ export interface MentionConfigDto {
    * closing the session. 0 (or absent) disables the timeout.
    */
   queryTimeoutMs: number;
+  /**
+   * Markdown links whose url starts with this prefix import as mentions of this
+   * config, and mentions whose url starts with it export as `[text](url)`.
+   */
+  markdownUrlPrefix?: string | null;
+  /** When true, the typeahead query may contain single spaces (see makeTriggerRegex). */
+  allowSpacesInQuery?: boolean;
 }
 
 /** A candidate returned by a .NET provider, mirrored from the C# `MentionItem`. */
@@ -290,6 +299,11 @@ function $convertMentionElement(domNode: HTMLElement): DOMConversionOutput {
   return { node: $createMentionNode(configId, trigger, value, url, color, text) };
 }
 
+/** Type guard for {@link MentionNode}. */
+export function $isMentionNode(node: unknown): node is MentionNode {
+  return node instanceof MentionNode;
+}
+
 /** Creates a segmented, directionless {@link MentionNode}. */
 export function $createMentionNode(
   configId: string,
@@ -429,10 +443,14 @@ function escapeRegExp(value: string): string {
 /**
  * A trigger regex for the typeahead: the initiator at line start or after
  * whitespace, then a run of word characters (the query, possibly empty). Any other
- * character — a space included — ends the match and closes the session.
+ * character — a space included — ends the match and closes the session. With
+ * `allowSpaces`, the query may be up to four words separated by single spaces (plus
+ * one trailing space), so a stray initiator in prose cannot hold a session open for a
+ * whole sentence; a double space still ends it.
  */
-function makeTriggerRegex(initiator: string): RegExp {
-  return new RegExp(`(?:^|\\s)${escapeRegExp(initiator)}([\\w-]*)$`);
+function makeTriggerRegex(initiator: string, allowSpaces: boolean): RegExp {
+  const query = allowSpaces ? '[\\w-]*(?: [\\w-]+){0,3} ?' : '[\\w-]*';
+  return new RegExp(`(?:^|\\s)${escapeRegExp(initiator)}(${query})$`);
 }
 
 /**
@@ -530,6 +548,26 @@ export function refreshMentionsByValue(
 // registerMentions — the runtime wiring
 // ---------------------------------------------------------------------------
 
+// Each editor's mention configs, so the lazily-loaded Markdown chunk can build its
+// mention transformer without a back-channel into the extension.
+const configsByEditor = new WeakMap<LexicalEditor, MentionConfigDto[]>();
+
+/**
+ * Binds the mentions extension's options to `editor` for Markdown conversion. create()
+ * calls this right after createEditor — before initial content, which runs ahead of
+ * extension register() — so Markdown initial content already imports mentions.
+ * Returns the unbind.
+ */
+export function bindMentionConfigs(editor: LexicalEditor, options: unknown): () => void {
+  configsByEditor.set(editor, (options as MentionsOptionsDto | undefined)?.configs ?? []);
+  return () => configsByEditor.delete(editor);
+}
+
+/** The mention configs bound to `editor` (empty when it declares none). */
+export function getMentionConfigs(editor: LexicalEditor): MentionConfigDto[] {
+  return configsByEditor.get(editor) ?? [];
+}
+
 /** Positions `el` absolutely (relative to `root`) just below `rect`'s bottom-left. */
 function positionBelow(el: HTMLElement, rect: DOMRect, root: HTMLElement): void {
   const rootRect = root.getBoundingClientRect();
@@ -594,7 +632,9 @@ export function registerMentions(
     return () => cleanups.forEach((fn) => fn());
   }
 
-  const triggers = new Map(providerConfigs.map((c) => [c.id, makeTriggerRegex(c.initiator)]));
+  const triggers = new Map(
+    providerConfigs.map((c) => [c.id, makeTriggerRegex(c.initiator, !!c.allowSpacesInQuery)]),
+  );
 
   // The floating menu is created here (not authored in Blazor) because its rows are
   // built from provider data. It lives under root so it positions with the caret.
@@ -605,6 +645,10 @@ export function registerMentions(
   root.appendChild(menuEl);
 
   let session: MentionMatch | null = null;
+  // A trigger the user dismissed (Escape / ArrowLeft / ArrowRight). It stays closed while
+  // the same trigger keeps matching — typing on or moving the caret within the query does
+  // not reopen it — and clears once the trigger stops matching or another one starts.
+  let dismissed: MentionMatch | null = null;
   let items: MentionItemDto[] = [];
   let activeIndex = 0;
   let requestSeq = 0;
@@ -686,6 +730,10 @@ export function registerMentions(
     activeIndex = index;
     menuEl.querySelectorAll<HTMLElement>('[data-lexical-mention-item]').forEach((el, i) => {
       el.toggleAttribute('data-lexical-mention-active', i === index);
+      if (i === index) {
+        // The menu scrolls (max-height), so keep the highlighted row in view.
+        el.scrollIntoView({ block: 'nearest' });
+      }
     });
   };
 
@@ -813,7 +861,15 @@ export function registerMentions(
   cleanups.push(
     editor.registerUpdateListener(() => {
       const match = editor.getEditorState().read(readMentionMatch);
-      if (match === null) {
+      if (
+        dismissed !== null &&
+        (match === null ||
+          match.nodeKey !== dismissed.nodeKey ||
+          match.triggerOffset !== dismissed.triggerOffset)
+      ) {
+        dismissed = null;
+      }
+      if (match === null || dismissed !== null) {
         if (session !== null) {
           close();
         }
@@ -840,6 +896,13 @@ export function registerMentions(
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
+      dismissed = session;
+      close();
+      return;
+    }
+    // ArrowLeft/ArrowRight dismiss too, but keep their default so the caret still moves.
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      dismissed = session;
       close();
       return;
     }

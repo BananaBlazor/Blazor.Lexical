@@ -54,9 +54,95 @@
     </LexicalEditor>
 </section>
 
+<section>
+    <h2>Mentions — spaces in the query (AllowSpacesInQuery)</h2>
+    @* "@luke sky" keeps the picker open and queries the full name. The @@ people editor
+       above, without the flag, is the control: there the space closes the session. *@
+    <LexicalEditor Id="editor-mention-spaces"
+                   CssClass="harness-mention-spaces"
+                   Placeholder="Type a full name…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator"
+                        AllowSpacesInQuery="true"
+                        Provider="ResolvePeople" />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Mentions — Markdown round-trip (MarkdownUrlPrefix)</h2>
+    @* A "#" config with MarkdownUrlPrefix: a mention exports as [text](url) and a link
+       whose url starts with the prefix imports back as a mention. The second editor
+       starts from Markdown, proving initial content already maps mentions. *@
+    <LexicalEditor @ref="_mentionMarkdown"
+                   Id="editor-mention-markdown"
+                   CssClass="harness-mention-markdown"
+                   Placeholder="Type #…"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="#"
+                        MarkdownUrlPrefix="#req:"
+                        Provider="ResolveRequests" />
+        @* No prefix: its mentions (urls like /u/luke) must export as plain text. *@
+        <LexicalMention Initiator="@AtInitiator" Provider="ResolvePeople" />
+    </LexicalEditor>
+
+    <div>
+        <input id="mention-markdown-input" @bind="_mentionMarkdownInput" @bind:event="oninput" />
+        <button id="btn-mention-markdown-get" @onclick="GetMentionMarkdown">Get markdown</button>
+        <button id="btn-mention-markdown-set" @onclick="SetMentionMarkdown">Set markdown</button>
+        <button id="btn-mention-markdown-list" @onclick="GetMentionMarkdownList">List mentions</button>
+    </div>
+    <p>Markdown: <span id="mention-markdown-output">@_mentionMarkdownOutput</span></p>
+    <p>Mention list: <span id="mention-markdown-list">@_mentionMarkdownList</span></p>
+
+    <LexicalEditor Id="editor-mention-markdown-initial"
+                   CssClass="harness-mention-markdown-initial"
+                   InitialContent="@LexicalContent.FromMarkdown(RequestMarkdown)"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="#" MarkdownUrlPrefix="#req:" />
+    </LexicalEditor>
+</section>
+
 @code {
     // The mention initiator, bound rather than inlined so the "@" isn't parsed as Razor.
     private const string AtInitiator = "@";
+
+    private const string RequestId = "6f1c2a9e-0b7d-4e5a-9c3f-2d8e1a4b5c6d";
+    private const string RequestMarkdown = $"See [#12 · Budget](#req:{RequestId}) now";
+
+    private LexicalEditor? _mentionMarkdown;
+    private string _mentionMarkdownInput = "";
+    private string _mentionMarkdownOutput = "";
+    private string _mentionMarkdownList = "";
+
+    private static Task<IEnumerable<MentionItem>> ResolveRequests(string query) =>
+        Task.FromResult<IEnumerable<MentionItem>>(
+            [new(RequestId, "#12 · Budget", $"#req:{RequestId}", "Open")]);
+
+    private async Task GetMentionMarkdown()
+    {
+        if (_mentionMarkdown is not null)
+        {
+            _mentionMarkdownOutput = await _mentionMarkdown.GetMarkdownAsync();
+        }
+    }
+
+    private async Task SetMentionMarkdown()
+    {
+        if (_mentionMarkdown is not null)
+        {
+            await _mentionMarkdown.SetMarkdownAsync(_mentionMarkdownInput);
+        }
+    }
+
+    private async Task GetMentionMarkdownList()
+    {
+        if (_mentionMarkdown is not null)
+        {
+            var mentions = await _mentionMarkdown.GetMentionsAsync();
+            _mentionMarkdownList = string.Join(
+                ",", mentions.Select(m => $"{m.Text}|{m.Value}|{m.Initiator}|{m.Url}|{m.ConfigId}"));
+        }
+    }
 
     private LexicalEditor? _mentionPeople;
     private string _mentionSelected = "";

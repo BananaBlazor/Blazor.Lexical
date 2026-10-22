@@ -789,6 +789,7 @@ export async function create(
   // insertTable/getMentions/refreshMention exports.
   let tableModule: TableModule | undefined;
   let mentionsModule: typeof mentionsRuntime | undefined;
+  let mentionsOptions: unknown;
   const extensionModules = new Map<string, LexicalExtensionModule>();
   const extensionNodes: Array<Klass<LexicalNode>> = [];
   const extensionTheme: Record<string, unknown> = {};
@@ -825,6 +826,7 @@ export async function create(
         } else if (desc.builtIn === 'mentions') {
           // Statically imported (it is ~4kb), so this costs no extra fetch.
           mentionsModule = mentionsRuntime;
+          mentionsOptions = desc.options;
           factory = mentionsRuntime.default;
         } else if (desc.builtIn === 'toc') {
           factory = tocRuntime;
@@ -986,6 +988,10 @@ export async function create(
   const cleanups: Array<() => void> = [];
   cleanups.push(registerRichText(editor));
   cleanups.push(registerList(editor));
+  if (mentionsModule) {
+    // Before initial content, so Markdown initial content can import mentions.
+    cleanups.push(mentionsModule.bindMentionConfigs(editor, mentionsOptions));
+  }
 
   // Initial content, before history exists (so it is the undo baseline, not an undoable
   // step) and before the update listener is registered (so preloading never pushes the

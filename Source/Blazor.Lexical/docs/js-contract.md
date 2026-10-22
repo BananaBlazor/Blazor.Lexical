@@ -41,7 +41,8 @@ changing the bundle, the command tokens, or any overlay.
 - `stats.ts` — word/character/paragraph counts and reading time. Static in core.
 - `table.ts` — table node runtime, in-cell action menu, insert grid picker. Lazy chunk.
 - `markdown.ts` — lazily `import()`ed `@lexical/markdown`, keeping it and
-  `@lexical/code-core` out of core.
+  `@lexical/code-core` out of core. Adds a mention transformer for configs with a
+  `markdownUrlPrefix`; it imports from `mentions.ts` (core), never the reverse.
 - `hr.ts` — horizontal rule. Static in core (~1 kb). Ports upstream's `HorizontalRuleNode`
   and adds a non-signal selection painter; see `architecture.md` for why it is a port.
 - `tabindent.ts` — Tab/Shift+Tab block indentation. Static in core, behaviour only (no

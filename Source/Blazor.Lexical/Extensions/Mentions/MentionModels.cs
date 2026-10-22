@@ -6,7 +6,9 @@ namespace Blazor.Lexical;
 /// stores <see cref="Id"/> (an opaque, app-owned key) and the optional
 /// <see cref="Url"/>, both of which survive HTML/JSON round-trips so the host can
 /// re-resolve the reference later (see <see cref="LexicalEditor.GetMentionsAsync"/>
-/// and <see cref="LexicalEditor.RefreshMentionsByValueAsync"/>).
+/// and <see cref="LexicalEditor.RefreshMentionsByValueAsync"/>). They survive Markdown
+/// too when the config sets <see cref="LexicalMention.MarkdownUrlPrefix"/> and
+/// <see cref="Url"/> is that prefix followed by <see cref="Id"/>.
 /// </summary>
 /// <param name="Id">
 /// The opaque, app-owned identifier for the referenced entity. Blazor.Lexical never

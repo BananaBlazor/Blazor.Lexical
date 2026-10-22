@@ -38,8 +38,16 @@ initial-content tests hold that down; keep them green.
 ## Mentions
 
 `js/src/mentions.ts` + `LexicalMention.razor`. Hosts nest one or more
-`<LexicalMention Initiator="@" Color=… Provider=… Freeform=…/>` configs; each is
-independent. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
+`<LexicalMention Initiator="@" Color=… Provider=… Freeform=… AllowSpacesInQuery=…/>`
+configs; each is independent. `Initiator` starts a session; by default the query is one
+`[\w-]*` run, so the first space ends it. `AllowSpacesInQuery` (opt-in, default off) widens
+`makeTriggerRegex` to up to four single-space-separated words plus one trailing space, so
+`@jane do` stays open and the provider gets `"jane do"`; a double space, newline, fifth word,
+←/→ or Escape still ends it. `triggerOffset` is derived from the whole match, so commit
+replaces every word. ←/→ and Escape record the trigger as `dismissed`: it stays closed while
+that trigger (node key + offset) keeps matching — typing on or moving the caret inside the
+query does not reopen it — and clears once it stops matching or a new trigger starts. ↑/↓
+cycle the highlighted row (wrapping) and keep it scrolled into view. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
 
 - **Two custom nodes**, both `TextNode` subclasses in `createEditor`'s `nodes[]` (added
   only when configs exist): `MentionNode` — segmented/atomic, carrying an opaque
@@ -78,6 +86,20 @@ interop storm — it renders the stored text immediately). Hosts re-resolve on t
 schedule via `GetMentionsAsync` + `RefreshMentionAsync`/`RefreshMentionsByValueAsync`,
 applied with `SILENT_UPDATE_TAG` + `history-merge` so they add no undo step and the content
 push skips them. So opening a document and refreshing stale names never marks it dirty.
+
+**Markdown round-trip is opt-in per config** via `MarkdownUrlPrefix`. `markdown.ts` prepends
+a text-match transformer (ahead of stock `LINK`, since on an equal start index the import
+loop keeps the first match) when any config has a prefix. Both directions key on the
+*url*, not the node's `configId` (a per-session id, stale in restored JSON): export writes a
+mention whose url starts with a registered prefix as `[label](url)` (label
+backslash-escaped for `\`, `[`, `]` and `` *_`~ ``), and import turns a link whose url
+starts with a prefix (longest wins) into a `MentionNode` of that config, `value` = the url
+minus the prefix. Imported nodes take the *current* `configId`/`color`. Every other mention
+still exports as plain text, as does one whose url has whitespace or parentheses (the
+import pattern could not read it back). Formatting (bold etc.) round-trips around the link. The chunk finds configs through
+`getMentionConfigs(editor)`, which `create()` binds via `bindMentionConfigs` after
+`createEditor` and the core plugins — before initial content, which runs ahead of extension `register()` — so
+Markdown `InitialContent` maps mentions too. The import direction stays core ← chunk.
 
 ## Table of contents
 

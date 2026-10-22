@@ -138,6 +138,15 @@ internal sealed class MentionConfigDto
     /// closing the session. Zero disables the timeout. Ignored without a provider.
     /// </summary>
     public int QueryTimeoutMs { get; set; }
+
+    /// <summary>
+    /// URL prefix of Markdown links that import as mentions of this config; null when the
+    /// config does not round-trip through Markdown.
+    /// </summary>
+    public string? MarkdownUrlPrefix { get; set; }
+
+    /// <summary>When true, the typeahead query may be up to four single-space-separated words.</summary>
+    public bool AllowSpacesInQuery { get; set; }
 }
 
 /// <summary>

@@ -156,18 +156,18 @@ public sealed partial class LexicalCommentComposer : LexicalExtension
         switch (method)
         {
             case "submit":
-            {
-                var (markId, text) = ReadTwoStringArgs(argsJson);
-                await OnSubmit.InvokeAsync(new CommentComposition(markId, text));
-                return null;
-            }
+                {
+                    var (markId, text) = ReadTwoStringArgs(argsJson);
+                    await OnSubmit.InvokeAsync(new CommentComposition(markId, text));
+                    return null;
+                }
 
             case "opened":
-            {
-                var (markId, selectedText) = ReadTwoStringArgs(argsJson);
-                await OnOpened.InvokeAsync(new CommentComposerOpened(markId, selectedText));
-                return null;
-            }
+                {
+                    var (markId, selectedText) = ReadTwoStringArgs(argsJson);
+                    await OnOpened.InvokeAsync(new CommentComposerOpened(markId, selectedText));
+                    return null;
+                }
 
             case "cancel":
                 await OnCancel.InvokeAsync();

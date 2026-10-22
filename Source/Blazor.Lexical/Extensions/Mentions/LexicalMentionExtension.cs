@@ -63,20 +63,20 @@ internal sealed class LexicalMentionExtension(IReadOnlyList<LexicalMention> conf
         switch (method)
         {
             case "resolve":
-            {
-                var items = (await config.ResolveAsync(ArgString(args, 1))).ToArray();
-                return JsonSerializer.Serialize(
-                    items, LexicalJsonSerializerContext.Default.MentionItemArray);
-            }
+                {
+                    var items = (await config.ResolveAsync(ArgString(args, 1))).ToArray();
+                    return JsonSerializer.Serialize(
+                        items, LexicalJsonSerializerContext.Default.MentionItemArray);
+                }
 
             case "selected":
-            {
-                // The url stays nullable end-to-end — "no link" is not the empty string.
-                var selected = new LexicalMentionSelected(
-                    config.ConfigId, ArgString(args, 1), ArgString(args, 2), ArgStringOrNull(args, 3));
-                await config.NotifySelectedAsync(selected);
-                return null;
-            }
+                {
+                    // The url stays nullable end-to-end — "no link" is not the empty string.
+                    var selected = new LexicalMentionSelected(
+                        config.ConfigId, ArgString(args, 1), ArgString(args, 2), ArgStringOrNull(args, 3));
+                    await config.NotifySelectedAsync(selected);
+                    return null;
+                }
 
             default:
                 return null;

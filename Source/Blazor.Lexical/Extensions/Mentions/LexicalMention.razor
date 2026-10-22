@@ -67,6 +67,25 @@
     /// </summary>
     [Parameter] public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Opts this config into Markdown round-tripping. Give each <see cref="MentionItem"/> a
+    /// <see cref="MentionItem.Url"/> of this prefix followed by its <see cref="MentionItem.Id"/>:
+    /// such a mention exports as an ordinary <c>[text](url)</c> link, and on import a
+    /// Markdown link whose URL starts with this prefix becomes a mention of this config, with
+    /// the rest of the URL as its id (e.g. <c>"#req:"</c> turns <c>[#12 · Budget](#req:42)</c>
+    /// into a mention with id <c>42</c>). Mentions whose URL does not start with a registered
+    /// prefix, or contains whitespace or parentheses, export as plain text.
+    /// </summary>
+    [Parameter] public string? MarkdownUrlPrefix { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, a typeahead session survives single spaces in the query, so
+    /// <c>@jane do</c> keeps the picker open and queries the <see cref="Provider"/> with
+    /// <c>"jane do"</c>. The session still ends at a double space, a newline, a fifth
+    /// word, ArrowLeft/ArrowRight, or Escape. Defaults to <c>false</c>: the first space ends the session.
+    /// </summary>
+    [Parameter] public bool AllowSpacesInQuery { get; set; }
+
     /// <summary>Stable id for this config, generated once; routes provider queries and tags inserted nodes.</summary>
     internal string ConfigId { get; } = $"mention-{Guid.NewGuid():N}";
 
@@ -92,6 +111,8 @@
         HasProvider = HasProvider,
         NotifySelected = NotifiesSelected,
         QueryTimeoutMs = QueryTimeout > TimeSpan.Zero ? (int)QueryTimeout.TotalMilliseconds : 0,
+        MarkdownUrlPrefix = string.IsNullOrWhiteSpace(MarkdownUrlPrefix) ? null : MarkdownUrlPrefix,
+        AllowSpacesInQuery = AllowSpacesInQuery,
     };
 
     /// <summary>Resolves candidates for a query via the <see cref="Provider"/> (empty when none).</summary>
