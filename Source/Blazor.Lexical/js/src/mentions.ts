@@ -47,7 +47,9 @@ import {
   $applyNodeReplacement,
   $createTextNode,
   $getNodeByKey,
+  $getRoot,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
   $isTextNode,
   $nodesOfType,
@@ -57,7 +59,9 @@ import {
   type DOMExportOutput,
   type EditorConfig,
   type LexicalEditor,
+  type LexicalNode,
   type NodeKey,
+  type RangeSelection,
   type SerializedTextNode,
   type Spread,
 } from 'lexical';
@@ -542,6 +546,88 @@ export function refreshMentionsByValue(
     { tag: [SILENT_UPDATE_TAG, HISTORY_MERGE_TAG] },
   );
   return count;
+}
+
+/**
+ * The character just before the collapsed caret within its block, or '' at the block
+ * start. Crosses node boundaries (formatting runs, links, mentions) so the answer is what
+ * the user sees, not just the anchor node's text.
+ */
+function $charBeforeCaret(selection: RangeSelection): string {
+  const { anchor } = selection;
+  let node: LexicalNode | null = anchor.getNode();
+  if (anchor.type === 'text') {
+    if (anchor.offset > 0) {
+      return node.getTextContent()[anchor.offset - 1];
+    }
+  } else if (anchor.offset > 0 && $isElementNode(node)) {
+    node = node.getChildAtIndex(anchor.offset - 1);
+    const text = node?.getTextContent() ?? '';
+    if (text.length > 0) {
+      return text[text.length - 1];
+    }
+  } else if (!$isElementNode(node) || !node.isInline()) {
+    // Offset 0 of a block: nothing precedes the caret in it.
+    return '';
+  }
+
+  // Walk back through earlier siblings, climbing out of inline parents but never past
+  // the block.
+  while (node !== null) {
+    const previous: LexicalNode | null = node.getPreviousSibling();
+    if (previous !== null) {
+      const text = previous.getTextContent();
+      if (text.length > 0) {
+        return text[text.length - 1];
+      }
+      node = previous;
+      continue;
+    }
+    const parent: LexicalNode | null = node.getParent();
+    if (!$isElementNode(parent) || !parent.isInline()) {
+      return '';
+    }
+    node = parent;
+  }
+  return '';
+}
+
+/**
+ * Starts a mention session for the provider config with `initiator`, as if the user had
+ * typed it: replaces any selected range, inserts the initiator at the caret (the document
+ * end when the editor has no selection) with a separating space when the caret follows a
+ * non-space character, then focuses the editor. The typeahead's update listener then
+ * opens the picker exactly as for a typed trigger. Returns false, changing nothing, when
+ * the editor is read-only, no provider config uses `initiator`, or a node or table
+ * selection is active.
+ */
+export function startMention(editor: LexicalEditor, initiator: string): boolean {
+  if (
+    !editor.isEditable() ||
+    !getMentionConfigs(editor).some((c) => c.hasProvider && c.initiator === initiator)
+  ) {
+    return false;
+  }
+  // The update callback runs synchronously; only its commit is deferred.
+  let started = false;
+  editor.update(() => {
+    const selection = $getSelection() ?? $getRoot().selectEnd();
+    // A node or table selection has no caret to type at.
+    if (!$isRangeSelection(selection)) {
+      return;
+    }
+    if (!selection.isCollapsed()) {
+      selection.removeText();
+    }
+    const before = $charBeforeCaret(selection);
+    selection.insertText(before === '' || /\s/.test(before) ? initiator : ` ${initiator}`);
+    started = true;
+  });
+  if (started) {
+    // Focus restores the DOM selection the picker positions itself from.
+    editor.focus();
+  }
+  return started;
 }
 
 // ---------------------------------------------------------------------------

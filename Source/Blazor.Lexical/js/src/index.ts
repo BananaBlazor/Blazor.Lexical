@@ -1612,6 +1612,18 @@ export function refreshMentionsByValue(
   return instance.mentions.refreshMentionsByValue(instance.editor, configId, value, text, url);
 }
 
+/**
+ * Inserts a provider config's initiator at the caret and focuses the editor, opening its
+ * picker as if typed. False when the editor is read-only or has no such config.
+ */
+export function startMention(instanceId: string, initiator: string): boolean {
+  const instance = instances.get(instanceId);
+  if (!instance?.mentions) {
+    return false;
+  }
+  return instance.mentions.startMention(instance.editor, initiator);
+}
+
 /** Tears down the editor and removes it from the registry. */
 export function dispose(instanceId: string): void {
   const instance = instances.get(instanceId);

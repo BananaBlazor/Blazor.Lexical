@@ -12,6 +12,8 @@ namespace Tests.Integration;
 ///   channel, so opening a doc and updating stale names never marks it dirty);
 /// - <c>#editor-mention-hashtag</c> (.harness-mention-hashtag): a freeform-only "#"
 ///   config with no provider — pure-JS hashtag highlighting, zero interop;
+/// - <c>#editor-mention-readonly</c>: a read-only editor with an "@" provider config,
+///   which <c>StartMentionAsync</c> must refuse;
 /// - <c>#editor-mention-spaces</c>: an "@" config with <c>AllowSpacesInQuery</c>;
 /// - <c>#editor-mention-markdown</c> / <c>#editor-mention-markdown-initial</c>: "#"
 ///   configs with a <c>MarkdownUrlPrefix</c> — mentions round-trip through Markdown.
@@ -480,6 +482,140 @@ public class MentionTests : HarnessTestBase
         await Expect(editor.Locator($"a[href='#req:{RequestId}']")).ToHaveTextAsync("#12 · Budget");
         Assert.Equal(RequestLink, markdown);
     }
+
+    // --- StartMentionAsync (#editor-mention-people): a session started from a button ---
+
+    [Fact] // a never-focused editor gets the trigger, focus and the picker, as a notifying edit
+    public async Task StartMention_InEmptyEditor_OpensPicker()
+    {
+        var page = await OpenAsync();
+        var errors = CaptureErrors(page);
+        var editor = page.Locator(PeopleEditor);
+        var menu = page.Locator(Menu);
+
+        await page.ClickAsync("#btn-mention-start");
+
+        await Expect(page.Locator("#mention-start-result")).ToHaveTextAsync("started");
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+        // The bare trigger queries with an empty string, which the fake provider matches to everyone.
+        await Expect(menu.Locator("[data-lexical-mention-item]")).ToHaveCountAsync(3);
+        await Expect(editor).ToBeFocusedAsync();
+        Assert.Equal("@", await TextContentAsync(editor));
+        // Unlike a silent refresh, the insert reaches the content channel.
+        await Expect(page.Locator("#mention-change-count")).Not.ToHaveTextAsync("0");
+        Assert.Empty(errors);
+    }
+
+    [Fact] // the trigger goes in at the caret, not at the end, so the button keeps the caret in place
+    public async Task StartMention_MidText_InsertsAtTheCaret()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, "hello world");
+        for (var i = 0; i < " world".Length; i++)
+        {
+            await page.Keyboard.PressAsync("ArrowLeft");
+        }
+        await page.ClickAsync("#btn-mention-start");
+
+        await Expect(page.Locator(Menu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        Assert.Equal("hello @ world", await TextContentAsync(editor));
+    }
+
+    [Fact] // a selected range is replaced, and the space check reads what precedes the range
+    public async Task StartMention_ReplacesSelectedRange()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, "hello world");
+        for (var i = 0; i < "world".Length; i++)
+        {
+            await page.Keyboard.PressAsync("Shift+ArrowLeft");
+        }
+        await page.ClickAsync("#btn-mention-start");
+
+        await Expect(page.Locator(Menu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        Assert.Equal("hello @", await TextContentAsync(editor));
+    }
+
+    [Fact] // at the start of a new block nothing precedes the caret, so no space is borrowed from the block above
+    public async Task StartMention_AtBlockStart_AddsNoSpace()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, "hi");
+        await page.Keyboard.PressAsync("Enter");
+        await page.ClickAsync("#btn-mention-start");
+
+        await Expect(page.Locator(Menu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        Assert.Equal("@", await TextContentAsync(editor.Locator("p").Nth(1)));
+    }
+
+    [Theory] // a separating space is added only when the caret follows a non-space character
+    [InlineData("hi", "hi @")]
+    [InlineData("hi ", "hi @")]
+    public async Task StartMention_AfterText_SeparatesTheTrigger(string typed, string expected)
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, typed);
+        await page.ClickAsync("#btn-mention-start");
+
+        await Expect(page.Locator(Menu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        Assert.Equal(expected, await TextContentAsync(editor));
+    }
+
+    [Fact] // a started session behaves like a typed one: Enter commits the highlighted candidate
+    public async Task StartMention_ThenEnter_InsertsMention()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, "hello");
+        await page.ClickAsync("#btn-mention-start");
+        await Expect(page.Locator(Menu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        await page.Keyboard.TypeAsync("le");
+        await Expect(page.Locator(Menu).Locator("[data-lexical-mention-item]")).ToHaveCountAsync(1);
+        await page.Keyboard.PressAsync("Enter");
+
+        await Expect(editor.Locator("span[data-lexical-mention]")).ToHaveTextAsync("Leia Organa");
+        await Expect(page.Locator("#mention-selected")).ToHaveTextAsync("Leia Organa|2");
+        Assert.StartsWith("hello Leia Organa", await TextContentAsync(editor));
+    }
+
+    [Fact] // an initiator no provider config uses is refused without touching the document
+    public async Task StartMention_UnknownInitiator_IsRefused()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, "hi");
+        await page.ClickAsync("#btn-mention-start-unknown");
+
+        await Expect(page.Locator("#mention-start-result")).ToHaveTextAsync("refused");
+        Assert.Equal("hi", await TextContentAsync(editor));
+    }
+
+    [Theory] // a freeform-only config (no provider) and a read-only editor are both refused untouched
+    [InlineData("#btn-mention-start-hashtag", "#editor-mention-hashtag", "")]
+    [InlineData("#btn-mention-start-readonly", "#editor-mention-readonly", "read only")]
+    public async Task StartMention_NoProviderOrReadOnly_IsRefused(string button, string editorId, string text)
+    {
+        var page = await OpenAsync();
+
+        await page.ClickAsync(button);
+
+        await Expect(page.Locator("#mention-start-result")).ToHaveTextAsync("refused");
+        Assert.Equal(text, await TextContentAsync(page.Locator(editorId)));
+    }
+
+    // Raw textContent: Playwright's text assertions collapse whitespace, hiding a doubled space.
+    private static Task<string> TextContentAsync(ILocator locator)
+        => locator.EvaluateAsync<string>("el => el.textContent");
 
     // --- Slow provider (#editor-mention-slow): the graceful-degradation contract ---
 

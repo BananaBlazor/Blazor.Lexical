@@ -24,17 +24,34 @@
     <div>
         <button id="btn-mention-list" @onclick="GetMentionList">List mentions</button>
         <button id="btn-mention-refresh" @onclick="RefreshMentionName">Rename first mention</button>
+        @* Plain buttons: the click moving focus off the editor must not lose its caret. *@
+        <button id="btn-mention-start" @onclick="() => StartMention(_mentionPeople, AtInitiator)">Start @@ mention</button>
+        <button id="btn-mention-start-unknown" @onclick="() => StartMention(_mentionPeople, UnknownInitiator)">Start ! mention</button>
+        @* Both must be refused: # has no provider, and the read-only editor takes no edits. *@
+        <button id="btn-mention-start-hashtag" @onclick="() => StartMention(_mentionHashtag, HashInitiator)">Start # mention</button>
+        <button id="btn-mention-start-readonly" @onclick="() => StartMention(_mentionReadOnly, AtInitiator)">Start read-only mention</button>
     </div>
+    <p>Mention start result: <span id="mention-start-result">@_mentionStartResult</span></p>
     <p>Mention selected: <span id="mention-selected">@_mentionSelected</span></p>
     <p>Mention list: <span id="mention-list">@_mentionList</span></p>
     <p>Mention refresh count: <span id="mention-refresh-count">@_mentionRefreshCount</span></p>
     <p>Mention content-change count: <span id="mention-change-count">@_mentionChangeCount</span></p>
 
-    <LexicalEditor Id="editor-mention-hashtag"
+    <LexicalEditor @ref="_mentionHashtag"
+                   Id="editor-mention-hashtag"
                    CssClass="harness-mention-hashtag"
                    Placeholder="Type #tags…"
                    Theme="LexicalTheme.Default">
-        <LexicalMention Initiator="#" Color="#e8b800" Freeform="true" />
+        <LexicalMention Initiator="@HashInitiator" Color="#e8b800" Freeform="true" />
+    </LexicalEditor>
+
+    <LexicalEditor @ref="_mentionReadOnly"
+                   Id="editor-mention-readonly"
+                   CssClass="harness-mention-readonly"
+                   ReadOnly="true"
+                   InitialContent="@LexicalContent.FromText("read only")"
+                   Theme="LexicalTheme.Default">
+        <LexicalMention Initiator="@AtInitiator" Provider="ResolvePeople" />
     </LexicalEditor>
 </section>
 
@@ -170,6 +187,22 @@
         var matches = People.Where(p =>
             p.Text.Contains(query, StringComparison.OrdinalIgnoreCase));
         return Task.FromResult<IEnumerable<MentionItem>>(matches);
+    }
+
+    // No config uses it, so StartMentionAsync must refuse it.
+    private const string UnknownInitiator = "!";
+    private const string HashInitiator = "#";
+
+    private LexicalEditor? _mentionHashtag;
+    private LexicalEditor? _mentionReadOnly;
+    private string _mentionStartResult = "";
+
+    private async Task StartMention(LexicalEditor? editor, string initiator)
+    {
+        if (editor is not null)
+        {
+            _mentionStartResult = (await editor.StartMentionAsync(initiator)) ? "started" : "refused";
+        }
     }
 
     private void OnMentionContent(LexicalContent content) => _mentionChangeCount++;
