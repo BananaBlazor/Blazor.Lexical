@@ -10,7 +10,7 @@ Two projects, added to `Blazor.Lexical.slnx`:
 Run everything:
 
 ```sh
-dotnet test Blazor.Lexical.slnx
+dotnet test --solution Blazor.Lexical.slnx
 ```
 
 ## Integration tests — how they work
@@ -47,13 +47,15 @@ editor under the same ids: `MainEditorSection` and `NotifyEditorSection`, under
 
 Test classes carry no `[Collection]` attribute, so each is its own xunit collection and
 they run concurrently (capped by `maxParallelThreads` in `xunit.runner.json`) against
-the one shared host and browser. `HarnessTestFramework` is the assembly-wide teardown
-hook that closes them.
+the one shared host and browser. `HarnessShutdown`, an xunit.v3 assembly fixture, is the
+assembly-wide teardown hook that closes them.
 
 **Browser:** uses the system Chrome at
 `C:\Program Files\Google\Chrome\Application\chrome.exe` by default. Override with
 the `LEXICAL_TEST_CHROME` environment variable to point at a different Chromium
-executable. (No `playwright install` needed — only the bundled driver is used.)
+executable. With neither present, Playwright's own Chromium is used, which needs
+`pwsh <test output dir>/playwright.ps1 install chromium` once per `Microsoft.Playwright`
+version (CI does this explicitly).
 
 ### Touchpoints asserted
 
@@ -67,5 +69,5 @@ executable. (No `playwright install` needed — only the bundled driver is used.
 ## After an `npm` update
 
 The point of the integration suite: after `Scripts/update-lexical.ps1 -Version x.y.z`
-rebuilds the bundle, run `dotnet test Blazor.Lexical.slnx`. A red test means a
+rebuilds the bundle, run `dotnet test --solution Blazor.Lexical.slnx`. A red test means a
 Lexical API the wrapper depends on changed shape or behavior.

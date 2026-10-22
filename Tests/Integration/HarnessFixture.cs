@@ -17,7 +17,7 @@ public sealed class HarnessFixture : IAsyncLifetime
     /// <summary>Base URL of the running host, e.g. http://127.0.0.1:49xxx/.</summary>
     public string BaseUrl => _server.BaseUrl;
 
-    public async Task InitializeAsync() => _server = await HarnessServer.GetAsync();
+    public async ValueTask InitializeAsync() => _server = await HarnessServer.GetAsync();
 
     /// <summary>
     /// Opens one harness page in a fresh browser context and waits for Lexical to take
@@ -42,6 +42,6 @@ public sealed class HarnessFixture : IAsyncLifetime
         return page;
     }
 
-    // The shared host and browser outlive any one class; HarnessTestFramework closes them.
-    public Task DisposeAsync() => Task.CompletedTask;
+    // The shared host and browser outlive any one class; HarnessShutdown closes them.
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

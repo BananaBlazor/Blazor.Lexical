@@ -18,7 +18,7 @@ namespace Tests.Integration;
 /// Deliberately a process-wide singleton rather than an xunit collection fixture. Test
 /// classes each own a <see cref="HarnessFixture"/> so they sit in <i>separate</i>
 /// collections and run in parallel, but they must not each pay for a host and a browser.
-/// <see cref="HarnessTestFramework"/> shuts the singleton down once the assembly is done.
+/// <see cref="HarnessShutdown"/> shuts the singleton down once the assembly is done.
 /// </remarks>
 internal sealed class HarnessServer
 {
