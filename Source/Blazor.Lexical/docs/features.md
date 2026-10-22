@@ -59,6 +59,13 @@ cycle the highlighted row (wrapping) and keep it scrolled into view. Mirrors the
 - **The picker is JS-created**, not Blazor-authored — rows come from provider data, so
   `registerMentions` builds `[data-lexical-mention-menu]` under the root. The one overlay
   with no Blazor marker.
+- **The picker is a WAI-ARIA combobox popup.** Focus never leaves the content element: the
+  menu is `role="listbox"` (id `<content id>-mention-menu`), rows are `role="option"` with
+  unique ids, `tabindex=-1` and `aria-selected`, and JS mirrors the state onto the content
+  element — `aria-expanded`/`aria-controls`/`aria-autocomplete="list"` while open,
+  `aria-activedescendant` on the highlighted row; closing sets `aria-expanded="false"` and
+  drops the descendant. These are JS-owned: the component never renders them, and Blazor's
+  diff leaves attributes it didn't render alone across re-renders.
 
 **One extension owns all configs** (`LexicalMentionExtension`), not one per
 `<LexicalMention>`: a single combined entity matcher must serve all freeform initiators, or

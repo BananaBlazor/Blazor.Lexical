@@ -82,6 +82,56 @@ public class MentionTests : HarnessTestBase
         await Expect(editor.Locator("span[data-lexical-mention]")).ToHaveCountAsync(0);
     }
 
+    [Fact] // the open picker is a WAI-ARIA combobox popup driven from the focused content element
+    public async Task Typeahead_ExposesComboboxSemantics_WhileOpen()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+        var menu = page.Locator(Menu);
+        var rows = menu.Locator("[data-lexical-mention-item]");
+        const string menuId = "editor-mention-people-mention-menu";
+
+        // "a" matches three candidates.
+        await TypeAsync(page, PeopleEditor, "@a");
+        await Expect(rows).ToHaveCountAsync(3);
+
+        await Expect(menu).ToHaveIdAsync(menuId);
+        await Expect(menu).ToHaveAttributeAsync("role", "listbox");
+        await Expect(editor).ToHaveAttributeAsync("aria-expanded", "true");
+        await Expect(editor).ToHaveAttributeAsync("aria-controls", menuId);
+        await Expect(editor).ToHaveAttributeAsync("aria-autocomplete", "list");
+        await Expect(editor).ToHaveAttributeAsync("aria-activedescendant", $"{menuId}-option-0");
+        for (var i = 0; i < 3; i++)
+        {
+            await Expect(rows.Nth(i)).ToHaveAttributeAsync("role", "option");
+            await Expect(rows.Nth(i)).ToHaveIdAsync($"{menuId}-option-{i}");
+            await Expect(rows.Nth(i)).ToHaveAttributeAsync("aria-selected", i == 0 ? "true" : "false");
+        }
+
+        // Arrowing moves the active descendant and aria-selected; focus never leaves the text.
+        await page.Keyboard.PressAsync("ArrowDown");
+        await Expect(editor).ToHaveAttributeAsync("aria-activedescendant", $"{menuId}-option-1");
+        await Expect(rows.Nth(1)).ToHaveAttributeAsync("aria-selected", "true");
+        await Expect(rows.Nth(0)).ToHaveAttributeAsync("aria-selected", "false");
+        await Expect(editor).ToBeFocusedAsync();
+    }
+
+    [Fact] // closing the picker collapses the combobox and drops the active descendant
+    public async Task Typeahead_Close_CollapsesCombobox()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(PeopleEditor);
+
+        await TypeAsync(page, PeopleEditor, "@le");
+        await Expect(editor).ToHaveAttributeAsync("aria-expanded", "true");
+        await Expect(editor).ToHaveAttributeAsync("aria-activedescendant", new Regex("-option-0$"));
+
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(editor).ToHaveAttributeAsync("aria-expanded", "false");
+        Assert.Null(await editor.GetAttributeAsync("aria-activedescendant"));
+        await Expect(editor).ToBeFocusedAsync();
+    }
+
     [Fact] // ArrowDown moves the highlight to the second candidate before committing
     public async Task Typeahead_ArrowDown_SelectsSecondCandidate()
     {

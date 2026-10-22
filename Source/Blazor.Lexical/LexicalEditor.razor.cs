@@ -39,6 +39,22 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     /// <summary>Stable element id; auto-generated when not supplied.</summary>
     [Parameter] public string Id { get; set; } = $"lexical-{Guid.NewGuid():N}";
 
+    /// <summary>Accessible name for the editing surface, rendered as <c>aria-label</c>.</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
+    /// <summary>Id(s) of the element(s) that name the editing surface (e.g. a visible <c>&lt;label&gt;</c>), rendered as <c>aria-labelledby</c>.</summary>
+    [Parameter] public string? AriaLabelledBy { get; set; }
+
+    /// <summary>Id(s) of helper or error text describing the editing surface, rendered as <c>aria-describedby</c>.</summary>
+    [Parameter] public string? AriaDescribedBy { get; set; }
+
+    /// <summary>
+    /// Extra attributes for the editable content element (e.g. <c>data-testid</c>,
+    /// <c>aria-required</c>); explicit parameters win over these, and <c>class</c>, <c>id</c>,
+    /// <c>contenteditable</c>, <c>aria-readonly</c> and <c>data-lexical-*</c> are ignored.
+    /// </summary>
+    [Parameter] public IReadOnlyDictionary<string, object>? ContentAttributes { get; set; }
+
     /// <summary>
     /// The document to load as the editor is created, in whichever format it is
     /// written — build it with the <see cref="LexicalContent"/> factories
@@ -145,6 +161,57 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     /// delegated command dispatcher (and cascaded editor) reach the toolbar buttons.
     /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    // Owned by the markup (class, id, contenteditable) or kept in step with
+    // contenteditable by JS (aria-readonly), so ContentAttributes may not set them.
+    private static readonly HashSet<string> ReservedContentAttributes =
+        new(StringComparer.OrdinalIgnoreCase) { "class", "id", "contenteditable", "aria-readonly" };
+
+    /// <summary>
+    /// The content element's splatted attributes: textbox defaults, then the host's
+    /// <see cref="ContentAttributes"/>, then the explicit parameters. Empty values are
+    /// left out rather than rendered as empty attributes.
+    /// </summary>
+    private Dictionary<string, object> ContentElementAttributes
+    {
+        get
+        {
+            var attributes = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["role"] = "textbox",
+                ["aria-multiline"] = "true",
+            };
+            if (ContentAttributes is not null)
+            {
+                foreach (var (name, value) in ContentAttributes)
+                {
+                    // data-lexical-* is JS-owned (invariant 3): Blazor never renders it.
+                    if (!ReservedContentAttributes.Contains(name) &&
+                        !name.StartsWith("data-lexical-", StringComparison.OrdinalIgnoreCase))
+                    {
+                        attributes[name] = value;
+                    }
+                }
+            }
+            SetIfNotEmpty(attributes, "aria-label", AriaLabel);
+            SetIfNotEmpty(attributes, "aria-labelledby", AriaLabelledBy);
+            SetIfNotEmpty(attributes, "aria-describedby", AriaDescribedBy);
+            SetIfNotEmpty(attributes, "aria-placeholder", Placeholder);
+            if (ReadOnly)
+            {
+                attributes["aria-readonly"] = "true";
+            }
+            return attributes;
+
+            static void SetIfNotEmpty(Dictionary<string, object> attributes, string name, string? value)
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    attributes[name] = value;
+                }
+            }
+        }
+    }
 
     private ElementReference _root;
     private IJSObjectReference? _module;

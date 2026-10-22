@@ -642,7 +642,22 @@ export function registerMentions(
   menuEl.className = 'blazor-lexical__mention-menu';
   menuEl.setAttribute('data-lexical-mention-menu', '');
   menuEl.setAttribute('role', 'listbox');
+  // Combobox wiring: the content element keeps focus and points at the highlighted
+  // row via aria-activedescendant, so ids must be unique per editor.
+  menuEl.id = `${contentEl.id}-mention-menu`;
   root.appendChild(menuEl);
+
+  /** Mirrors the menu's open state onto the content element (WAI-ARIA combobox). */
+  const setExpanded = (expanded: boolean): void => {
+    if (expanded) {
+      contentEl.setAttribute('aria-expanded', 'true');
+      contentEl.setAttribute('aria-controls', menuEl.id);
+      contentEl.setAttribute('aria-autocomplete', 'list');
+    } else if (contentEl.hasAttribute('aria-expanded')) {
+      contentEl.setAttribute('aria-expanded', 'false');
+      contentEl.removeAttribute('aria-activedescendant');
+    }
+  };
 
   let session: MentionMatch | null = null;
   // A trigger the user dismissed (Escape / ArrowLeft / ArrowRight). It stays closed while
@@ -713,6 +728,7 @@ export function registerMentions(
     clearQueryTimers();
     setLoading(false);
     menuEl.removeAttribute('data-lexical-visible');
+    setExpanded(false);
   };
 
   /** Shows the menu at the caret. Returns false when there is no caret to anchor to. */
@@ -723,14 +739,20 @@ export function registerMentions(
     }
     menuEl.setAttribute('data-lexical-visible', '');
     positionBelow(menuEl, sel.getRangeAt(0).getBoundingClientRect(), root);
+    setExpanded(true);
     return true;
   };
 
   const setActive = (index: number): void => {
     activeIndex = index;
+    if (index < 0) {
+      contentEl.removeAttribute('aria-activedescendant');
+    }
     menuEl.querySelectorAll<HTMLElement>('[data-lexical-mention-item]').forEach((el, i) => {
       el.toggleAttribute('data-lexical-mention-active', i === index);
+      el.setAttribute('aria-selected', String(i === index));
       if (i === index) {
+        contentEl.setAttribute('aria-activedescendant', el.id);
         // The menu scrolls (max-height), so keep the highlighted row in view.
         el.scrollIntoView({ block: 'nearest' });
       }
@@ -746,6 +768,9 @@ export function registerMentions(
       row.setAttribute('data-lexical-mention-item', '');
       row.setAttribute('data-index', String(i));
       row.setAttribute('role', 'option');
+      row.id = `${menuEl.id}-option-${i}`;
+      // Out of the tab order: focus stays on the content element, as a combobox needs.
+      row.tabIndex = -1;
 
       const label = document.createElement('span');
       label.className = 'blazor-lexical__mention-item-label';
@@ -813,6 +838,7 @@ export function registerMentions(
       // slow provider reads as "working" rather than as nothing happening.
       items = [];
       menuEl.replaceChildren();
+      setActive(-1);
       setLoading(true);
       showMenuAtCaret();
 
@@ -954,6 +980,9 @@ export function registerMentions(
     menuEl.removeEventListener('click', onMenuClick);
     clearQueryTimers();
     menuEl.remove();
+    for (const name of ['aria-expanded', 'aria-controls', 'aria-autocomplete', 'aria-activedescendant']) {
+      contentEl.removeAttribute(name);
+    }
   });
 
   return () => cleanups.forEach((fn) => fn());
