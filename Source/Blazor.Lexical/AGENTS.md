@@ -89,7 +89,7 @@ assembly metadata, the package description/tags/release notes, and the packed RE
 - **Major** is locked to `0` in `Version.props`; bumping it is human-only. Scripts/CI must
   not touch it.
 - **Build** (the last component) is **not stored in the repo**: it is the run number of
-  `publish-github-packages.yml`, passed as `-p:LexicalPackageBuild=N`. Every other build
+  `publish-packages.yml`, passed as `-p:LexicalPackageBuild=N`. Every other build
   is 0. Gaps are expected; only uniqueness and increase matter. Never reintroduce a
   committed serial: it needed a bump commit per release and a reset on every Lexical
   minor bump (which Dependabot can't do).

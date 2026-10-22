@@ -5,7 +5,7 @@
        The full NuGet version is  Major.<Lexical-minor>.<build>  (assembled in
        Blazor.Lexical.csproj). The MIDDLE component is DERIVED from the bundled
        Lexical version at build time, and the BUILD is the run number of
-       publish-github-packages.yml — neither is set here. See the "Versioning" section of
+       publish-packages.yml — neither is set here. See the "Versioning" section of
        Source/Blazor.Lexical/AGENTS.md. -->
   <PropertyGroup>
 

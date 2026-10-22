@@ -1,0 +1,324 @@
+# Build, test, version, and publish Blazor.Lexical — to this repository's GitHub
+# Packages feed, to nuget.org, or both, in one run.
+#
+# MANUAL ONLY — no push/release trigger, and there must never be one.
+#
+# Two jobs. `package` builds, tests and packs ONCE, uploads the result as the
+# `nupkg-<version>` run artifact, and (by default) pushes it to GitHub Packages.
+# `nuget` runs only when "Publish to nuget.org" is ticked: it takes those same
+# bytes from the artifact — never a rebuild — and pushes them, with symbols, to
+# nuget.org. GitHub Packages goes first, so a failure there stops nuget.org too.
+#
+# To ship something that was already published to GitHub Packages and shaken out
+# there, use promote-to-nuget.yml instead; it pushes an existing package and never
+# builds.
+#
+# --- Versioning -------------------------------------------------------------------
+# Version is Major.<Lexical-minor>.<run number>. Major comes from Version.props, the
+# Lexical minor from the lockfile, and the last component is this workflow's run
+# number — unique and increasing with no lookup, and nothing to commit before
+# publishing. Gaps (failed runs, dry runs, a Lexical-minor change) are expected and
+# harmless. Tick prerelease to publish Major.Minor.<run number>-preview instead.
+#
+# Renaming this file starts a new workflow whose run numbers restart at 1. That can
+# only ever collide with an existing version, and both pushes fail on a duplicate
+# rather than overwriting, so the failure mode is a red run, not a bad package.
+#
+# --- GitHub Packages --------------------------------------------------------------
+# No secrets or account setup required: GITHUB_TOKEN authenticates against
+# nuget.pkg.github.com, and the feed is created on first push. The one hard
+# requirement is that the package's RepositoryUrl points at this repo, which
+# Blazor.Lexical.csproj already sets — GitHub Packages rejects a package whose
+# repository does not match the owner in the push URL.
+#
+# --- nuget.org --------------------------------------------------------------------
+# Authentication is Trusted Publishing (OIDC) — there is no long-lived nuget.org
+# API key anywhere in this repo, and there must never be one. A trusted publishing
+# policy is bound to ONE workflow file, so nuget.org needs a policy for this file
+# in addition to the one for promote-to-nuget.yml:
+#   Repository Owner  the repo owner       Workflow File  publish-packages.yml
+#   Repository        Blazor.Lexical       Environment    nuget  (the `nuget` job)
+# Renaming this file, or removing/renaming the environment, breaks nuget.org
+# publishing until the policy is updated to match. The only repo secret needed is
+# NUGET_USER: the nuget.org *profile name* that owns the policy. Giving the `nuget`
+# environment required reviewers gates only the nuget.org job — a GitHub Packages
+# run is never held up by it.
+#
+# Pushing to nuget.org is irreversible: a version can be unlisted but never
+# replaced or re-pushed. A successful nuget.org push also tags the built commit
+# v<version> and cuts a GitHub Release (the "tag" input); nothing on the staging
+# feed leaves a mark in git.
+name: Publish Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_packages:
+        description: 'Publish to GitHub Packages'
+        type: boolean
+        default: true
+      nuget:
+        description: 'Publish to nuget.org in the same run (irreversible)'
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Append -preview (a prerelease package)'
+        type: boolean
+        default: false
+      tag:
+        description: 'After a nuget.org push, tag the commit v<version> and cut a GitHub Release'
+        type: boolean
+        default: true
+      dry_run:
+        description: 'Build, test, and pack only — push nowhere'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      # Node is required by BuildLexicalJsBundle — the packed wwwroot/*.mjs assets
+      # are generated from TypeScript at build time, never checked in.
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # Ask MSBuild for the version rather than re-deriving it here — Version.props and
+      # the lockfile are the source of truth; this step only supplies the run number.
+      # The run number goes to Build too, so the assembly's file/informational version
+      # matches the package.
+      - name: Resolve version
+        id: ver
+        run: |
+          BASE=$(dotnet msbuild Source/Blazor.Lexical/Blazor.Lexical.csproj -getProperty:Version -p:LexicalPackageBuild=${{ github.run_number }} -nologo | tr -d '[:space:]')
+          if [ -z "$BASE" ]; then echo "::error::could not read Version from the project"; exit 1; fi
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            VERSION="$BASE-preview"
+          else
+            VERSION="$BASE"
+          fi
+          echo "Publishing $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # nuget.org rejects a duplicate only after the upload — and by then GitHub
+      # Packages would already have it. Check up front so a doomed run stops before
+      # anything is pushed anywhere.
+      - name: Check version is not already on nuget.org
+        if: inputs.nuget
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://api.nuget.org/v3-flatcontainer/blazor.lexical/$V/blazor.lexical.$V.nupkg")
+          if [ "$CODE" = "200" ]; then
+            echo "::error::Blazor.Lexical $V is already on nuget.org — versions cannot be replaced. Run this workflow again (a new run number is a new version)."
+            exit 1
+          fi
+          echo "Version $V is free on nuget.org (HTTP $CODE)."
+
+      - name: Restore
+        run: dotnet restore Blazor.Lexical.slnx
+
+      - name: Build
+        run: >-
+          dotnet build Blazor.Lexical.slnx -c Release --no-restore
+          -p:ContinuousIntegrationBuild=true
+          -p:LexicalPackageBuild=${{ github.run_number }}
+
+      # A package is only publishable if the tests guarding its behavior pass.
+      - name: Unit tests
+        run: dotnet test --project Tests/UnitTests/Tests.UnitTests.csproj -c Release --no-build
+
+      # Build output is redirected by Directory.Build.props to
+      # .build/<platform>/<project>/bin/..., so locate the install script rather
+      # than guessing the path.
+      - name: Install Playwright browsers
+        run: |
+          SCRIPT=$(find .build -type f -path '*Tests.Integration*/Release/*' -name playwright.ps1 | head -n1)
+          test -n "$SCRIPT" || { echo "::error::playwright.ps1 not found under .build/"; exit 1; }
+          pwsh "$SCRIPT" install --with-deps chromium
+
+      - name: Integration tests
+        run: dotnet test --project Tests/Integration/Tests.Integration.csproj -c Release --no-build
+
+      # ContinuousIntegrationBuild makes the build deterministic and lets SourceLink
+      # stamp the repo URL. VerifyLexicalAlignment runs before pack and fails if the
+      # bundled Lexical pins have drifted, so a package can never claim a Lexical
+      # version it does not bundle.
+      - name: Pack
+        run: >-
+          dotnet pack Source/Blazor.Lexical/Blazor.Lexical.csproj -c Release --no-build
+          -p:ContinuousIntegrationBuild=true
+          -p:LexicalPackageBuild=${{ github.run_number }}
+          -p:PackageVersion=${{ steps.ver.outputs.version }}
+          -o artifacts
+
+      # The hand-off to the nuget job, and what promote-to-nuget.yml finds by name
+      # (`nupkg-<version>`) to recover the built commit and the .snupkg later.
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nupkg-${{ steps.ver.outputs.version }}
+          path: artifacts/*
+
+      # --no-symbols: GitHub Packages has no symbol server and rejects the .snupkg,
+      # which would otherwise fail the run after the .nupkg has already landed. The
+      # symbols survive in the run artifact above, and the nuget job pushes them.
+      # No --skip-duplicate: re-pushing an existing version must fail, not pass silently.
+      - name: Push to GitHub Packages
+        if: ${{ inputs.github_packages && !inputs.dry_run }}
+        run: >-
+          dotnet nuget push 'artifacts/*.nupkg'
+          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --no-symbols
+
+      - name: Summary
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "### Dry run — nothing was pushed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Built, tested, and packed \`Blazor.Lexical $V\`." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ inputs.github_packages }}" = "true" ]; then
+            echo "### Published Blazor.Lexical $V to GitHub Packages" >> "$GITHUB_STEP_SUMMARY"
+            echo "Consume it by adding the feed (a GitHub PAT with \`read:packages\` is required):" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "dotnet nuget add source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \\" >> "$GITHUB_STEP_SUMMARY"
+            echo "  -n blazor-lexical-gpr -u <github-username> -p <token> --store-password-in-clear-text" >> "$GITHUB_STEP_SUMMARY"
+            echo "dotnet add package Blazor.Lexical --version $V" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            if [ "${{ inputs.nuget }}" != "true" ]; then
+              echo "When it is proven, ship it with the **Promote to nuget.org** workflow." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "### Skipped GitHub Packages for Blazor.Lexical $V" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  nuget:
+    needs: package
+    if: inputs.nuget
+    runs-on: ubuntu-latest
+    # Gate for required reviewers; harmless until the environment has protection rules.
+    # Must match the trusted publishing policy for this workflow file.
+    environment: nuget
+    permissions:
+      contents: write
+      # Lets the job mint the OIDC token that NuGet/login exchanges for a temporary key.
+      id-token: write
+    env:
+      VERSION: ${{ needs.package.outputs.version }}
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      # The exact bytes the package job built and tested, symbols included.
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nupkg-${{ needs.package.outputs.version }}
+          path: artifacts
+
+      - name: Dry run summary
+        if: inputs.dry_run
+        run: |
+          ls -l artifacts/
+          echo "### Dry run — nothing was pushed to nuget.org" >> "$GITHUB_STEP_SUMMARY"
+          echo "A real run would push \`Blazor.Lexical $VERSION\` (with symbols) to nuget.org" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.tag }}" = "true" ]; then
+            echo "and tag \`${{ github.sha }}\` as \`v$VERSION\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Fail here rather than inside NuGet/login, whose error for a missing user is
+      # not obviously about a repo secret.
+      - name: Check trusted publishing prerequisites
+        if: ${{ !inputs.dry_run }}
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+        run: |
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::NUGET_USER secret is not set — it must be the nuget.org profile name that owns the trusted publishing policy (not an email). See the header of this workflow."
+            exit 1
+          fi
+
+      # Trades this job's OIDC token for a nuget.org API key that expires in an hour
+      # and can only be issued once per token. It must stay adjacent to the push —
+      # do not hoist it to the top of the job or put slow steps between the two.
+      - name: NuGet login (OIDC)
+        id: login
+        if: ${{ !inputs.dry_run }}
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # --skip-duplicate so a partial retry (nupkg landed, snupkg did not) is safe.
+      # The .snupkg next to the .nupkg is picked up and pushed automatically.
+      - name: Push to nuget.org
+        if: ${{ !inputs.dry_run }}
+        run: |
+          dotnet nuget push 'artifacts/*.nupkg' \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key '${{ steps.login.outputs.NUGET_API_KEY }}' \
+            --skip-duplicate
+
+      # Only after the push succeeds: the tag means "this shipped", so it must never
+      # exist for a version that did not. This run built from github.sha, so that is
+      # the commit tagged. Best-effort — nuget.org is already irreversibly published
+      # by this point, and failing the run here would only make the outcome look
+      # worse than it is.
+      - name: Tag and release
+        id: tag
+        if: ${{ !inputs.dry_run && inputs.tag && success() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          TAG="v$VERSION"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "::warning::$TAG already exists — leaving it alone"
+            exit 0
+          fi
+          case "$VERSION" in
+            *-*) PRERELEASE=--prerelease ;;
+            *)   PRERELEASE= ;;
+          esac
+          gh release create "$TAG" --repo "$REPO" --target "${{ github.sha }}" \
+            --title "Blazor.Lexical $VERSION" \
+            --generate-notes $PRERELEASE
+
+      - name: Publish summary
+        if: ${{ !inputs.dry_run && success() }}
+        run: |
+          echo "### Published Blazor.Lexical $VERSION to nuget.org" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://www.nuget.org/packages/Blazor.Lexical/$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Indexing can take a few minutes." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.tag }}" != "true" ]; then
+            echo "Tagging was skipped (tag = false)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.tag.outcome }}" = "success" ]; then
+            echo "Tagged \`${{ github.sha }}\` as [\`v$VERSION\`](${{ github.server_url }}/${{ github.repository }}/releases/tag/v$VERSION)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo ":warning: Tagging failed — tag \`${{ github.sha }}\` as \`v$VERSION\` by hand." >> "$GITHUB_STEP_SUMMARY"
+          fi

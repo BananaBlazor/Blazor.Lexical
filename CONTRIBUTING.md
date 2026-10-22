@@ -77,7 +77,7 @@ README. Never hand-edit any of these; change the pin and rebuild.
   a deliberate, human-only decision (a breaking C# API change, or Lexical shipping
   its own 1.0). Scripts and CI must not touch it.
 - **Build** (the last component) is not stored in the repo: it is the run number of
-  the **Publish to GitHub Packages** workflow, so every publish gets a fresh, increasing
+  the **Publish Packages** workflow, so every publish gets a fresh, increasing
   version and releasing needs no version commit. Gaps are normal. Local builds use 0.
 
 Bump Lexical with:
@@ -94,6 +94,20 @@ bundle. Dependabot also proposes Lexical bumps weekly, as one grouped PR.
 any `lexical` / `@lexical/*` is pinned with a range operator, is not in lockstep, or
 is out of sync between `package.json` and the lockfile — so a package can never ship
 claiming a Lexical version it doesn't bundle.
+
+## Releasing
+
+Both release workflows are manual (**Actions → Run workflow**):
+
+- **Publish Packages** (`publish-packages.yml`) builds, tests, versions, and packs once,
+  then publishes to **GitHub Packages** (on by default) and/or **nuget.org** (off by
+  default). Use `dry_run` to see the version without pushing. A nuget.org push also tags
+  the commit `v<version>` and cuts a GitHub Release.
+- **Promote to nuget.org** (`promote-to-nuget.yml`) ships a version that is already on
+  GitHub Packages — the same bytes, no rebuild — for the stage-then-promote flow.
+
+nuget.org uses Trusted Publishing, and each policy is bound to one workflow file: both
+files need a policy on nuget.org (environment `nuget`), and renaming either breaks it.
 
 ## License
 

@@ -1,10 +1,12 @@
 # Promote an already-published GitHub Packages build to nuget.org.
 #
 # MANUAL ONLY, and deliberately dumb: it does not build, test, pack, or version
-# anything. It takes a package that already exists — the exact bytes that were
-# validated by "Publish to GitHub Packages" — and pushes them to nuget.org. That
-# is the whole point of the two-stage flow: what ships is what was shaken out on
-# the staging feed, not a fresh rebuild that merely claims the same version.
+# anything. It takes a package that already exists — the exact bytes that "Publish
+# Packages" (publish-packages.yml) put on GitHub Packages — and pushes them to
+# nuget.org. That is the two-stage flow: what ships is what was shaken out on the
+# staging feed, not a fresh rebuild that merely claims the same version. To build
+# and ship straight to nuget.org in one go, tick "Publish to nuget.org" on Publish
+# Packages instead.
 #
 # Authentication is Trusted Publishing (OIDC) — there is no long-lived nuget.org
 # API key anywhere in this repo, and there must never be one. NuGet/login trades
@@ -133,7 +135,7 @@ jobs:
           CODE=$(curl -s -o /dev/null -w '%{http_code}' \
             "https://api.nuget.org/v3-flatcontainer/blazor.lexical/$V/blazor.lexical.$V.nupkg")
           if [ "$CODE" = "200" ]; then
-            echo "::error::Blazor.Lexical $V is already on nuget.org — versions cannot be replaced. Run Publish to GitHub Packages again (a new run number is a new version) and promote that."
+            echo "::error::Blazor.Lexical $V is already on nuget.org — versions cannot be replaced. Run Publish Packages again (a new run number is a new version) and promote that."
             exit 1
           fi
           echo "Version $V is free on nuget.org (HTTP $CODE)."
