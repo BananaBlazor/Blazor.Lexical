@@ -6,8 +6,8 @@ namespace Tests.UnitTests;
 /// The enum↔token helpers are part of the public SDK: a custom toolbar button writes
 /// <c>data-lexical-command="format:{LexicalTextFormat.Bold.ToJsToken()}"</c> rather
 /// than hardcoding the string. These lock the tokens to the ones the JS glue's command
-/// switch accepts (documented in Source/Blazor.Lexical/CLAUDE.md) — a rename on either side
-/// would break custom chrome silently otherwise.
+/// switch accepts (documented in Source/Blazor.Lexical/docs/js-contract.md) — a rename on
+/// either side would break custom chrome silently otherwise.
 /// </summary>
 public class LexicalTokenTests
 {

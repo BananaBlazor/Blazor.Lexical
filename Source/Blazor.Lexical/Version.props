@@ -5,7 +5,7 @@
        The full NuGet version is  Major.<Lexical-minor>.Serial  (assembled in
        Blazor.Lexical.csproj). The MIDDLE component is DERIVED from the bundled
        Lexical version at build time and must NOT be set here — see the
-       "Versioning" section of Source/Blazor.Lexical/CLAUDE.md. -->
+       "Versioning" section of Source/Blazor.Lexical/AGENTS.md. -->
   <PropertyGroup>
 
     <!-- LOCKED to 0. The major is a deliberate, human-only decision: a breaking
