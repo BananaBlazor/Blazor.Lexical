@@ -10,9 +10,9 @@
 // Editors that never convert to/from Markdown never download it.
 //
 // Mentions round-trip as ordinary `[text](url)` links when their config sets a
-// `markdownUrlPrefix`: export writes any mention with a url as a link, and import
-// turns a link whose url starts with a registered prefix back into a MentionNode of
-// that config. The import direction stays core ← chunk (this module imports from
+// `markdownUrlPrefix`: export writes a mention whose url starts with a registered
+// prefix as a link, and import turns such a link back into a MentionNode of that
+// config. The import direction stays core ← chunk (this module imports from
 // mentions.ts, never the reverse), so the core bundle never pulls in @lexical/markdown.
 // ---------------------------------------------------------------------------
 
