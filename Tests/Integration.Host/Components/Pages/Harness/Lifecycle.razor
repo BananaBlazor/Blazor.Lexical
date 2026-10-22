@@ -1,0 +1,64 @@
+@page "/harness/lifecycle"
+
+@* Editors removed while they are still starting up: the host renders one, then takes
+   it away before (or while) its module import and JS create() round trips complete.
+   Driven by LifecycleTests. *@
+
+<PageTitle>Harness — lifecycle</PageTitle>
+
+<h1>Lifecycle</h1>
+
+<section>
+    <h2>Removed during startup</h2>
+    @if (_mounted)
+    {
+        <LexicalEditor Id="editor-flash" OnReady="() => _readyCount++" />
+    }
+    <label>
+        Remove after (ms, 0 = as soon as startup begins)
+        <input id="flash-delay" type="number" @bind="_removeDelayMs" @bind:event="oninput" />
+    </label>
+    <button id="btn-flash" @onclick="Flash">Mount and remove</button>
+    <p>Removals: <span id="flash-count">@_removeCount</span></p>
+    <p>OnReady calls: <span id="flash-ready-count">@_readyCount</span></p>
+</section>
+
+<section>
+    <h2>Steady editor (page readiness)</h2>
+    <LexicalEditor Id="editor-lifecycle" />
+</section>
+
+@code {
+    private bool _mounted;
+    private bool _removePending;
+    private int _removeDelayMs;
+    private int _removeCount;
+    private int _readyCount;
+
+    private void Flash()
+    {
+        _mounted = true;
+        _removePending = true;
+    }
+
+    // Runs right after the render that mounted the editor. The yield is what lets the
+    // editor's own first OnAfterRenderAsync start (removing it synchronously here would
+    // dispose it before that runs, so startup would never begin); the removal then lands
+    // while its module import is in flight. A longer delay can land during JS create().
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_removePending)
+        {
+            return;
+        }
+        _removePending = false;
+        await Task.Yield();
+        if (_removeDelayMs > 0)
+        {
+            await Task.Delay(_removeDelayMs);
+        }
+        _mounted = false;
+        _removeCount++;
+        StateHasChanged();
+    }
+}
