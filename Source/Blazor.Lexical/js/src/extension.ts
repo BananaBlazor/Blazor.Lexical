@@ -231,7 +231,11 @@ export interface EntityCommitOptions<T extends EntityCandidate> {
 
 /** Drives one entity-commit field. Created by {@link EntityCommitApi.create}. */
 export interface EntityCommitController<T extends EntityCandidate> {
-  /** Sets the query (typically the field's current text) and resets the active match to the first. */
+  /**
+   * Sets the query (typically the field's current text). A changed query resets the active
+   * match to the first; re-setting the same query is a no-op, so it is safe to call on
+   * every editor update without undoing a {@link cycle}.
+   */
   setQuery(query: string): void;
   /** The current {@link EntityCommitState} — matches recomputed from the live candidates. */
   current(): EntityCommitState<T>;
