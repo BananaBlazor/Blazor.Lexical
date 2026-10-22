@@ -80,7 +80,7 @@ both when adding files.
 
 ## Versioning
 
-`Major.<Lexical-minor>.Serial`. The one source of truth is `js/package-lock.json`; the
+`Major.<Lexical-minor>.<build>`. The one source of truth is `js/package-lock.json`; the
 `.csproj` parses the resolved `lexical` version at evaluation time and derives *everything*
 from it — the version's middle component, the `LexicalPackage.LexicalVersion` const, the
 assembly metadata, the package description/tags/release notes, and the packed README footer.
@@ -88,9 +88,13 @@ assembly metadata, the package description/tags/release notes, and the packed RE
 
 - **Major** is locked to `0` in `Version.props`; bumping it is human-only. Scripts/CI must
   not touch it.
-- **Serial** is our revision within a Lexical-minor line. Bump per release.
+- **Build** (the last component) is **not stored in the repo**: it is the run number of
+  `publish-github-packages.yml`, passed as `-p:LexicalPackageBuild=N`. Every other build
+  is 0. Gaps are expected; only uniqueness and increase matter. Never reintroduce a
+  committed serial: it needed a bump commit per release and a reset on every Lexical
+  minor bump (which Dependabot can't do).
 - Bump Lexical with `Scripts/update-lexical.ps1 -Version x.y.z` (re-pins every `@lexical/*`
-  in lockstep, rebuilds the bundle, resets the serial to 0 on a minor change).
+  in lockstep, rebuilds the bundle), or merge Dependabot's grouped `lexical` PR.
 - **Publish gate**: `VerifyLexicalAlignment` runs `Scripts/lexical-version.mjs` on every
   build and before `pack`, failing if any `lexical`/`@lexical/*` is pinned with a range
   operator, out of lockstep, or out of sync between `package.json` and the lockfile.

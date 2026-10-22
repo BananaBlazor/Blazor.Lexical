@@ -295,8 +295,8 @@ raise no spurious content push. All three depend on it.
 
 ## Versioning
 
-The NuGet version is **`Major.<Lexical-minor>.Serial`** — Lexical `0.48.0` gives
-`0.48.<serial>`. The middle component tells you which Lexical minor a package wraps.
+The NuGet version is **`Major.<Lexical-minor>.<build>`** — Lexical `0.48.0` gives
+`0.48.<build>`. The middle component tells you which Lexical minor a package wraps.
 
 There's one source of truth: the committed `package-lock.json`. The build parses the
 resolved `lexical` version from it and derives everything else — the package version, the

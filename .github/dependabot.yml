@@ -1,0 +1,34 @@
+version: 2
+
+updates:
+  # NuGet packages across every project, plus local tools in .config/dotnet-tools.json
+  # (DocFX). Minor/patch bumps land as one PR; majors get their own.
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      nuget-minor-patch:
+        update-types: [minor, patch]
+
+  # The JS bundle's build sources. Lexical is released in lockstep and the
+  # VerifyLexicalAlignment build gate fails if any lexical/@lexical/* package drifts,
+  # so they always move together in one PR. Nothing else to edit on a Lexical MINOR
+  # bump: the package version's last component is the publish run number.
+  - package-ecosystem: npm
+    directory: /Source/Blazor.Lexical/js
+    schedule:
+      interval: weekly
+    groups:
+      lexical:
+        patterns: [lexical, "@lexical/*"]
+      npm-dev:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

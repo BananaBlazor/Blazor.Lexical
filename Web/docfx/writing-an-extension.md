@@ -357,7 +357,7 @@ localize — worth copying.
   tuning — never required.
 
 - **Pin the runtime with an ordinary range.** `Blazor.Lexical`'s version is
-  `Major.<Lexical-minor>.Serial`, so the middle component *is* the Lexical minor your
+  `Major.<Lexical-minor>.<build>`, so the middle component *is* the Lexical minor your
   nodes are compiled against. That makes the dependency expressible without any extra
   metadata:
 
@@ -365,7 +365,7 @@ localize — worth copying.
   <PackageReference Include="Blazor.Lexical" Version="[0.48.0, 0.49.0)" />
   ```
 
-  Serial bumps inside that line are yours for free; a Lexical minor bump is a version
+  Build bumps inside that line are yours for free; a Lexical minor bump is a version
   your extension has to be rebuilt and re-tested against, and the range says so. At
   runtime, `LexicalPackage.LexicalVersion` is the diagnostic — read it if you want to
   log or assert which Lexical you actually got.

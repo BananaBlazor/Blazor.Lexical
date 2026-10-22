@@ -62,8 +62,8 @@ the JS contract, the extension model, and the built-in features. The overriding 
 
 ## Versioning
 
-The NuGet version is **`Major.<Lexical-minor>.Serial`** — Lexical `0.48.0` gives
-`0.48.<serial>`.
+The NuGet version is **`Major.<Lexical-minor>.<build>`** — Lexical `0.48.0` gives
+`0.48.<build>`.
 
 There is one source of truth for "which Lexical": the committed
 `Source/Blazor.Lexical/js/package-lock.json`. The `.csproj` parses the resolved
@@ -76,8 +76,9 @@ README. Never hand-edit any of these; change the pin and rebuild.
 - **Major** is locked to `0` in `Source/Blazor.Lexical/Version.props`. Bumping it is
   a deliberate, human-only decision (a breaking C# API change, or Lexical shipping
   its own 1.0). Scripts and CI must not touch it.
-- **Serial** is the other value in `Version.props` — our revision within a
-  Lexical-minor line. Bump it per release.
+- **Build** (the last component) is not stored in the repo: it is the run number of
+  the **Publish to GitHub Packages** workflow, so every publish gets a fresh, increasing
+  version and releasing needs no version commit. Gaps are normal. Local builds use 0.
 
 Bump Lexical with:
 
@@ -85,8 +86,8 @@ Bump Lexical with:
 Scripts/update-lexical.ps1 -Version x.y.z
 ```
 
-It re-pins every `@lexical/*` in lockstep, refreshes the lockfile, rebuilds the
-bundle, and resets the serial to 0 when the Lexical *minor* changes.
+It re-pins every `@lexical/*` in lockstep, refreshes the lockfile, and rebuilds the
+bundle. Dependabot also proposes Lexical bumps weekly, as one grouped PR.
 
 **Publish gate:** the `VerifyLexicalAlignment` target runs
 `Scripts/lexical-version.mjs` on every build and before `pack`. It fails the build if

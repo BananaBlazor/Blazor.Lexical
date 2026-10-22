@@ -13,19 +13,23 @@
 # Blazor.Lexical.csproj already sets — GitHub Packages rejects a package whose
 # repository does not match the owner in the push URL.
 #
-# Version is Major.<Lexical-minor>.Serial, derived from Version.props and the
-# Lexical lockfile; this workflow never edits it. Packages are normal releases by
-# default, and no feed lets a version be overwritten, so bump LexicalPackageSerial in
-# Source/Blazor.Lexical/Version.props before each publish — pushing an existing
-# version fails the run. Tick prerelease to append -preview.<run number> instead,
-# which lets repeated runs publish off the same serial.
+# Version is Major.<Lexical-minor>.<run number>. Major comes from Version.props, the
+# Lexical minor from the lockfile, and the last component is this workflow's run
+# number — unique and increasing with no lookup, and nothing to commit before
+# publishing. Gaps (failed runs, dry runs, a Lexical-minor change) are expected and
+# harmless. Tick prerelease to publish Major.Minor.<run number>-preview instead.
+#
+# Renaming this file starts a new workflow whose run numbers restart at 1. That can
+# only ever collide with an existing version, and the push below fails on a
+# duplicate rather than overwriting, so the failure mode is a red run, not a bad
+# package.
 name: Publish to GitHub Packages
 
 on:
   workflow_dispatch:
     inputs:
       prerelease:
-        description: 'Append -preview.<run number> (a prerelease package)'
+        description: 'Append -preview (a prerelease package)'
         type: boolean
         default: false
       dry_run:
@@ -59,11 +63,31 @@ jobs:
         with:
           node-version: '24'
 
+      # Ask MSBuild for the version rather than re-deriving it here — Version.props and
+      # the lockfile are the source of truth; this step only supplies the run number.
+      # The run number goes to Build too, so the assembly's file/informational version
+      # matches the package.
+      - name: Resolve version
+        id: ver
+        run: |
+          BASE=$(dotnet msbuild Source/Blazor.Lexical/Blazor.Lexical.csproj -getProperty:Version -p:LexicalPackageBuild=${{ github.run_number }} -nologo | tr -d '[:space:]')
+          if [ -z "$BASE" ]; then echo "::error::could not read Version from the project"; exit 1; fi
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            VERSION="$BASE-preview"
+          else
+            VERSION="$BASE"
+          fi
+          echo "Publishing $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Restore
         run: dotnet restore Blazor.Lexical.slnx
 
       - name: Build
-        run: dotnet build Blazor.Lexical.slnx -c Release --no-restore -p:ContinuousIntegrationBuild=true
+        run: >-
+          dotnet build Blazor.Lexical.slnx -c Release --no-restore
+          -p:ContinuousIntegrationBuild=true
+          -p:LexicalPackageBuild=${{ github.run_number }}
 
       # A package is only publishable if the tests guarding its behavior pass.
       - name: Unit tests
@@ -81,22 +105,6 @@ jobs:
       - name: Integration tests
         run: dotnet test --project Tests/Integration/Tests.Integration.csproj -c Release --no-build
 
-      # Ask MSBuild for the version it derived rather than re-deriving it here —
-      # there is exactly one source of truth (Version.props + the lockfile) and it
-      # is not this file. The optional prerelease suffix is layered on top via PackageVersion.
-      - name: Resolve version
-        id: ver
-        run: |
-          BASE=$(dotnet msbuild Source/Blazor.Lexical/Blazor.Lexical.csproj -getProperty:Version -nologo | tr -d '[:space:]')
-          if [ -z "$BASE" ]; then echo "::error::could not read Version from the project"; exit 1; fi
-          if [ "${{ inputs.prerelease }}" = "true" ]; then
-            VERSION="$BASE-preview.${{ github.run_number }}"
-          else
-            VERSION="$BASE"
-          fi
-          echo "Base version $BASE -> publishing $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       # ContinuousIntegrationBuild makes the build deterministic and lets SourceLink
       # stamp the repo URL. VerifyLexicalAlignment runs before pack and fails if the
       # bundled Lexical pins have drifted, so a package can never claim a Lexical
@@ -105,6 +113,7 @@ jobs:
         run: >-
           dotnet pack Source/Blazor.Lexical/Blazor.Lexical.csproj -c Release --no-build
           -p:ContinuousIntegrationBuild=true
+          -p:LexicalPackageBuild=${{ github.run_number }}
           -p:PackageVersion=${{ steps.ver.outputs.version }}
           -o artifacts
 

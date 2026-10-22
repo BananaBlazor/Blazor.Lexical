@@ -9,7 +9,7 @@
     <NoWarn>$(NoWarn);IDE0130</NoWarn>
   </PropertyGroup>
 
-  <!-- Locked major + our serial (see Version.props). The Lexical-minor component
+  <!-- Locked major (see Version.props). The Lexical-minor component
        and every consumer-facing Lexical version string below are derived from the
        lockfile, so there is exactly one source of truth for "which Lexical". -->
   <Import Project="Version.props" />
@@ -23,7 +23,11 @@
   <PropertyGroup>
     <LexicalVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\js\package-lock.json')), '"node_modules/lexical":\s*\{\s*"version":\s*"([^"]+)"').Groups[1].Value)</LexicalVersion>
     <LexicalMinor>$([System.Text.RegularExpressions.Regex]::Match('$(LexicalVersion)', '^[0-9]+\.([0-9]+)\.').Groups[1].Value)</LexicalMinor>
-    <Version>$(LexicalPackageMajor).$(LexicalMinor).$(LexicalPackageSerial)</Version>
+    <!-- The last component is not stored anywhere: the publish workflow passes
+         -p:LexicalPackageBuild=<its run number>; every other build (local, CI test
+         runs) is 0. -->
+    <LexicalPackageBuild Condition="'$(LexicalPackageBuild)' == ''">0</LexicalPackageBuild>
+    <Version>$(LexicalPackageMajor).$(LexicalMinor).$(LexicalPackageBuild)</Version>
   </PropertyGroup>
 
   <!-- Exposed to consumers at runtime: [assembly: AssemblyMetadata("LexicalVersion", "x.y.z")]. -->

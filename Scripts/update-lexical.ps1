@@ -44,9 +44,6 @@ if ($lexicalPackages.Count -eq 0) {
     throw "No 'lexical'/'@lexical/*' dependencies found in $pkgPath."
 }
 
-# Remember the Lexical minor we are moving away from, so we can reset the package
-# serial when a new Lexical-minor line begins (see Version.props).
-$oldVersion = $pkg.dependencies.lexical
 foreach ($name in $lexicalPackages) {
     Write-Host "  $name : $($pkg.dependencies.$name) -> $Version"
     $pkg.dependencies.$name = $Version
@@ -54,19 +51,6 @@ foreach ($name in $lexicalPackages) {
 
 ($pkg | ConvertTo-Json -Depth 32) | Set-Content $pkgPath -Encoding utf8
 Write-Host "Updated package.json to Lexical $Version."
-
-# Reset the package serial to 0 when the Lexical MINOR changes: each Lexical-minor
-# line starts its own serial. A same-minor bump (a Lexical patch) keeps the serial,
-# since it is still the next release within the current line.
-$oldMinor = ($oldVersion -split '\.')[1]
-$newMinor = ($Version -split '\.')[1]
-if ($oldMinor -ne $newMinor) {
-    $propsPath = (Resolve-Path (Join-Path $jsDir '..' 'Version.props')).Path
-    $props = Get-Content $propsPath -Raw
-    $props = [regex]::Replace($props, '(<LexicalPackageSerial>)\d+(</LexicalPackageSerial>)', '${1}0${2}')
-    Set-Content $propsPath $props -Encoding utf8 -NoNewline
-    Write-Host "Lexical minor changed ($oldMinor -> $newMinor): reset LexicalPackageSerial to 0."
-}
 
 Push-Location $jsDir
 try {

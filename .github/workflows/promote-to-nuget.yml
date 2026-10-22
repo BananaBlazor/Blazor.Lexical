@@ -122,7 +122,7 @@ jobs:
             exit 1
           fi
           case "${{ inputs.version }}" in
-            *-*) echo "::warning::${{ inputs.version }} is a prerelease — it will publish to nuget.org as a prerelease. Promote a clean Major.Minor.Serial build for a normal release." ;;
+            *-*) echo "::warning::${{ inputs.version }} is a prerelease — it will publish to nuget.org as a prerelease. Promote a clean Major.Minor.Build package for a normal release." ;;
           esac
 
       # nuget.org rejects a duplicate version, but only after the upload. Fail early
@@ -133,7 +133,7 @@ jobs:
           CODE=$(curl -s -o /dev/null -w '%{http_code}' \
             "https://api.nuget.org/v3-flatcontainer/blazor.lexical/$V/blazor.lexical.$V.nupkg")
           if [ "$CODE" = "200" ]; then
-            echo "::error::Blazor.Lexical $V is already on nuget.org — versions cannot be replaced. Bump LexicalPackageSerial in Source/Blazor.Lexical/Version.props, republish to GitHub Packages, and promote that."
+            echo "::error::Blazor.Lexical $V is already on nuget.org — versions cannot be replaced. Run Publish to GitHub Packages again (a new run number is a new version) and promote that."
             exit 1
           fi
           echo "Version $V is free on nuget.org (HTTP $CODE)."
