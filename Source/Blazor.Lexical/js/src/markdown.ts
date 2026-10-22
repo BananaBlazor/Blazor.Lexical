@@ -38,8 +38,8 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Backslash-escapes a mention label for a link's `[...]`: brackets so a `]` cannot end
- * the label early, and the inline-format characters so they are not read as emphasis.
+ * Backslash-escapes a mention label for a link's `[...]`: `\` and brackets so the label
+ * parses back intact, and the inline-format characters `*_`~` so they stay literal.
  */
 function escapeLabel(label: string): string {
   return label.replace(/([\\[\]*_`~])/g, '\\$1');
@@ -51,9 +51,9 @@ function unescapeLabel(label: string): string {
 }
 
 /**
- * A text-match transformer mapping mentions to `[text](url)` links. Only urls that
- * start with one of `configs`' prefixes import as mentions — every other link falls
- * through to the stock LINK transformer. An imported mention takes the current
+ * A text-match transformer mapping mentions to `[text](url)` links, in both directions
+ * only for urls that start with one of `configs`' prefixes — every other link and
+ * mention falls through to the stock handling. An imported mention takes the current
  * config's id and colour, so stale per-session config ids never enter the document.
  */
 function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
@@ -62,7 +62,8 @@ function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
     .map((config) => ({ config, prefix: config.markdownUrlPrefix! }))
     .sort((a, b) => b.prefix.length - a.prefix.length);
   const prefixes = byPrefix.map((p) => escapeRegExp(p.prefix)).join('|');
-  const pattern = `\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(((?:${prefixes})[^()\\s]*)\\)`;
+  const pattern = `\\[((?:\\\\.|[^\\[\\]\\\\])+)\\]\\(((?:${prefixes})[^()\\s]*)\\)`;
+  const findPrefix = (url: string) => byPrefix.find((p) => url.startsWith(p.prefix));
 
   return {
     type: 'text-match',
@@ -72,7 +73,7 @@ function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
     regExp: new RegExp(`${pattern}$`),
     replace: (textNode, match) => {
       const [, label, url] = match;
-      const entry = byPrefix.find((p) => url.startsWith(p.prefix))!;
+      const entry = findPrefix(url)!;
       textNode.replace(
         $createMentionNode(
           entry.config.id,
@@ -84,10 +85,12 @@ function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
         ),
       );
     },
-    export: (node) =>
-      $isMentionNode(node) && node.hasUrl()
-        ? `[${escapeLabel(node.getTextContent())}](${node.__url})`
-        : null,
+    export: (node) => {
+      const url = $isMentionNode(node) ? node.getLatest().__url : null;
+      return url !== null && findPrefix(url)
+        ? `[${escapeLabel(node.getTextContent())}](${url})`
+        : null;
+    },
   };
 }
 

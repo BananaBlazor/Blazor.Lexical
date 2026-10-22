@@ -100,8 +100,8 @@ export interface MentionConfigDto {
    */
   queryTimeoutMs: number;
   /**
-   * Markdown links whose URL starts with this prefix import as mentions of this
-   * config; mentions with a url export as `[text](url)`. Absent = no Markdown mapping.
+   * Markdown links whose url starts with this prefix import as mentions of this
+   * config, and mentions whose url starts with it export as `[text](url)`.
    */
   markdownUrlPrefix?: string | null;
 }

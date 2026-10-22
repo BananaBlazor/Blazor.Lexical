@@ -67,6 +67,8 @@
         <LexicalMention Initiator="#"
                         MarkdownUrlPrefix="#req:"
                         Provider="ResolveRequests" />
+        @* No prefix: its mentions (urls like /u/luke) must export as plain text. *@
+        <LexicalMention Initiator="@AtInitiator" Provider="ResolvePeople" />
     </LexicalEditor>
 
     <div>

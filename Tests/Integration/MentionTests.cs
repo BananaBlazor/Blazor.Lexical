@@ -254,7 +254,7 @@ public class MentionTests : HarnessTestBase
         Assert.Empty(errors);
     }
 
-    [Fact] // a "]" in a mention's label is escaped on export and restored on import
+    [Fact] // brackets and format characters in a mention's label are escaped on export and restored on import
     public async Task Mention_MarkdownRoundTrip_EscapesBracketsInLabel()
     {
         var page = await OpenAsync();
@@ -266,6 +266,22 @@ public class MentionTests : HarnessTestBase
         await Expect(mention).ToHaveTextAsync("Q[3] *draft*");
 
         Assert.Equal(link, await GetMarkdownAsync(page));
+    }
+
+    [Fact] // beside a prefixed config, an unprefixed config's mention exports as plain text, not a link
+    public async Task Mention_FromUnprefixedConfig_ExportsAsPlainText()
+    {
+        var page = await OpenAsync();
+        var mention = page.Locator(MarkdownEditor).Locator("span[data-lexical-mention]");
+
+        await TypeAsync(page, MarkdownEditor, "@lu");
+        await Expect(page.Locator(MarkdownMenu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        await page.Keyboard.PressAsync("Enter");
+        await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-url", "/u/luke");
+
+        var markdown = await GetMarkdownAsync(page);
+        Assert.Contains("Luke Skywalker", markdown);
+        Assert.DoesNotContain("/u/luke", markdown);
     }
 
     [Fact] // Markdown initial content is applied before extensions register, yet still maps mentions

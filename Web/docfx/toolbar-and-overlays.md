@@ -112,9 +112,10 @@ round-trip by design — that is the only expected interop for toolbar/menu acti
   with its own initiator character, colour, optional provider, and freeform flag). A
   config with no `Provider` does zero JS→.NET calls; only a provider config queries .NET.
   Mentions keep their id and url in HTML and editor-state JSON. For Markdown, set
-  `MarkdownUrlPrefix`: a mention with a url is written as a plain `[text](url)` link, and
-  on load any link whose url starts with the prefix becomes a mention again, with the rest
-  of the url as its id.
+  `MarkdownUrlPrefix` and give each item a `Url` of that prefix followed by its id (no
+  spaces or parentheses): the mention is written as a plain `[text](url)` link, and on load
+  any link whose url starts with the prefix becomes a mention again, with the rest of the
+  url as its id.
 
   ```razor
   <LexicalMention Initiator="#" MarkdownUrlPrefix="#ticket:" Provider="SearchTickets" />

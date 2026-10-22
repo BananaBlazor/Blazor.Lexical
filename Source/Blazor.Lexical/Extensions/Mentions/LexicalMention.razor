@@ -68,12 +68,13 @@
     [Parameter] public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Opts this config into Markdown round-tripping. A mention whose <see cref="MentionItem.Url"/>
-    /// is set exports as an ordinary <c>[text](url)</c> link, and on import a Markdown link
-    /// whose URL starts with this prefix becomes a mention of this config, with the rest of
-    /// the URL as its <see cref="MentionItem.Id"/> (e.g. <c>"#req:"</c> turns
-    /// <c>[#12 · Budget](#req:42)</c> into a mention with id <c>42</c>). When unset, mentions
-    /// export to Markdown as plain text and no link imports as a mention.
+    /// Opts this config into Markdown round-tripping. Give each <see cref="MentionItem"/> a
+    /// <see cref="MentionItem.Url"/> of this prefix followed by its <see cref="MentionItem.Id"/>:
+    /// such a mention exports as an ordinary <c>[text](url)</c> link, and on import a
+    /// Markdown link whose URL starts with this prefix becomes a mention of this config, with
+    /// the rest of the URL as its id (e.g. <c>"#req:"</c> turns <c>[#12 · Budget](#req:42)</c>
+    /// into a mention with id <c>42</c>). The URL must not contain whitespace or parentheses.
+    /// Mentions whose URL does not start with a registered prefix export as plain text.
     /// </summary>
     [Parameter] public string? MarkdownUrlPrefix { get; set; }
 
