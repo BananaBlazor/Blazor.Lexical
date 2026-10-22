@@ -87,10 +87,10 @@ mention whose url starts with a registered prefix as `[label](url)` (label
 backslash-escaped for `\`, `[`, `]` and `` *_`~ ``), and import turns a link whose url
 starts with a prefix (longest wins) into a `MentionNode` of that config, `value` = the url
 minus the prefix. Imported nodes take the *current* `configId`/`color`. Every other mention
-still exports as plain text. Urls containing whitespace or parentheses do not import back
-(documented on `MarkdownUrlPrefix`). The chunk finds configs through
-`getMentionConfigs(editor)`, which `create()` binds via `bindMentionConfigs` right after
-`createEditor` — before initial content, which runs ahead of extension `register()` — so
+still exports as plain text, as does one whose url has whitespace or parentheses (the
+import pattern could not read it back). Formatting (bold etc.) round-trips around the link. The chunk finds configs through
+`getMentionConfigs(editor)`, which `create()` binds via `bindMentionConfigs` after
+`createEditor` and the core plugins — before initial content, which runs ahead of extension `register()` — so
 Markdown `InitialContent` maps mentions too. The import direction stays core ← chunk.
 
 ## Table of contents

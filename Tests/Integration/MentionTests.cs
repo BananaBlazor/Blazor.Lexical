@@ -268,6 +268,20 @@ public class MentionTests : HarnessTestBase
         Assert.Equal(link, await GetMarkdownAsync(page));
     }
 
+    [Fact] // a formatted mention keeps its format and the Markdown stays balanced
+    public async Task Mention_MarkdownRoundTrip_KeepsSurroundingFormat()
+    {
+        var page = await OpenAsync();
+        var markdown = $"**see {RequestLink} now**";
+
+        await SetMarkdownAsync(page, markdown);
+        // A bold mention renders as <strong>, not <span>.
+        var mention = page.Locator(MarkdownEditor).Locator("strong[data-lexical-mention]");
+        await Expect(mention).ToHaveTextAsync("#12 · Budget");
+
+        Assert.Equal(markdown, await GetMarkdownAsync(page));
+    }
+
     [Fact] // beside a prefixed config, an unprefixed config's mention exports as plain text, not a link
     public async Task Mention_FromUnprefixedConfig_ExportsAsPlainText()
     {

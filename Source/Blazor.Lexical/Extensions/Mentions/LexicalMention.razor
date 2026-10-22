@@ -73,8 +73,8 @@
     /// such a mention exports as an ordinary <c>[text](url)</c> link, and on import a
     /// Markdown link whose URL starts with this prefix becomes a mention of this config, with
     /// the rest of the URL as its id (e.g. <c>"#req:"</c> turns <c>[#12 · Budget](#req:42)</c>
-    /// into a mention with id <c>42</c>). The URL must not contain whitespace or parentheses.
-    /// Mentions whose URL does not start with a registered prefix export as plain text.
+    /// into a mention with id <c>42</c>). Mentions whose URL does not start with a registered
+    /// prefix, or contains whitespace or parentheses, export as plain text.
     /// </summary>
     [Parameter] public string? MarkdownUrlPrefix { get; set; }
 
@@ -103,7 +103,7 @@
         HasProvider = HasProvider,
         NotifySelected = NotifiesSelected,
         QueryTimeoutMs = QueryTimeout > TimeSpan.Zero ? (int)QueryTimeout.TotalMilliseconds : 0,
-        MarkdownUrlPrefix = string.IsNullOrEmpty(MarkdownUrlPrefix) ? null : MarkdownUrlPrefix,
+        MarkdownUrlPrefix = string.IsNullOrWhiteSpace(MarkdownUrlPrefix) ? null : MarkdownUrlPrefix,
     };
 
     /// <summary>Resolves candidates for a query via the <see cref="Provider"/> (empty when none).</summary>

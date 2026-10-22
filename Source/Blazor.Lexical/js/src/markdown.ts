@@ -45,6 +45,9 @@ function escapeLabel(label: string): string {
   return label.replace(/([\\[\]*_`~])/g, '\\$1');
 }
 
+/** A private-use character no format tag or escape can contain. */
+const PLACEHOLDER = '';
+
 /** Reverses {@link escapeLabel} (and any other CommonMark punctuation escape). */
 function unescapeLabel(label: string): string {
   return label.replace(/\\([!-/:-@[-`{-~])/g, '$1');
@@ -62,8 +65,10 @@ function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
     .map((config) => ({ config, prefix: config.markdownUrlPrefix! }))
     .sort((a, b) => b.prefix.length - a.prefix.length);
   const prefixes = byPrefix.map((p) => escapeRegExp(p.prefix)).join('|');
-  const pattern = `\\[((?:\\\\.|[^\\[\\]\\\\])+)\\]\\(((?:${prefixes})[^()\\s]*)\\)`;
-  const findPrefix = (url: string) => byPrefix.find((p) => url.startsWith(p.prefix));
+  const url = `(?:${prefixes})[^()\\s]+`;
+  const pattern = `\\[((?:\\\\.|[^\\[\\]\\\\])+)\\]\\((${url})\\)`;
+  // Only urls the import pattern can read back export as links; others stay plain text.
+  const exportableUrl = new RegExp(`^${url}$`);
 
   return {
     type: 'text-match',
@@ -72,24 +77,29 @@ function mentionTransformer(configs: MentionConfigDto[]): TextMatchTransformer {
     importRegExp: new RegExp(pattern),
     regExp: new RegExp(`${pattern}$`),
     replace: (textNode, match) => {
-      const [, label, url] = match;
-      const entry = findPrefix(url)!;
-      textNode.replace(
-        $createMentionNode(
-          entry.config.id,
-          entry.config.initiator,
-          url.slice(entry.prefix.length),
-          url,
-          entry.config.color,
-          unescapeLabel(label),
-        ),
+      const [, label, href] = match;
+      const entry = byPrefix.find((p) => href.startsWith(p.prefix))!;
+      const mention = $createMentionNode(
+        entry.config.id,
+        entry.config.initiator,
+        href.slice(entry.prefix.length),
+        href,
+        entry.config.color,
+        unescapeLabel(label),
       );
+      // Keep formatting a surrounding format transformer already applied (e.g. bold).
+      mention.setFormat(textNode.getFormat());
+      textNode.replace(mention);
     },
-    export: (node) => {
-      const url = $isMentionNode(node) ? node.getLatest().__url : null;
-      return url !== null && findPrefix(url)
-        ? `[${escapeLabel(node.getTextContent())}](${url})`
-        : null;
+    export: (node, _exportChildren, exportFormat) => {
+      const href = $isMentionNode(node) ? node.getLatest().__url : null;
+      if (href === null || !exportableUrl.test(href)) {
+        return null;
+      }
+      // exportFormat opens/closes the node's format tags in step with its siblings; a
+      // placeholder stands in for the link so the label is not escaped a second time.
+      const link = `[${escapeLabel(node.getTextContent())}](${href})`;
+      return exportFormat(node as MentionNode, PLACEHOLDER).replace(PLACEHOLDER, () => link);
     },
   };
 }
