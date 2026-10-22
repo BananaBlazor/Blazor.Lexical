@@ -9,21 +9,21 @@
     "typecheck": "tsc --noEmit --strict --skipLibCheck --moduleResolution bundler --module esnext --target es2020 --lib es2020,dom src/index.ts src/extension.ts src/overlays.ts src/table.ts src/markdown.ts src/mentions.ts src/toc.ts src/marks.ts src/comments.ts src/highlights.ts src/text-quote.ts src/dom-selection.ts src/suggestions.ts src/stats.ts src/hr.ts src/tabindent.ts src/ghost.ts src/entity-commit.ts"
   },
   "dependencies": {
-    "@lexical/history": "0.48.0",
-    "@lexical/html": "0.48.0",
-    "@lexical/link": "0.48.0",
-    "@lexical/list": "0.48.0",
-    "@lexical/mark": "0.48.0",
-    "@lexical/markdown": "0.48.0",
-    "@lexical/rich-text": "0.48.0",
-    "@lexical/selection": "0.48.0",
-    "@lexical/table": "0.48.0",
-    "@lexical/text": "0.48.0",
-    "@lexical/utils": "0.48.0",
-    "lexical": "0.48.0"
+    "@lexical/history": "0.52.0",
+    "@lexical/html": "0.52.0",
+    "@lexical/link": "0.52.0",
+    "@lexical/list": "0.52.0",
+    "@lexical/mark": "0.52.0",
+    "@lexical/markdown": "0.52.0",
+    "@lexical/rich-text": "0.52.0",
+    "@lexical/selection": "0.52.0",
+    "@lexical/table": "0.52.0",
+    "@lexical/text": "0.52.0",
+    "@lexical/utils": "0.52.0",
+    "lexical": "0.52.0"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0",
-    "typescript": "^5.6.0"
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
   }
 }
