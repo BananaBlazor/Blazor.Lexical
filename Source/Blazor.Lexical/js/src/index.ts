@@ -758,12 +758,17 @@ async function applyInitialContent(
  */
 export async function create(
   instanceId: string,
-  root: HTMLElement,
+  root: HTMLElement | null,
   dotNetRef: DotNetObjectReference,
   options: CreateOptions = {},
 ): Promise<void> {
   if (instances.has(instanceId)) {
     dispose(instanceId);
+  }
+
+  // Blazor passes null for an element it has already removed from the DOM.
+  if (!root) {
+    return;
   }
 
   const contentEl = root.querySelector<HTMLElement>('[data-lexical-content]');

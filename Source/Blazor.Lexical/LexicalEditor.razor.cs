@@ -150,6 +150,8 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     private IJSObjectReference? _module;
     private DotNetObjectReference<LexicalEditor>? _dotNetRef;
     private bool _appliedReadOnly;
+    private bool _creating;
+    private bool _disposed;
     private bool _notifyContent;
     private bool _notifySelection;
     private bool _notifyBlockHover;
@@ -308,7 +310,74 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
             return;
         }
 
+        // Disposal can land while creation is awaiting (the host removed the editor
+        // straight after rendering it). DisposeAsync defers to us in that window, and we
+        // tear down once creation has settled — however it settled.
+        List<LexicalExtension>? createdExtensions = null;
+        _creating = true;
+        try
+        {
+            createdExtensions = await CreateEditorAsync();
+        }
+        catch (Exception error) when (_disposed && error is JSException or JSDisconnectedException)
+        {
+            // The editor is gone, so a startup that failed on its way out (circuit torn
+            // down, element already detached) is moot rather than the host's problem.
+        }
+        finally
+        {
+            _creating = false;
+            if (_disposed)
+            {
+                await DisposeAsync();
+            }
+        }
+
+        if (_disposed || createdExtensions is null)
+        {
+            return;
+        }
+
+        _appliedReadOnly = ReadOnly;
+        IsReady = true;
+
+        // Extensions get their ready moment first — it is the first point at which
+        // InvokeJsAsync reaches a live module — in registration order, each isolated the
+        // same way a broken extension is isolated at load: one that throws is logged and
+        // skipped rather than taking the editor (or its siblings) down.
+        foreach (var extension in createdExtensions)
+        {
+            try
+            {
+                await extension.NotifyEditorReadyAsync();
+            }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine(
+                    $"[Blazor.Lexical] extension '{extension.GetType().Name}' failed in " +
+                    $"OnEditorReadyAsync: {error}");
+            }
+        }
+
+        // The editor and its methods are now live; let the host preload content.
+        if (OnReady.HasDelegate)
+        {
+            await OnReady.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Imports the module and creates the JS editor, returning the extension set it was
+    /// created with, or <c>null</c> when disposal arrived during the import.
+    /// </summary>
+    private async Task<List<LexicalExtension>?> CreateEditorAsync()
+    {
         _module = await JS.InvokeAsync<IJSObjectReference>("import", Options.ModuleUrl);
+        if (_disposed)
+        {
+            return null;
+        }
+
         _dotNetRef = DotNetObjectReference.Create(this);
 
         // Enable a JS→.NET push channel only when its callback is actually wired.
@@ -354,32 +423,7 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
             createOptions, LexicalJsonSerializerContext.Default.LexicalCreateOptions);
 
         await _module.InvokeVoidAsync("create", Id, _root, _dotNetRef, optionsElement);
-        _appliedReadOnly = ReadOnly;
-        IsReady = true;
-
-        // Extensions get their ready moment first — it is the first point at which
-        // InvokeJsAsync reaches a live module — in registration order, each isolated the
-        // same way a broken extension is isolated at load: one that throws is logged and
-        // skipped rather than taking the editor (or its siblings) down.
-        foreach (var extension in createdExtensions)
-        {
-            try
-            {
-                await extension.NotifyEditorReadyAsync();
-            }
-            catch (Exception error)
-            {
-                Console.Error.WriteLine(
-                    $"[Blazor.Lexical] extension '{extension.GetType().Name}' failed in " +
-                    $"OnEditorReadyAsync: {error}");
-            }
-        }
-
-        // The editor and its methods are now live; let the host preload content.
-        if (OnReady.HasDelegate)
-        {
-            await OnReady.InvokeAsync();
-        }
+        return createdExtensions;
     }
 
     /// <inheritdoc />
@@ -928,13 +972,23 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     /// <summary>Tears down the JS editor instance and releases interop references.</summary>
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         IsReady = false;
+        if (_creating)
+        {
+            return;
+        }
+
+        // Take the references first, so a second call (the deferred startup teardown
+        // racing the host's own) finds nothing left to release.
+        var module = _module;
+        _module = null;
         try
         {
-            if (_module is not null)
+            if (module is not null)
             {
-                await _module.InvokeVoidAsync("dispose", Id);
-                await _module.DisposeAsync();
+                await module.InvokeVoidAsync("dispose", Id);
+                await module.DisposeAsync();
             }
         }
         catch (JSDisconnectedException)
@@ -947,5 +1001,6 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
         }
 
         _dotNetRef?.Dispose();
+        _dotNetRef = null;
     }
 }
