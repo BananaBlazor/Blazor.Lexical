@@ -14,18 +14,15 @@
 # repository does not match the owner in the push URL.
 #
 # Version is Major.<Lexical-minor>.Serial, derived from Version.props and the
-# Lexical lockfile; this workflow never edits it. Because no feed lets a version
-# be overwritten, use prerelease = true (the default) to publish repeatedly off
-# the same serial — it appends -preview.<run number>.
+# Lexical lockfile; this workflow never edits it. Packages are normal releases (no
+# prerelease suffix), and no feed lets a version be overwritten, so bump
+# LexicalPackageSerial in Source/Blazor.Lexical/Version.props before each publish —
+# pushing an existing version fails the run.
 name: Publish to GitHub Packages
 
 on:
   workflow_dispatch:
     inputs:
-      prerelease:
-        description: 'Append -preview.<run number> so repeated runs do not collide'
-        type: boolean
-        default: true
       dry_run:
         description: 'Pack and validate only — do not push'
         type: boolean
@@ -81,18 +78,13 @@ jobs:
 
       # Ask MSBuild for the version it derived rather than re-deriving it here —
       # there is exactly one source of truth (Version.props + the lockfile) and it
-      # is not this file. The prerelease suffix is layered on top via PackageVersion.
+      # is not this file.
       - name: Resolve version
         id: ver
         run: |
-          BASE=$(dotnet msbuild Source/Blazor.Lexical/Blazor.Lexical.csproj -getProperty:Version -nologo | tr -d '[:space:]')
-          if [ -z "$BASE" ]; then echo "::error::could not read Version from the project"; exit 1; fi
-          if [ "${{ inputs.prerelease }}" = "true" ]; then
-            VERSION="$BASE-preview.${{ github.run_number }}"
-          else
-            VERSION="$BASE"
-          fi
-          echo "Base version $BASE -> publishing $VERSION"
+          VERSION=$(dotnet msbuild Source/Blazor.Lexical/Blazor.Lexical.csproj -getProperty:Version -nologo | tr -d '[:space:]')
+          if [ -z "$VERSION" ]; then echo "::error::could not read Version from the project"; exit 1; fi
+          echo "Publishing $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       # ContinuousIntegrationBuild makes the build deterministic and lets SourceLink
@@ -116,6 +108,7 @@ jobs:
       # which would otherwise fail the run after the .nupkg has already landed. The
       # symbols survive in the run artifact above; promote-to-nuget.yml can pull
       # them from there (its run_id input) so nuget.org still gets symbols.
+      # No --skip-duplicate: re-pushing an existing version must fail, not pass silently.
       - name: Push to GitHub Packages
         if: ${{ !inputs.dry_run }}
         run: >-
@@ -123,7 +116,6 @@ jobs:
           --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
           --api-key ${{ secrets.GITHUB_TOKEN }}
           --no-symbols
-          --skip-duplicate
 
       - name: Summary
         run: |
