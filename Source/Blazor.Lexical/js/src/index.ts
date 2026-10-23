@@ -5,6 +5,7 @@ import {
   $isRangeSelection,
   $isElementNode,
   $insertNodes,
+  $setSelection,
   $createParagraphNode,
   $createTextNode,
   FORMAT_TEXT_COMMAND,
@@ -663,8 +664,15 @@ function applyText(editor: LexicalEditor, text: string, options?: ApplyOptions):
   }, options);
 }
 
-/** Replaces the document with nodes parsed from an HTML string. */
+/**
+ * Replaces the document with nodes parsed from an HTML string. The root selection only
+ * gives `$insertNodes` an insertion point; it is dropped afterwards unless the editor
+ * already had focus, since Lexical would otherwise apply it to the DOM — focusing the
+ * editor and scrolling it into view.
+ */
 function applyHtml(editor: LexicalEditor, html: string, options?: ApplyOptions): void {
+  const rootElement = editor.getRootElement();
+  const hadFocus = rootElement !== null && rootElement.contains(document.activeElement);
   editor.update(() => {
     const dom = new DOMParser().parseFromString(html, 'text/html');
     const nodes = $generateNodesFromDOM(editor, dom);
@@ -672,6 +680,9 @@ function applyHtml(editor: LexicalEditor, html: string, options?: ApplyOptions):
     root.clear();
     root.select();
     $insertNodes(nodes);
+    if (!hadFocus) {
+      $setSelection(null);
+    }
   }, options);
 }
 

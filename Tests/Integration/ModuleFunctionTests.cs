@@ -123,6 +123,34 @@ public class ModuleFunctionTests : HarnessTestBase
         await Expect(editor.Locator("strong")).ToHaveTextAsync("bold");
     }
 
+    [Fact] // setHtml on an unfocused editor must not pull focus (or scroll) to it
+    public async Task SetHtml_WithoutFocus_LeavesFocusWhereItWas()
+    {
+        var page = await OpenAsync();
+        var button = page.Locator("#btn-set-html");
+
+        await button.ClickAsync();
+
+        var editor = page.Locator("#editor-main");
+        await Expect(editor.Locator("h1")).ToHaveTextAsync("HTML heading");
+        await Expect(button).ToBeFocusedAsync();
+        await Expect(editor).Not.ToBeFocusedAsync();
+    }
+
+    [Fact] // setHtml on a focused editor keeps focus in it
+    public async Task SetHtml_WhileFocused_KeepsFocusInEditor()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator("#editor-main");
+
+        await TypeAsync(page, "#editor-main", "will be replaced");
+        // A dispatched click runs the handler without moving focus to the button.
+        await page.Locator("#btn-set-html").DispatchEventAsync("click");
+
+        await Expect(editor.Locator("h1")).ToHaveTextAsync("HTML heading");
+        await Expect(editor).ToBeFocusedAsync();
+    }
+
     [Fact] // getMarkdown
     public async Task GetMarkdown_SerializesContentToMarkdown()
     {
