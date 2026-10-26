@@ -6,7 +6,7 @@
 // an optional .NET provider, and a freeform flag). This module contributes two
 // custom nodes and wires the runtime:
 //
-//   * MentionNode          — a segmented (atomic) reference token inserted when a
+//   * MentionNode          — an atomic (token-mode) reference inserted when a
 //                            suggestion is confirmed; carries an app-owned id
 //                            (value) + optional url so the host can re-resolve it
 //                            later. Serializable for HTML/JSON round-trips, and for
@@ -21,6 +21,12 @@
 // capture-phase keydown. It differs in two ways the feature demands: the list is
 // built from data the .NET provider returns (not static DOM), and the menu element
 // is created here rather than authored in Blazor (its rows are inherently dynamic).
+// The menu is a manual popover placed in viewport coordinates (floating.ts), so no
+// ancestor's overflow clips it.
+//
+// A committed mention behaves as one inline object (registerAtomicMentions): no caret
+// rests inside it, a click selects it whole, arrows step over it, and edits replace or
+// remove it whole.
 //
 // Interop is strictly opt-in: only configs with a provider query .NET, and only for
 // the query. Freeform-only configs are pure JS. Refresh updates carry a tag so they
@@ -45,6 +51,7 @@
 
 import {
   $applyNodeReplacement,
+  $createRangeSelectionFromDom,
   $createTextNode,
   $getNodeByKey,
   $getRoot,
@@ -52,7 +59,13 @@ import {
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
+  $isTokenOrSegmented,
   $nodesOfType,
+  $setSelection,
+  COMMAND_PRIORITY_LOW,
+  KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
+  SELECTION_CHANGE_COMMAND,
   TextNode,
   type DOMConversionMap,
   type DOMConversionOutput,
@@ -61,12 +74,14 @@ import {
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
+  type PointType,
   type RangeSelection,
   type SerializedTextNode,
   type Spread,
 } from 'lexical';
-import { addClassNamesToElement } from '@lexical/utils';
+import { addClassNamesToElement, mergeRegister } from '@lexical/utils';
 import { registerLexicalTextEntity, type EntityMatch } from '@lexical/text';
+import { caretRect, isRectVisible, placeFixedNear } from './floating';
 import type {
   LexicalExtensionModule,
   LexicalExtensionSetup,
@@ -157,7 +172,7 @@ function applyMentionAttributes(dom: HTMLElement, url: string | null, color: str
 
 /**
  * An atomic, styled reference token inserted when a suggestion is confirmed. Extends
- * TextNode in segmented mode so it behaves as one non-editable unit. It carries the
+ * TextNode in token mode, so edits replace or remove it whole. It carries the
  * app-owned `value` (an opaque id, the key for later re-resolution) and an optional
  * `url`, both of which survive HTML/JSON round-trips. The display text is the node's
  * own text; `refreshMention` can update it (and the url) later without re-typing.
@@ -226,7 +241,10 @@ export class MentionNode extends TextNode {
       serializedNode.url,
       serializedNode.color,
       serializedNode.text,
-    ).updateFromJSON(serializedNode);
+    )
+      .updateFromJSON(serializedNode)
+      // updateFromJSON restores the serialized mode; older documents carry "segmented".
+      .setMode('token');
   }
 
   exportJSON(): SerializedMentionNode {
@@ -308,7 +326,7 @@ export function $isMentionNode(node: unknown): node is MentionNode {
   return node instanceof MentionNode;
 }
 
-/** Creates a segmented, directionless {@link MentionNode}. */
+/** Creates a token-mode, directionless {@link MentionNode}. */
 export function $createMentionNode(
   configId: string,
   trigger: string,
@@ -318,7 +336,7 @@ export function $createMentionNode(
   text: string,
 ): MentionNode {
   const node = new MentionNode(configId, trigger, value, url, color, text);
-  node.setMode('segmented').toggleDirectionless();
+  node.setMode('token').toggleDirectionless();
   return $applyNodeReplacement(node);
 }
 
@@ -631,6 +649,239 @@ export function startMention(editor: LexicalEditor, initiator: string): boolean 
 }
 
 // ---------------------------------------------------------------------------
+// Atomic mentions — a committed mention behaves as one inline object
+// ---------------------------------------------------------------------------
+
+/** Set on a mention's DOM while a range selection covers it whole. */
+const MENTION_SELECTED_ATTR = 'data-lexical-mention-selected';
+
+/** The mention `point` sits strictly inside, or null. */
+function $mentionContaining(point: PointType): MentionNode | null {
+  if (point.type !== 'text') {
+    return null;
+  }
+  const node = point.getNode();
+  return $isMentionNode(node) && point.offset > 0 && point.offset < node.getTextContentSize()
+    ? node
+    : null;
+}
+
+/** Whether either endpoint of the range selection sits strictly inside a mention. */
+function $selectionEndsInsideMention(): boolean {
+  const selection = $getSelection();
+  return (
+    $isRangeSelection(selection) &&
+    ($mentionContaining(selection.anchor) !== null || $mentionContaining(selection.focus) !== null)
+  );
+}
+
+/**
+ * Moves selection endpoints out of mentions. A collapsed caret inside one selects it
+ * whole; a range endpoint inside one moves to the mention's far edge, anchor and focus
+ * each away from the other, so the range grows to cover the mention.
+ */
+function $normalizeMentionSelection(): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    return;
+  }
+  const { anchor, focus } = selection;
+  if (selection.isCollapsed()) {
+    const mention = $mentionContaining(anchor);
+    mention?.select(0, mention.getTextContentSize());
+    return;
+  }
+  const backward = selection.isBackward();
+  const anchorMention = $mentionContaining(anchor);
+  const focusMention = $mentionContaining(focus);
+  if (anchorMention !== null) {
+    anchor.set(anchorMention.getKey(), backward ? anchorMention.getTextContentSize() : 0, 'text');
+  }
+  if (focusMention !== null) {
+    focus.set(focusMention.getKey(), backward ? 0 : focusMention.getTextContentSize(), 'text');
+  }
+}
+
+/** The mention whose text is next to `point` in the given direction, or null. */
+function $mentionBeside(point: PointType, backward: boolean): MentionNode | null {
+  const node = point.getNode();
+  let sibling: LexicalNode | null = null;
+  if (point.type === 'text') {
+    const size = node.getTextContentSize();
+    if ($isMentionNode(node) && point.offset === (backward ? size : 0)) {
+      return node;
+    }
+    if (point.offset !== (backward ? 0 : size)) {
+      return null;
+    }
+    sibling = backward ? node.getPreviousSibling() : node.getNextSibling();
+  } else if ($isElementNode(node)) {
+    sibling = node.getChildAtIndex(backward ? point.offset - 1 : point.offset);
+  }
+  return $isMentionNode(sibling) ? sibling : null;
+}
+
+/**
+ * Collapses the selection just outside `mention` on one side: in the neighbouring text
+ * node when there is one, otherwise at the mention's own edge (where typing starts a
+ * new text node).
+ */
+function $selectBeside(mention: MentionNode, before: boolean): void {
+  const neighbour = before ? mention.getPreviousSibling() : mention.getNextSibling();
+  if ($isTextNode(neighbour) && !$isTokenOrSegmented(neighbour)) {
+    if (before) {
+      neighbour.select();
+    } else {
+      neighbour.select(0, 0);
+    }
+    return;
+  }
+  const offset = before ? 0 : mention.getTextContentSize();
+  mention.select(offset, offset);
+}
+
+/** ←/→ (and Shift+←/→) treat a mention as a single character. */
+function $moveOverMention(
+  editor: LexicalEditor,
+  event: KeyboardEvent,
+  backward: boolean,
+): boolean {
+  if (event.metaKey) {
+    return false;
+  }
+  // Lexical syncs its selection on `selectionchange`, which can lag a fast second
+  // keypress (key repeat); decide from the caret the browser would move.
+  const fromDom = $createRangeSelectionFromDom(window.getSelection(), editor);
+  const selection = $isRangeSelection(fromDom) ? fromDom : $getSelection();
+  if (!$isRangeSelection(selection)) {
+    return false;
+  }
+  if (event.shiftKey) {
+    const mention = $mentionBeside(selection.focus, backward);
+    if (mention === null) {
+      return false;
+    }
+    $setSelection(selection);
+    selection.focus.set(mention.getKey(), backward ? 0 : mention.getTextContentSize(), 'text');
+  } else if (selection.isCollapsed()) {
+    const mention = $mentionBeside(selection.anchor, backward);
+    if (mention === null) {
+      return false;
+    }
+    $selectBeside(mention, backward);
+  } else {
+    // A range collapses to the arrow's side; on a mention's outer edge the caret
+    // continues in the neighbouring text instead of resting on the mention.
+    const edge = selection.isBackward() === backward ? selection.focus : selection.anchor;
+    const node = edge.getNode();
+    if (!$isMentionNode(node) || edge.offset !== (backward ? 0 : node.getTextContentSize())) {
+      return false;
+    }
+    $selectBeside(node, backward);
+  }
+  event.preventDefault();
+  return true;
+}
+
+/** Keys of the mentions a non-collapsed range selection covers whole. */
+function $fullySelectedMentionKeys(): NodeKey[] {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+    return [];
+  }
+  const [start, end] = selection.isBackward()
+    ? [selection.focus, selection.anchor]
+    : [selection.anchor, selection.focus];
+  return selection
+    .getNodes()
+    .filter($isMentionNode)
+    .filter((mention) => {
+      const key = mention.getKey();
+      const size = mention.getTextContentSize();
+      const from = start.key === key ? start.offset : 0;
+      const to = end.key === key ? end.offset : size;
+      return from === 0 && to === size;
+    })
+    .map((mention) => mention.getKey());
+}
+
+/**
+ * Gives committed mentions the treatment of an inline object: no caret rests strictly
+ * inside one (a click selects it whole, a range endpoint moves to its edge), ←/→ step
+ * over it, and a mention a range covers whole carries `data-lexical-mention-selected`.
+ * Token mode (see {@link $createMentionNode}) makes the edits themselves atomic.
+ * Returns the teardown.
+ */
+function registerAtomicMentions(editor: LexicalEditor, contentEl: HTMLElement): () => void {
+  // A drag selection is left alone until the pointer is released, so it is not
+  // rewritten under the mouse.
+  let pointerDown = false;
+  const onPointerDown = (): void => {
+    pointerDown = true;
+  };
+  const onPointerUp = (): void => {
+    if (!pointerDown) {
+      return;
+    }
+    pointerDown = false;
+    if (editor.isEditable() && editor.getEditorState().read($selectionEndsInsideMention)) {
+      editor.update($normalizeMentionSelection);
+    }
+  };
+  contentEl.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  let marked: NodeKey[] = [];
+  const unregister = mergeRegister(
+    // Command listeners run inside an update, so the selection can be fixed in place.
+    editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        if (!pointerDown) {
+          $normalizeMentionSelection();
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerCommand(
+      KEY_ARROW_LEFT_COMMAND,
+      (event) => $moveOverMention(editor, event, true),
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerCommand(
+      KEY_ARROW_RIGHT_COMMAND,
+      (event) => $moveOverMention(editor, event, false),
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerUpdateListener(({ editorState }) => {
+      const covered = editorState.read($fullySelectedMentionKeys);
+      for (const key of marked) {
+        if (!covered.includes(key)) {
+          editor.getElementByKey(key)?.removeAttribute(MENTION_SELECTED_ATTR);
+        }
+      }
+      // Set every time: a re-created DOM element would have lost the attribute.
+      for (const key of covered) {
+        editor.getElementByKey(key)?.setAttribute(MENTION_SELECTED_ATTR, '');
+      }
+      marked = covered;
+    }),
+  );
+
+  return () => {
+    unregister();
+    contentEl.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+    for (const key of marked) {
+      editor.getElementByKey(key)?.removeAttribute(MENTION_SELECTED_ATTR);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // registerMentions — the runtime wiring
 // ---------------------------------------------------------------------------
 
@@ -654,13 +905,6 @@ export function getMentionConfigs(editor: LexicalEditor): MentionConfigDto[] {
   return configsByEditor.get(editor) ?? [];
 }
 
-/** Positions `el` absolutely (relative to `root`) just below `rect`'s bottom-left. */
-function positionBelow(el: HTMLElement, rect: DOMRect, root: HTMLElement): void {
-  const rootRect = root.getBoundingClientRect();
-  el.style.top = `${rect.bottom - rootRect.top + 4}px`;
-  el.style.left = `${Math.max(rect.left - rootRect.left, 0)}px`;
-}
-
 /** A `<initiator>query` trigger found at the collapsed caret. */
 interface MentionMatch {
   config: MentionConfigDto;
@@ -674,10 +918,10 @@ interface MentionMatch {
 }
 
 /**
- * Wires the mentions runtime for the given configs: the freeform highlight transform
- * (for configs with `freeform`), and the typeahead menu (for configs with a
- * provider). Creates and owns the floating menu element under `root`. Returns a
- * teardown that removes every listener and the menu.
+ * Wires the mentions runtime for the given configs: atomic mention behaviour, the
+ * freeform highlight transform (for configs with `freeform`), and the typeahead menu
+ * (for configs with a provider). Creates and owns the floating menu element under
+ * `root`. Returns a teardown that removes every listener and the menu.
  */
 export function registerMentions(
   editor: LexicalEditor,
@@ -686,7 +930,8 @@ export function registerMentions(
   configs: MentionConfigDto[],
   invokeDotNet: LexicalExtensionSetup['invokeDotNet'],
 ): () => void {
-  const cleanups: Array<() => void> = [];
+  // Mentions arrive through Markdown and HTML content too, so every config gets this.
+  const cleanups: Array<() => void> = [registerAtomicMentions(editor, contentEl)];
 
   // --- Freeform highlight transform (one shared entity over all freeform inits) ---
   const freeformConfigs = configs.filter((c) => c.freeform);
@@ -723,9 +968,12 @@ export function registerMentions(
   );
 
   // The floating menu is created here (not authored in Blazor) because its rows are
-  // built from provider data. It lives under root so it positions with the caret.
+  // built from provider data. A manual popover renders in the top layer, so no
+  // ancestor's overflow clips it; it is placed in viewport coordinates at the caret.
+  // It stays under root for the root-relative id and teardown.
   const menuEl = document.createElement('div');
   menuEl.className = 'blazor-lexical__mention-menu';
+  menuEl.popover = 'manual';
   menuEl.setAttribute('data-lexical-mention-menu', '');
   menuEl.setAttribute('role', 'listbox');
   // Combobox wiring: the content element keeps focus and points at the highlighted
@@ -787,7 +1035,9 @@ export function registerMentions(
       return null;
     }
     const node = selection.anchor.getNode();
-    if (!$isTextNode(node)) {
+    // Never inside a committed mention (or any other atomic text): its text is not
+    // something the user is typing.
+    if (!$isTextNode(node) || $isTokenOrSegmented(node)) {
       return null;
     }
     const caretOffset = selection.anchor.offset;
@@ -808,25 +1058,57 @@ export function registerMentions(
     return null;
   };
 
+  const hideMenu = (): void => {
+    menuEl.removeAttribute('data-lexical-visible');
+    if (menuEl.matches(':popover-open')) {
+      menuEl.hidePopover();
+    }
+    window.removeEventListener('scroll', onViewportChange, true);
+    window.removeEventListener('resize', onViewportChange);
+  };
+
   const close = (): void => {
     session = null;
     items = [];
     clearQueryTimers();
     setLoading(false);
-    menuEl.removeAttribute('data-lexical-visible');
+    hideMenu();
     setExpanded(false);
   };
 
   /** Shows the menu at the caret. Returns false when there is no caret to anchor to. */
   const showMenuAtCaret = (): boolean => {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) {
+    const rect = caretRect();
+    if (rect === null) {
       return false;
     }
+    if (!menuEl.matches(':popover-open')) {
+      menuEl.showPopover();
+      window.addEventListener('scroll', onViewportChange, true);
+      window.addEventListener('resize', onViewportChange);
+    }
     menuEl.setAttribute('data-lexical-visible', '');
-    positionBelow(menuEl, sel.getRangeAt(0).getBoundingClientRect(), root);
+    placeFixedNear(menuEl, rect);
     setExpanded(true);
     return true;
+  };
+
+  /**
+   * Follows the caret while the menu is open. A caret scrolled out of view dismisses the
+   * session, so the menu never floats over unrelated content.
+   */
+  const onViewportChange = (e: Event): void => {
+    // The menu's own list scrolling doesn't move the caret.
+    if (e.target === menuEl || session === null) {
+      return;
+    }
+    const rect = caretRect();
+    if (rect === null || !isRectVisible(rect, contentEl)) {
+      dismissed = session;
+      close();
+      return;
+    }
+    placeFixedNear(menuEl, rect);
   };
 
   const setActive = (index: number): void => {
@@ -1086,6 +1368,7 @@ export function registerMentions(
     menuEl.removeEventListener('mousedown', onMenuMouseDown);
     menuEl.removeEventListener('click', onMenuClick);
     clearQueryTimers();
+    hideMenu();
     menuEl.remove();
     for (const name of ['aria-expanded', 'aria-controls', 'aria-autocomplete', 'aria-activedescendant']) {
       contentEl.removeAttribute(name);
