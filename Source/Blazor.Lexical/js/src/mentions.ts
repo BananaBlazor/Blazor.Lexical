@@ -81,7 +81,7 @@ import {
 } from 'lexical';
 import { addClassNamesToElement, mergeRegister } from '@lexical/utils';
 import { registerLexicalTextEntity, type EntityMatch } from '@lexical/text';
-import { caretRect, isRectVisible, placeFixedNear } from './floating';
+import { caretRect, isCaretVisible, placeFixedNear } from './floating';
 import type {
   LexicalExtensionModule,
   LexicalExtensionSetup,
@@ -970,7 +970,7 @@ export function registerMentions(
   // The floating menu is created here (not authored in Blazor) because its rows are
   // built from provider data. A manual popover renders in the top layer, so no
   // ancestor's overflow clips it; it is placed in viewport coordinates at the caret.
-  // It stays under root for the root-relative id and teardown.
+  // It stays a DOM child of root, so teardown and attribute conventions are unchanged.
   const menuEl = document.createElement('div');
   menuEl.className = 'blazor-lexical__mention-menu';
   menuEl.popover = 'manual';
@@ -1078,7 +1078,7 @@ export function registerMentions(
 
   /** Shows the menu at the caret. Returns false when there is no caret to anchor to. */
   const showMenuAtCaret = (): boolean => {
-    const rect = caretRect();
+    const rect = caretRect(contentEl);
     if (rect === null) {
       return false;
     }
@@ -1102,8 +1102,8 @@ export function registerMentions(
     if (e.target === menuEl || session === null) {
       return;
     }
-    const rect = caretRect();
-    if (rect === null || !isRectVisible(rect, contentEl)) {
+    const rect = caretRect(contentEl);
+    if (rect === null || !isCaretVisible(rect, contentEl)) {
       dismissed = session;
       close();
       return;

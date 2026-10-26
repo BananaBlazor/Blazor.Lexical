@@ -9,17 +9,18 @@
 // root-relative placement.
 // ---------------------------------------------------------------------------
 
-/** Gap between the anchor and the overlay, and between the overlay and the viewport edge. */
+/** Gap between the anchor and the overlay. */
 const GAP_PX = 4;
+/** Minimum space between the overlay and the viewport edge. */
 const VIEWPORT_MARGIN_PX = 8;
 
 /**
- * The collapsed DOM caret's rect, or null when there is no caret or it has no layout
- * (a collapsed range in an empty line reports an all-zero rect).
+ * The DOM caret's rect when the caret is inside `within`, or null when it is elsewhere,
+ * absent, or has no layout (a collapsed range in an empty line reports an all-zero rect).
  */
-export function caretRect(): DOMRect | null {
+export function caretRect(within: HTMLElement): DOMRect | null {
   const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) {
+  if (!selection || selection.rangeCount === 0 || !within.contains(selection.anchorNode)) {
     return null;
   }
   const rect = selection.getRangeAt(0).getBoundingClientRect();
@@ -28,14 +29,14 @@ export function caretRect(): DOMRect | null {
     : rect;
 }
 
-/** Whether `rect` lies (at least partly) inside the viewport and inside `within`'s box. */
-export function isRectVisible(rect: DOMRect, within: HTMLElement): boolean {
-  const bounds = within.getBoundingClientRect();
-  const viewportHeight = document.documentElement.clientHeight;
-  return (
-    rect.bottom >= Math.max(bounds.top, 0) &&
-    rect.top <= Math.min(bounds.bottom, viewportHeight)
-  );
+/**
+ * Whether the caret at `rect` is actually painted inside `within`: a hit test, so a caret
+ * outside the viewport, clipped by a scrolling or `overflow: hidden` ancestor, or covered
+ * by other content counts as hidden.
+ */
+export function isCaretVisible(rect: DOMRect, within: HTMLElement): boolean {
+  const hit = document.elementFromPoint(rect.left, rect.top + rect.height / 2);
+  return hit !== null && within.contains(hit);
 }
 
 /**

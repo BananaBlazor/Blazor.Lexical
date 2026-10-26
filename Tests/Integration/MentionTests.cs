@@ -693,7 +693,7 @@ public class MentionTests : HarnessTestBase
         await SelectByClickAsync(page, mention);
 
         Assert.Equal("Luke Skywalker", await DomSelectionTextAsync(page));
-        // Past the query debounce: "@Luke Sk"-style text inside the mention must not match.
+        // Past the query debounce: the picker stays closed.
         await page.WaitForTimeoutAsync(500);
         await Expect(page.Locator(SpacesMenu)).Not.ToHaveAttributeAsync("data-lexical-visible", "");
         await Expect(mention).ToHaveCountAsync(1);
