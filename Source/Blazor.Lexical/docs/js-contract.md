@@ -171,16 +171,24 @@ lives in the toolbar, not the editable surface, but is still scanned from the ro
 Overlays must be present at `create()` time; conditionally-added overlays aren't rescanned
 in v1.
 
-**Positioning.** The overlays above are placed absolutely relative to the editor root, so
-an ancestor with `overflow` set (a scrolling pane, a card with `overflow: hidden`) clips
-them. The mention picker is the first to escape that: it is a `popover="manual"` element
-(top layer, so no ancestor clips it) placed in viewport coordinates by `floating.ts`
-(`placeFixedNear`: below the anchor, flipped above when there is more room there, height
-capped to the room, left edge clamped), and it re-places on capture-phase `scroll` and on
-`resize` while open, closing once the caret leaves view. It stays in the DOM under the
-root and keeps `data-lexical-visible` beside `showPopover()`/`hidePopover()`. A new
-floating overlay should use this pattern; moving the slash menu and link editor onto it
-is an open follow-up.
+**Positioning.** An overlay placed absolutely relative to the editor root is clipped by any
+ancestor with `overflow` set (a scrolling pane, a card with `overflow: hidden`). So the
+*floating* overlays — the floating toolbar, slash menu, link editor, comment composer and
+mention picker — are `popover="manual"` elements (top layer, so no ancestor clips them)
+placed in viewport coordinates, via `floating.ts`: `makeFloating`, `showFloating` /
+`hideFloating` (popover plus `data-lexical-visible`), `trackViewport` (capture-phase
+`scroll` + `resize`, since fixed placement doesn't move with the page), `caretRect`,
+`isAnchorVisible` (a hit test), and `placeFixedNear` (below the anchor, flipped above when
+there is more room there, height capped to the room, left edge clamped). The toolbar and
+composer keep their own placement (clamped to the text column). They stay DOM children of
+the root, so root-delegated listeners and root-scoped selectors still apply.
+
+When the anchor is hidden (scrolled out or clipped), an overlay that captures keys (slash
+menu, mention picker) dismisses its trigger; the toolbar hides; the link editor and
+composer only go invisible, so an edit in progress survives scrolling away and back.
+Overlays anchored to blocks or text stay root-relative on purpose, since being clipped
+with their content is correct: block gutters, the drop line, the ghost completion, and
+the in-cell table menu (whose dropdown is nested inside its trigger).
 
 ## Push channels
 

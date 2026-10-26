@@ -53,6 +53,12 @@ same command dispatch as the toolbar — the overlays add no interop of their ow
 - `<LexicalLinkEditor />` — a floating link editor popup.
 - `<LexicalTableEditor />` — an in-cell action menu (requires `<LexicalTables />`).
 
+The floating toolbar, slash menu, link editor, comment composer and mention picker render
+above the page (as top-layer popovers anchored to the text). An editor inside a scrolling
+pane, a short card or an `overflow: hidden` container still shows them in full, and you
+don't need to leave room for them in your layout. They still take their styling from the
+`blazor-lexical__*` classes.
+
 ## The `data-lexical-command` contract
 
 Buttons declare a command token that JS interprets. The built-in tokens:
