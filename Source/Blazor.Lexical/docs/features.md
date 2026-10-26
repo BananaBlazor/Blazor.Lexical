@@ -50,7 +50,7 @@ query does not reopen it — and clears once it stops matching or a new trigger 
 cycle the highlighted row (wrapping) and keep it scrolled into view. Mirrors the slash menu but does **not** reuse `registerSlashMenu`:
 
 - **Two custom nodes**, both `TextNode` subclasses in `createEditor`'s `nodes[]` (added
-  only when configs exist): `MentionNode` — segmented/atomic, carrying an opaque
+  only when configs exist): `MentionNode` — token mode (atomic), carrying an opaque
   **app-owned** `value` + optional `url` + `configId`/`trigger`/`color`, serialized
   (`exportJSON`/`exportDOM` → `data-lexical-mention`); and `MentionHighlightNode` — an
   `isTextEntity()` node for freeform highlighting via `registerLexicalTextEntity` (from
@@ -58,7 +58,22 @@ cycle the highlighted row (wrapping) and keep it scrolled into view. Mirrors the
   per-config colour rides inline as `--blazor-lexical-mention-color`, the class stays typed.
 - **The picker is JS-created**, not Blazor-authored — rows come from provider data, so
   `registerMentions` builds `[data-lexical-mention-menu]` under the root. The one overlay
-  with no Blazor marker.
+  with no Blazor marker. It is a manual popover placed in viewport coordinates
+  (`floating.ts`, see "Positioning" in `js-contract.md`), so a short editor inside an
+  `overflow: hidden` card still shows the whole list, flipped above the caret when the
+  space below is short.
+- **A committed mention is one inline object** (`registerAtomicMentions`, wired for every
+  editor with configs, provider or not — mentions also arrive via Markdown/HTML). Token
+  mode makes edits atomic: typing over a selected mention replaces it, and Backspace/Delete
+  next to one removes it whole. `readMentionMatch` ignores token/segmented anchors, so a
+  caret on a mention never opens the picker. A `SELECTION_CHANGE_COMMAND` handler moves
+  any endpoint out of a mention — a collapsed caret inside selects it whole (this is what
+  a click does), a range endpoint moves to the mention's far edge — but not while the
+  pointer is down (a drag is fixed on `pointerup`). ←/→ step over a mention and Shift+←/→
+  extend over it whole; at a block end the caret rests at the mention's edge, where
+  typing starts a new text node. A mention a range covers whole carries
+  `data-lexical-mention-selected` (outlined in CSS). `importJSON` forces token mode, since
+  documents saved earlier carry `"mode":"segmented"`.
 - **The picker is a WAI-ARIA combobox popup.** Focus never leaves the content element: the
   menu is `role="listbox"` (id `<content id>-mention-menu`), rows are `role="option"` with
   unique ids, `tabindex=-1` and `aria-selected`, and JS mirrors the state onto the content

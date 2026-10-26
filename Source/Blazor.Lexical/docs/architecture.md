@@ -252,6 +252,17 @@ Two other design points generalize:
   display names never marks it dirty. The tag is generic rather than mentions-specific,
   and extensions reach it as `setup.silentUpdateTag` — reserve it for edits the user
   didn't make, since a silently-tagged *user* edit would never reach the host.
+- **Floating UI lives in the top layer.** A picker positioned inside the editor root is
+  clipped by whatever the host wraps the editor in: a scrolling pane, a card with
+  `overflow: hidden`, a short comment box. The library can't forbid those, so the picker
+  is a manual popover placed in viewport coordinates, which no ancestor's overflow or
+  stacking context can clip. It stays a DOM child of the root, so ids, attribute
+  conventions and teardown are unchanged; only rendering escapes. New floating overlays
+  follow this (see "Positioning" in `js-contract.md`).
+- **A committed mention is an object, not text.** Token mode alone makes edits atomic but
+  still lets a click put the caret inside, where the trigger regex reads the mention's own
+  text and the picker reopens. So no caret is allowed to exist inside a mention: selection
+  changes are normalized out of it, and the trigger reader ignores atomic nodes outright.
 
 ## Read-only selection: the review experience
 

@@ -171,6 +171,17 @@ lives in the toolbar, not the editable surface, but is still scanned from the ro
 Overlays must be present at `create()` time; conditionally-added overlays aren't rescanned
 in v1.
 
+**Positioning.** The overlays above are placed absolutely relative to the editor root, so
+an ancestor with `overflow` set (a scrolling pane, a card with `overflow: hidden`) clips
+them. The mention picker is the first to escape that: it is a `popover="manual"` element
+(top layer, so no ancestor clips it) placed in viewport coordinates by `floating.ts`
+(`placeFixedNear`: below the anchor, flipped above when there is more room there, height
+capped to the room, left edge clamped), and it re-places on capture-phase `scroll` and on
+`resize` while open, closing once the caret leaves view. It stays in the DOM under the
+root and keeps `data-lexical-visible` beside `showPopover()`/`hidePopover()`. A new
+floating overlay should use this pattern; moving the slash menu and link editor onto it
+is an open follow-up.
+
 ## Push channels
 
 `notify` carries one flag per JS→.NET channel, each derived from a `.HasDelegate` on the
