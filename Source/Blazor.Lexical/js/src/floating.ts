@@ -1,18 +1,56 @@
 // ---------------------------------------------------------------------------
-// Viewport-anchored floating placement for top-layer overlays.
+// Top-layer floating overlays.
 //
 // An overlay positioned absolutely inside the editor root is clipped by any ancestor
 // with `overflow` set (a scrolling pane, a card with `overflow: hidden`). An overlay
 // shown as a `popover="manual"` renders in the top layer instead, so nothing clips it;
-// this module places such an element in viewport coordinates (`position: fixed`).
-// The mention picker uses it; the slash menu and link editor (overlays.ts) still use
-// root-relative placement.
+// this module shows/hides such an element and places it in viewport coordinates
+// (`position: fixed`). Fixed placement doesn't move with the page, so a shown overlay
+// re-places itself on scroll and resize (`trackViewport`).
+//
+// Used by the mention picker, the slash menu, the link editor, the floating toolbar and
+// the comment composer. The element stays a DOM child of the root, so root-delegated
+// listeners, root-scoped selectors and `data-lexical-visible` styling all still apply.
 // ---------------------------------------------------------------------------
 
 /** Gap between the anchor and the overlay. */
 const GAP_PX = 4;
 /** Minimum space between the overlay and the viewport edge. */
 const VIEWPORT_MARGIN_PX = 8;
+
+/** Makes `el` a manual popover, so showing it renders it in the top layer. */
+export function makeFloating(el: HTMLElement): void {
+  el.popover = 'manual';
+}
+
+/** Shows a floating overlay: opens its popover and sets `data-lexical-visible`. */
+export function showFloating(el: HTMLElement): void {
+  if (!el.matches(':popover-open')) {
+    el.showPopover();
+  }
+  el.setAttribute('data-lexical-visible', '');
+}
+
+/** Hides a floating overlay: clears `data-lexical-visible` and closes its popover. */
+export function hideFloating(el: HTMLElement): void {
+  el.removeAttribute('data-lexical-visible');
+  if (el.matches(':popover-open')) {
+    el.hidePopover();
+  }
+}
+
+/**
+ * Calls `listener` on any scroll (capture phase, so nested scroll panes count) and on
+ * resize. Returns the unsubscribe.
+ */
+export function trackViewport(listener: (e: Event) => void): () => void {
+  window.addEventListener('scroll', listener, true);
+  window.addEventListener('resize', listener);
+  return () => {
+    window.removeEventListener('scroll', listener, true);
+    window.removeEventListener('resize', listener);
+  };
+}
 
 /**
  * The DOM caret's rect when the caret is inside `within`, or null when it is elsewhere,
@@ -30,12 +68,15 @@ export function caretRect(within: HTMLElement): DOMRect | null {
 }
 
 /**
- * Whether the caret at `rect` is actually painted inside `within`: a hit test, so a caret
- * outside the viewport, clipped by a scrolling or `overflow: hidden` ancestor, or covered
- * by other content counts as hidden.
+ * Whether the anchor at `rect` is actually painted inside `within`: a hit test at its
+ * centre, so an anchor outside the viewport, clipped by a scrolling or
+ * `overflow: hidden` ancestor, or covered by other content counts as hidden.
  */
-export function isCaretVisible(rect: DOMRect, within: HTMLElement): boolean {
-  const hit = document.elementFromPoint(rect.left, rect.top + rect.height / 2);
+export function isAnchorVisible(rect: DOMRect, within: HTMLElement): boolean {
+  const hit = document.elementFromPoint(
+    rect.left + rect.width / 2,
+    rect.top + rect.height / 2,
+  );
   return hit !== null && within.contains(hit);
 }
 

@@ -47,6 +47,34 @@ public abstract class HarnessTestBase : IClassFixture<HarnessFixture>
         return errors;
     }
 
+    /// <summary>
+    /// Scrolls <paramref name="container"/> to the top of the viewport without moving the
+    /// page again afterwards (Playwright's own actions scroll their target into view).
+    /// </summary>
+    protected static Task ScrollToViewportTopAsync(ILocator container)
+        => container.EvaluateAsync("el => el.scrollIntoView({ block: 'start' })");
+
+    /// <summary>
+    /// Asserts that <paramref name="overlay"/> is painted outside <paramref name="container"/>:
+    /// a point of the overlay beyond the container's bottom (or top) edge hit-tests to the
+    /// overlay. Bounding boxes ignore clipping, so this is what proves an ancestor's
+    /// <c>overflow</c> doesn't clip it.
+    /// </summary>
+    protected static async Task AssertPaintedOutsideAsync(ILocator overlay, ILocator container)
+    {
+        var box = await overlay.BoundingBoxAsync();
+        var bounds = await container.BoundingBoxAsync();
+        Assert.NotNull(box);
+        Assert.NotNull(bounds);
+        var bottom = box.Y + box.Height - 2;
+        var y = bottom > bounds.Y + bounds.Height ? bottom : box.Y + 2;
+        Assert.True(y > bounds.Y + bounds.Height || y < bounds.Y,
+            $"overlay {box.Y}..{box.Y + box.Height} lies within the container {bounds.Y}..{bounds.Y + bounds.Height}");
+        Assert.True(await overlay.EvaluateAsync<bool>(
+            "(el, [x, y]) => el.contains(document.elementFromPoint(x, y))",
+            new double[] { box.X + box.Width / 2, y }));
+    }
+
     /// <summary>Collects browser console errors + page errors for the page's lifetime.</summary>
     protected static List<string> CaptureErrors(IPage page)
     {

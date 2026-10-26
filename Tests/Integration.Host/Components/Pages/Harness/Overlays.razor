@@ -21,3 +21,18 @@
         </LexicalBlockGutter>
     </LexicalEditor>
 </section>
+
+<section>
+    <h2>Overlays — inside a short overflow:hidden container</h2>
+    @* The container would clip root-positioned overlays; the top-layer floating toolbar
+       and slash menu must escape it. The spacer lets a test scroll it to the viewport top. *@
+    <div id="overlays-clip-container" style="overflow: hidden; height: 3rem; border: 1px solid #ccc">
+        <LexicalEditor Id="editor-overlays-clip"
+                       CssClass="harness-overlays-clip"
+                       Theme="LexicalTheme.Default">
+            <LexicalFloatingToolbar />
+            <LexicalSlashMenu />
+        </LexicalEditor>
+    </div>
+    <div style="height: 100vh"></div>
+</section>

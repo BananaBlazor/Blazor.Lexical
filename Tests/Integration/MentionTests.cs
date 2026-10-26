@@ -892,12 +892,7 @@ public class MentionTests : HarnessTestBase
         AssertInsideViewport(page, menu);
         // Room below: the picker opens below the caret.
         Assert.True(menu.Y > container.Y);
-        // Bounding boxes ignore clipping, so hit-test the menu's bottom, below the container.
-        var bottom = menu.Y + menu.Height - 4;
-        Assert.True(bottom > container.Y + container.Height);
-        Assert.True(await page.EvaluateAsync<bool>(
-            "([x, y]) => document.elementFromPoint(x, y)?.closest('.blazor-lexical__mention-menu') != null",
-            new double[] { menu.X + menu.Width / 2, bottom }));
+        await AssertPaintedOutsideAsync(page.Locator(ClipMenu), page.Locator("#mention-clip-container"));
     }
 
     [Fact] // with no room below the caret, the picker flips above it

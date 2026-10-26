@@ -81,7 +81,15 @@ import {
 } from 'lexical';
 import { addClassNamesToElement, mergeRegister } from '@lexical/utils';
 import { registerLexicalTextEntity, type EntityMatch } from '@lexical/text';
-import { caretRect, isCaretVisible, placeFixedNear } from './floating';
+import {
+  caretRect,
+  hideFloating,
+  isAnchorVisible,
+  makeFloating,
+  placeFixedNear,
+  showFloating,
+  trackViewport,
+} from './floating';
 import type {
   LexicalExtensionModule,
   LexicalExtensionSetup,
@@ -973,7 +981,7 @@ export function registerMentions(
   // It stays a DOM child of root, so root-scoped selectors find it.
   const menuEl = document.createElement('div');
   menuEl.className = 'blazor-lexical__mention-menu';
-  menuEl.popover = 'manual';
+  makeFloating(menuEl);
   menuEl.setAttribute('data-lexical-mention-menu', '');
   menuEl.setAttribute('role', 'listbox');
   // Combobox wiring: the content element keeps focus and points at the highlighted
@@ -1058,13 +1066,13 @@ export function registerMentions(
     return null;
   };
 
+  // Set while the menu is shown: stops following the viewport.
+  let untrack: (() => void) | null = null;
+
   const hideMenu = (): void => {
-    menuEl.removeAttribute('data-lexical-visible');
-    if (menuEl.matches(':popover-open')) {
-      menuEl.hidePopover();
-    }
-    window.removeEventListener('scroll', onViewportChange, true);
-    window.removeEventListener('resize', onViewportChange);
+    hideFloating(menuEl);
+    untrack?.();
+    untrack = null;
   };
 
   const close = (): void => {
@@ -1082,12 +1090,8 @@ export function registerMentions(
     if (rect === null) {
       return false;
     }
-    if (!menuEl.matches(':popover-open')) {
-      menuEl.showPopover();
-      window.addEventListener('scroll', onViewportChange, true);
-      window.addEventListener('resize', onViewportChange);
-    }
-    menuEl.setAttribute('data-lexical-visible', '');
+    showFloating(menuEl);
+    untrack ??= trackViewport(onViewportChange);
     placeFixedNear(menuEl, rect);
     setExpanded(true);
     return true;
@@ -1103,7 +1107,7 @@ export function registerMentions(
       return;
     }
     const rect = caretRect(contentEl);
-    if (rect === null || !isCaretVisible(rect, contentEl)) {
+    if (rect === null || !isAnchorVisible(rect, contentEl)) {
       dismissed = session;
       close();
       return;

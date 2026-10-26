@@ -367,8 +367,9 @@
 
 /* ------------------------------------------------------------------ */
 /* In-editor overlays (floating toolbar, slash menu, drag handle).     */
-/* Each is Blazor-authored markup positioned absolutely by JS relative */
-/* to the editor root; JS toggles data-lexical-visible to show/hide.   */
+/* JS toggles data-lexical-visible to show/hide. Floating ones are     */
+/* top-layer popovers placed in viewport coordinates (see below); the  */
+/* rest are positioned absolutely relative to the editor root.         */
 /* ------------------------------------------------------------------ */
 
 /* Shared hidden/visible state. visibility:hidden (not display:none) keeps the
@@ -397,6 +398,24 @@
   visibility: visible;
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Floating overlays are manual popovers (js/src/floating.ts): the top layer, so no
+   ancestor's overflow clips them, placed by JS in viewport coordinates. This resets the
+   UA popover box; each overlay's own rule below sets its padding, border and colours. */
+.blazor-lexical__floating-toolbar,
+.blazor-lexical__slash-menu,
+.blazor-lexical__mention-menu,
+.blazor-lexical__link-editor,
+.blazor-lexical__comment-composer {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  color: inherit;
+  background: none;
 }
 
 /* Ghost completion (setup.primitives.ghost): the muted "rest of the word" hint painted
@@ -567,14 +586,8 @@
   outline-offset: 3px;
 }
 
-/* Mention picker: a floating list of provider candidates, built by JS at the caret.
-   It is a manual popover in the top layer, placed in viewport coordinates, so no
-   ancestor's overflow clips it; the UA popover inset/margin/colours are reset here. */
+/* Mention picker: a floating list of provider candidates, built by JS at the caret. */
 .blazor-lexical__mention-menu {
-  position: fixed;
-  inset: auto;
-  margin: 0;
-  color: inherit;
   display: flex;
   flex-direction: column;
   min-width: 14rem;

@@ -38,6 +38,12 @@ import {
 import { $wrapSelectionInMarkNode } from '@lexical/mark';
 import { createDOMRange } from '@lexical/selection';
 import { $rangeSelectionFromDom } from './dom-selection';
+import {
+  hideFloating,
+  isAnchorVisible,
+  makeFloating,
+  showFloating,
+} from './floating';
 import type { LexicalExtensionModule, LexicalExtensionSetup } from './extension';
 
 /** The compose-highlight's registered name — its `::highlight()` selector in the CSS. */
@@ -171,12 +177,16 @@ export default function commentComposerExtension(
         getHighlightApi()?.delete(COMPOSE_HIGHLIGHT);
       };
 
-      // Root-relative placement just below the selection, clamped to the content column.
+      // A top-layer popover (floating.ts), so no ancestor's overflow clips it.
+      makeFloating(boxEl);
+
+      // Viewport placement just below the selection, clamped to the content column.
+      // While the selection is scrolled out of view the box is only made invisible, so
+      // a comment being typed survives scrolling away and back.
       const position = (): void => {
         if (domRange === null) {
           return;
         }
-        const rootRect = root.getBoundingClientRect();
         const bounds = content.getBoundingClientRect();
         const rect = domRange.getBoundingClientRect();
         const width = boxEl.getBoundingClientRect().width;
@@ -187,8 +197,9 @@ export default function commentComposerExtension(
         if (left < bounds.left) {
           left = bounds.left;
         }
-        boxEl.style.top = `${rect.bottom - rootRect.top + COMPOSE_GAP}px`;
-        boxEl.style.left = `${left - rootRect.left}px`;
+        boxEl.style.top = `${rect.bottom + COMPOSE_GAP}px`;
+        boxEl.style.left = `${left}px`;
+        boxEl.toggleAttribute('data-lexical-visible', isAnchorVisible(rect, content));
       };
 
       const reset = (): void => {
@@ -200,7 +211,7 @@ export default function commentComposerExtension(
         if (inputEl !== null) {
           inputEl.value = '';
         }
-        boxEl.removeAttribute('data-lexical-visible');
+        hideFloating(boxEl);
         clearHighlight();
       };
 
@@ -243,7 +254,7 @@ export default function commentComposerExtension(
         selectedText = captured.text;
         open = true;
         paintHighlight(domRange);
-        boxEl.setAttribute('data-lexical-visible', '');
+        showFloating(boxEl);
         position();
         // Focus after the current click/dispatch settles, so the delegated editor.focus()
         // in a button's click handler can't steal it straight back (as the link editor does).
