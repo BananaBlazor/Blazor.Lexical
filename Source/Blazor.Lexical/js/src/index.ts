@@ -1082,11 +1082,11 @@ export async function create(
   // the overlays add no interop of their own.
   const floatingToolbarEl = root.querySelector<HTMLElement>('[data-lexical-floating-toolbar]');
   if (floatingToolbarEl) {
-    cleanups.push(registerFloatingToolbar(editor, root, contentEl, floatingToolbarEl));
+    cleanups.push(registerFloatingToolbar(editor, contentEl, floatingToolbarEl));
   }
   const slashMenuEl = root.querySelector<HTMLElement>('[data-lexical-slash-menu]');
   if (slashMenuEl) {
-    cleanups.push(registerSlashMenu(editor, root, contentEl, slashMenuEl));
+    cleanups.push(registerSlashMenu(editor, contentEl, slashMenuEl));
   }
   // The block-gutter drag policy an extension may install via ctx.blockDrag (below). Held
   // in a single mutable slot read lazily by the gutter's drag engine, because the gutter
@@ -1120,7 +1120,7 @@ export async function create(
   }
   const linkEditorEl = root.querySelector<HTMLElement>('[data-lexical-link-editor]');
   if (linkEditorEl) {
-    cleanups.push(registerLinkEditor(editor, root, contentEl, linkEditorEl));
+    cleanups.push(registerLinkEditor(editor, contentEl, linkEditorEl));
   }
   // Per-block positioning, handed to every extension's register(ctx) — the same
   // geometry the block gutter runs on. onBlocksChanged coalesces a typing burst to one

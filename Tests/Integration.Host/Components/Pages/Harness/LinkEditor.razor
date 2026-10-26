@@ -16,3 +16,18 @@
         <LexicalLinkEditor />
     </LexicalEditor>
 </section>
+
+<section>
+    <h2>Link editor — inside a short overflow:hidden container</h2>
+    @* The container would clip a root-positioned popup; the top-layer link editor must
+       escape it. The spacer lets a test scroll it to the viewport top. *@
+    <div id="linkeditor-clip-container" style="overflow: hidden; height: 3rem; border: 1px solid #ccc">
+        <LexicalEditor Id="editor-linkeditor-clip"
+                       CssClass="harness-linkeditor-clip"
+                       InitialContent="@LexicalContent.FromHtml("<p><a href=\"https://example.com/\">clipped</a></p>")"
+                       Theme="LexicalTheme.Default">
+            <LexicalLinkEditor />
+        </LexicalEditor>
+    </div>
+    <div style="height: 100vh"></div>
+</section>

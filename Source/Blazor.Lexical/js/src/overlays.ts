@@ -30,6 +30,15 @@ import {
   type LexicalEditor,
 } from 'lexical';
 import { $isLinkNode } from '@lexical/link';
+import {
+  caretRect,
+  hideFloating,
+  isAnchorVisible,
+  makeFloating,
+  placeFixedNear,
+  showFloating,
+  trackViewport,
+} from './floating';
 import { $findMatchingParent } from '@lexical/utils';
 // The per-block geometry, factored out so the gutter and the extension-facing
 // `ctx.blockLayout` (index.ts) share one source of truth for it.
@@ -54,16 +63,14 @@ const FLOATING_HORIZONTAL_OFFSET = 5;
  * behavior: the toolbar's left aligns to the selection's left edge (offset a few
  * px), is clamped so it never sits farther left than the first text column — the
  * left gutter is reserved for the `+`/drag handle — nor past the content's right
- * edge, and flips below the selection when there's no room above. Positioned
- * absolutely relative to `root`; `contentEl` supplies the text bounds.
+ * edge, and flips below the selection when there's no room above. Positioned in
+ * viewport coordinates (a top-layer popover); `contentEl` supplies the text bounds.
  */
 function positionFloatingToolbar(
   el: HTMLElement,
   targetRect: DOMRect,
-  root: HTMLElement,
   contentEl: HTMLElement,
 ): void {
-  const rootRect = root.getBoundingClientRect();
   const bounds = contentEl.getBoundingClientRect();
   const elRect = el.getBoundingClientRect();
   // The first text column is inside the content's left padding (the gutter).
@@ -83,15 +90,8 @@ function positionFloatingToolbar(
     left = textLeft;
   }
 
-  el.style.top = `${top - rootRect.top}px`;
-  el.style.left = `${left - rootRect.left}px`;
-}
-
-/** Positions `el` absolutely (relative to `root`) just below `rect`'s bottom-left. */
-function positionBelow(el: HTMLElement, rect: DOMRect, root: HTMLElement): void {
-  const rootRect = root.getBoundingClientRect();
-  el.style.top = `${rect.bottom - rootRect.top + 4}px`;
-  el.style.left = `${Math.max(rect.left - rootRect.left, 0)}px`;
+  el.style.top = `${top}px`;
+  el.style.left = `${left}px`;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,10 +106,11 @@ function positionBelow(el: HTMLElement, rect: DOMRect, root: HTMLElement): void 
  */
 export function registerFloatingToolbar(
   editor: LexicalEditor,
-  root: HTMLElement,
   contentEl: HTMLElement,
   toolbarEl: HTMLElement,
 ): () => void {
+  makeFloating(toolbarEl);
+
   const update = () => {
     const sel = window.getSelection();
     // Show only for a real, non-collapsed selection that lives in *this*
@@ -122,16 +123,21 @@ export function registerFloatingToolbar(
       !sel.anchorNode ||
       !contentEl.contains(sel.anchorNode)
     ) {
-      toolbarEl.removeAttribute('data-lexical-visible');
+      hideFloating(toolbarEl);
       return;
     }
     const rect = sel.getRangeAt(0).getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) {
-      toolbarEl.removeAttribute('data-lexical-visible');
+      hideFloating(toolbarEl);
       return;
     }
-    toolbarEl.setAttribute('data-lexical-visible', '');
-    positionFloatingToolbar(toolbarEl, rect, root, contentEl);
+    showFloating(toolbarEl);
+    positionFloatingToolbar(toolbarEl, rect, contentEl);
+    // A selection scrolled out of view (or clipped by an ancestor) hides the toolbar
+    // rather than leaving it floating over unrelated content.
+    if (!isAnchorVisible(rect, contentEl)) {
+      hideFloating(toolbarEl);
+    }
   };
 
   // Keep the selection intact when the toolbar itself is clicked. The built-in
@@ -160,7 +166,7 @@ export function registerFloatingToolbar(
     window.removeEventListener('scroll', onChange, true);
     window.removeEventListener('resize', onChange);
     unregister();
-    toolbarEl.removeAttribute('data-lexical-visible');
+    hideFloating(toolbarEl);
   };
 }
 
@@ -223,7 +229,6 @@ function readSlashMatch(): SlashMatch | null {
  */
 export function registerSlashMenu(
   editor: LexicalEditor,
-  root: HTMLElement,
   contentEl: HTMLElement,
   menuEl: HTMLElement,
 ): () => void {
@@ -256,9 +261,43 @@ export function registerSlashMenu(
     setActive(visible.length > 0 ? 0 : -1);
   };
 
+  makeFloating(menuEl);
+  // Set while the menu is shown: stops following the viewport.
+  let untrack: (() => void) | null = null;
+
   const close = () => {
     open = false;
-    menuEl.removeAttribute('data-lexical-visible');
+    hideFloating(menuEl);
+    untrack?.();
+    untrack = null;
+  };
+
+  /** Shows the menu at the caret, or closes it when there is no caret in this editor. */
+  const showAtCaret = () => {
+    const rect = caretRect(contentEl);
+    if (rect === null) {
+      close();
+      return;
+    }
+    showFloating(menuEl);
+    untrack ??= trackViewport(onViewportChange);
+    placeFixedNear(menuEl, rect);
+  };
+
+  // Follows the caret while open; a caret scrolled out of view dismisses the trigger, so
+  // the menu never floats over unrelated content (or keeps taking the keys unseen).
+  const onViewportChange = (e: Event) => {
+    if (e.target === menuEl || !open) {
+      return;
+    }
+    const rect = caretRect(contentEl);
+    if (rect === null || !isAnchorVisible(rect, contentEl)) {
+      const match = editor.getEditorState().read(readSlashMatch);
+      dismissed = match === null ? null : `${match.nodeKey}:${match.slashOffset}`;
+      close();
+      return;
+    }
+    placeFixedNear(menuEl, rect);
   };
 
   /** Deletes the `/query` trigger text, leaving the caret where the `/` was. */
@@ -279,12 +318,11 @@ export function registerSlashMenu(
   // once it's gone. Typing, deleting, and caret moves all fire this.
   const unregister = editor.registerUpdateListener(() => {
     const match = editor.getEditorState().read(readSlashMatch);
-    const sel = window.getSelection();
     const trigger = match === null ? null : `${match.nodeKey}:${match.slashOffset}`;
     if (trigger !== dismissed) {
       dismissed = null;
     }
-    if (match === null || dismissed !== null || !sel || sel.rangeCount === 0) {
+    if (match === null || dismissed !== null) {
       if (open) {
         close();
       }
@@ -296,8 +334,7 @@ export function registerSlashMenu(
       close();
       return;
     }
-    menuEl.setAttribute('data-lexical-visible', '');
-    positionBelow(menuEl, sel.getRangeAt(0).getBoundingClientRect(), root);
+    showAtCaret();
   });
 
   // Capture-phase click on the menu: strip the trigger text first, then let the
@@ -812,7 +849,6 @@ function readLinkAtSelection(): { key: string; url: string } | null {
  */
 export function registerLinkEditor(
   editor: LexicalEditor,
-  root: HTMLElement,
   contentEl: HTMLElement,
   editorEl: HTMLElement,
 ): () => void {
@@ -829,20 +865,34 @@ export function registerLinkEditor(
   let pendingEdit = false;
   let activeKey: string | null = null;
 
-  const show = () => editorEl.setAttribute('data-lexical-visible', '');
-  const hide = () => {
-    editorEl.removeAttribute('data-lexical-visible');
-    editMode = false;
-    activeKey = null;
-  };
+  makeFloating(editorEl);
+  // Set while the popup is shown: stops following the viewport.
+  let untrack: (() => void) | null = null;
 
-  // Glue the popup below the link's rendered element (falls back to no-op until
-  // the element exists), matching the other overlays' root-relative positioning.
+  // Glue the popup below the link's rendered element (a no-op until the element
+  // exists). While the link is scrolled out of view the popup is only made invisible,
+  // so an edit in progress survives scrolling away and back. Placed before the hit
+  // test, so the popup's previous spot can't cover the link.
   const position = () => {
     const el = activeKey === null ? null : editor.getElementByKey(activeKey);
-    if (el !== null) {
-      positionBelow(editorEl, el.getBoundingClientRect(), root);
+    if (el === null) {
+      return;
     }
+    const rect = el.getBoundingClientRect();
+    placeFixedNear(editorEl, rect);
+    editorEl.toggleAttribute('data-lexical-visible', isAnchorVisible(rect, contentEl));
+  };
+
+  const show = () => {
+    showFloating(editorEl);
+    untrack ??= trackViewport(position);
+  };
+  const hide = () => {
+    hideFloating(editorEl);
+    untrack?.();
+    untrack = null;
+    editMode = false;
+    activeKey = null;
   };
 
   const setMode = (edit: boolean) => {
@@ -1004,8 +1054,6 @@ export function registerLinkEditor(
 
   const onChange = () => update();
   document.addEventListener('selectionchange', onChange);
-  window.addEventListener('scroll', onChange, true);
-  window.addEventListener('resize', onChange);
   const unregister = editor.registerUpdateListener(() => update());
 
   return () => {
@@ -1014,8 +1062,6 @@ export function registerLinkEditor(
     inputEl?.removeEventListener('keydown', onInputKeyDown);
     document.removeEventListener('mousedown', onDocMouseDown);
     document.removeEventListener('selectionchange', onChange);
-    window.removeEventListener('scroll', onChange, true);
-    window.removeEventListener('resize', onChange);
     openCmd();
     unregister();
     hide();

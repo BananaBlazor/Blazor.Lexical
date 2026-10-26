@@ -53,6 +53,12 @@ same command dispatch as the toolbar — the overlays add no interop of their ow
 - `<LexicalLinkEditor />` — a floating link editor popup.
 - `<LexicalTableEditor />` — an in-cell action menu (requires `<LexicalTables />`).
 
+The floating toolbar, slash menu, link editor, comment composer and mention picker render
+above the page (as top-layer popovers anchored to the text). An editor inside a scrolling
+pane, a short card or an `overflow: hidden` container still shows them in full, and you
+don't need to leave room for them in your layout. They still take their styling from the
+`blazor-lexical__*` classes.
+
 ## The `data-lexical-command` contract
 
 Buttons declare a command token that JS interprets. The built-in tokens:
@@ -111,7 +117,12 @@ round-trip by design — that is the only expected interop for toolbar/menu acti
 - **Mentions** are configured by nesting one or more `<LexicalMention>` children (each
   with its own initiator character, colour, optional provider, and freeform flag). A
   config with no `Provider` does zero JS→.NET calls; only a provider config queries .NET.
-  Mentions keep their id and url in HTML and editor-state JSON. For Markdown, set
+  A committed mention behaves as one inline object: a click selects it whole, ←/→ step
+  over it, typing over it replaces it, and Backspace or Delete removes it whole. The
+  picker renders above the page (a top-layer popover anchored to the caret), so an
+  editor inside a scrolling pane or an `overflow: hidden` container still shows the whole
+  list; it opens above the caret when there is no room below. Style the selected state
+  with `.blazor-lexical__mention[data-lexical-mention-selected]`. Mentions keep their id and url in HTML and editor-state JSON. For Markdown, set
   `MarkdownUrlPrefix` and give each item a `Url` of that prefix followed by its id (no
   spaces or parentheses): the mention is written as a plain `[text](url)` link, and on load
   any link whose url starts with the prefix becomes a mention again, with the rest of the

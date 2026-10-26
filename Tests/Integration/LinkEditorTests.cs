@@ -98,4 +98,20 @@ public class LinkEditorTests : HarnessTestBase
         await Expect(editor.Locator("a")).ToHaveCountAsync(0);
         await Expect(editor).ToContainTextAsync("goodbye");
     }
+
+    [Fact] // the link preview is painted beyond the editor's overflow:hidden container
+    public async Task Popup_EscapesOverflowHiddenContainer()
+    {
+        var page = await OpenAsync();
+        var link = page.Locator("#editor-linkeditor-clip a");
+        await Expect(link).ToHaveCountAsync(1);
+        var container = page.Locator("#linkeditor-clip-container");
+        await ScrollToViewportTopAsync(container);
+
+        await link.ClickAsync();
+        var preview = page.Locator(".harness-linkeditor-clip [data-lexical-link-preview]");
+        await Expect(preview).ToBeVisibleAsync();
+
+        await AssertPaintedOutsideAsync(page.Locator(".harness-linkeditor-clip .blazor-lexical__link-editor"), container);
+    }
 }

@@ -180,4 +180,46 @@ public class OverlayTests : HarnessTestBase
 
         await Expect(editor.Locator("p").First).ToHaveTextAsync("beta");
     }
+
+    // --- #editor-overlays-clip: the floating overlays escape an overflow:hidden container ---
+
+    private const string ClipEditor = "#editor-overlays-clip";
+
+    /// <summary>Scrolls the clip container to the viewport top and focuses its editor.</summary>
+    private static async Task<ILocator> FocusClippedEditorAsync(IPage page)
+    {
+        await page.Locator($"{ClipEditor}[data-lexical-editor='true']").WaitForAsync();
+        var container = page.Locator("#overlays-clip-container");
+        await ScrollToViewportTopAsync(container);
+        // Focus without Playwright's own scroll-into-view, which would move the page.
+        await page.Locator(ClipEditor).FocusAsync();
+        return container;
+    }
+
+    [Fact] // the slash menu is painted beyond its overflow:hidden container
+    public async Task SlashMenu_EscapesOverflowHiddenContainer()
+    {
+        var page = await OpenAsync();
+        var container = await FocusClippedEditorAsync(page);
+        var menu = page.Locator(".harness-overlays-clip .blazor-lexical__slash-menu");
+
+        await page.Keyboard.TypeAsync("/");
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+
+        await AssertPaintedOutsideAsync(menu, container);
+    }
+
+    [Fact] // the floating toolbar is painted beyond its overflow:hidden container
+    public async Task FloatingToolbar_EscapesOverflowHiddenContainer()
+    {
+        var page = await OpenAsync();
+        var container = await FocusClippedEditorAsync(page);
+        var toolbar = page.Locator(".harness-overlays-clip .blazor-lexical__floating-toolbar");
+
+        await page.Keyboard.TypeAsync("float me");
+        await page.Keyboard.PressAsync("Control+A");
+        await Expect(toolbar).ToHaveAttributeAsync("data-lexical-visible", "");
+
+        await AssertPaintedOutsideAsync(toolbar, container);
+    }
 }

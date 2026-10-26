@@ -119,6 +119,22 @@
     </LexicalEditor>
 </section>
 
+<section>
+    <h2>Mentions — picker inside a short overflow:hidden container</h2>
+    @* The container would clip a root-positioned picker to a sliver; the top-layer picker
+       must escape it, and flip above the caret when the editor sits at the viewport's
+       bottom. The spacer lets a test scroll the container to the top of the viewport. *@
+    <div id="mention-clip-container" style="overflow: hidden; height: 3rem; border: 1px solid #ccc">
+        <LexicalEditor Id="editor-mention-clip"
+                       CssClass="harness-mention-clip"
+                       Placeholder="Type a mention…"
+                       Theme="LexicalTheme.Default">
+            <LexicalMention Initiator="@AtInitiator" Provider="ResolvePeople" />
+        </LexicalEditor>
+    </div>
+    <div style="height: 100vh"></div>
+</section>
+
 @code {
     // The mention initiator, bound rather than inlined so the "@" isn't parsed as Razor.
     private const string AtInitiator = "@";
