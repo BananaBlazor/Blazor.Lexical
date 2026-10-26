@@ -14,7 +14,10 @@ namespace Tests.Integration;
 ///   config with no provider — pure-JS hashtag highlighting, zero interop;
 /// - <c>#editor-mention-readonly</c>: a read-only editor with an "@" provider config,
 ///   which <c>StartMentionAsync</c> must refuse;
-/// - <c>#editor-mention-spaces</c>: an "@" config with <c>AllowSpacesInQuery</c>;
+/// - <c>#editor-mention-spaces</c>: an "@" config with <c>AllowSpacesInQuery</c>, also
+///   used for atomic-mention selection and editing;
+/// - <c>#editor-mention-clip</c>: an "@" editor inside a short <c>overflow: hidden</c>
+///   container, which the picker must escape;
 /// - <c>#editor-mention-markdown</c> / <c>#editor-mention-markdown-initial</c>: "#"
 ///   configs with a <c>MarkdownUrlPrefix</c> — mentions round-trip through Markdown.
 /// </summary>
@@ -655,5 +658,257 @@ public class MentionTests : HarnessTestBase
         // The harness config's QueryTimeout is 600ms; the provider takes 5s.
         await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-visible", "");
         await Expect(menu).Not.ToHaveAttributeAsync("data-lexical-mention-loading", "");
+    }
+
+    // --- Atomic mentions (#editor-mention-spaces): a committed mention is one inline object ---
+
+    /// <summary>Types <paramref name="prefix"/> then "@luke" and commits "Luke Skywalker".</summary>
+    private static async Task<ILocator> InsertLukeAsync(IPage page, string prefix = "")
+    {
+        await TypeAsync(page, SpacesEditor, prefix + "@luke");
+        await Expect(page.Locator(SpacesMenu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        await page.Keyboard.PressAsync("Enter");
+        var mention = page.Locator(SpacesEditor).Locator("span[data-lexical-mention]");
+        await Expect(mention).ToHaveTextAsync("Luke Skywalker");
+        return mention;
+    }
+
+    /// <summary>Clicks the middle of the mention, which selects it whole.</summary>
+    private static async Task SelectByClickAsync(IPage page, ILocator mention)
+    {
+        await mention.ClickAsync();
+        await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-selected", "");
+    }
+
+    private static Task<string> DomSelectionTextAsync(IPage page)
+        => page.EvaluateAsync<string>("() => window.getSelection().toString()");
+
+    [Fact] // a click inside a committed mention selects it whole and never reopens the picker
+    public async Task Mention_Click_SelectsWhole_WithoutReopeningPicker()
+    {
+        var page = await OpenAsync();
+        var errors = CaptureErrors(page);
+        var mention = await InsertLukeAsync(page);
+
+        await SelectByClickAsync(page, mention);
+
+        Assert.Equal("Luke Skywalker", await DomSelectionTextAsync(page));
+        // Past the query debounce: "@Luke Sk"-style text inside the mention must not match.
+        await page.WaitForTimeoutAsync(500);
+        await Expect(page.Locator(SpacesMenu)).Not.ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(mention).ToHaveCountAsync(1);
+        Assert.Empty(errors);
+    }
+
+    [Fact] // typing over a selected mention replaces it with plain text
+    public async Task SelectedMention_Typing_ReplacesIt()
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page);
+        await SelectByClickAsync(page, mention);
+
+        await page.Keyboard.TypeAsync("x");
+
+        await Expect(mention).ToHaveCountAsync(0);
+        Assert.Equal("x ", await TextContentAsync(page.Locator(SpacesEditor)));
+    }
+
+    [Fact] // Backspace removes a selected mention whole, and undo brings it back as a mention
+    public async Task SelectedMention_Backspace_RemovesWhole_AndUndoRestores()
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page);
+        await SelectByClickAsync(page, mention);
+
+        await page.Keyboard.PressAsync("Backspace");
+        await Expect(mention).ToHaveCountAsync(0);
+        Assert.Equal(" ", await TextContentAsync(page.Locator(SpacesEditor)));
+
+        await page.Keyboard.PressAsync("Control+z");
+        await Expect(mention).ToHaveCountAsync(1);
+        await Expect(mention).ToHaveTextAsync("Luke Skywalker");
+    }
+
+    [Theory] // an arrow collapses a selected mention to that side, with the caret outside it
+    [InlineData("ArrowLeft", "aLuke Skywalker ")]
+    [InlineData("ArrowRight", "Luke Skywalkera ")]
+    public async Task SelectedMention_Arrow_CollapsesOutside(string key, string expected)
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page);
+        await SelectByClickAsync(page, mention);
+
+        await page.Keyboard.PressAsync(key);
+        await Expect(mention).Not.ToHaveAttributeAsync("data-lexical-mention-selected", "");
+        await page.Keyboard.TypeAsync("a");
+
+        // The typed character landed beside the mention, which is intact.
+        await Expect(mention).ToHaveTextAsync("Luke Skywalker");
+        Assert.Equal(expected, await TextContentAsync(page.Locator(SpacesEditor)));
+    }
+
+    [Fact] // from the text after a mention, ← steps over the whole mention
+    public async Task CaretAfterMention_ArrowLeft_StepsOverIt()
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page, "hi ");
+
+        // Past the trailing space, then over the mention in one step.
+        await page.Keyboard.PressAsync("ArrowLeft");
+        await page.Keyboard.PressAsync("ArrowLeft");
+        await page.Keyboard.TypeAsync("z");
+
+        await Expect(mention).ToHaveTextAsync("Luke Skywalker");
+        Assert.Equal("hi zLuke Skywalker ", await TextContentAsync(page.Locator(SpacesEditor)));
+    }
+
+    [Fact] // Backspace toward a mention removes it whole
+    public async Task CaretAfterMention_Backspace_RemovesWhole()
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page, "hi ");
+
+        // The trailing space, then the whole mention.
+        await page.Keyboard.PressAsync("Backspace");
+        await page.Keyboard.PressAsync("Backspace");
+
+        await Expect(mention).ToHaveCountAsync(0);
+        Assert.Equal("hi ", await TextContentAsync(page.Locator(SpacesEditor)));
+    }
+
+    [Fact] // Shift+→ into a mention extends over all of it
+    public async Task ShiftArrow_IntoMention_ExtendsOverWhole()
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page, "hi ");
+
+        await page.Keyboard.PressAsync("Home");
+        for (var i = 0; i < "hi ".Length + 1; i++)
+        {
+            await page.Keyboard.PressAsync("Shift+ArrowRight");
+        }
+
+        Assert.Equal("hi Luke Skywalker", await DomSelectionTextAsync(page));
+        await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-selected", "");
+    }
+
+    [Fact] // a drag from plain text into the middle of a mention expands to cover it
+    public async Task DragIntoMention_ExpandsToCoverIt()
+    {
+        var page = await OpenAsync();
+        var mention = await InsertLukeAsync(page, "hi ");
+
+        var paragraph = await page.Locator(SpacesEditor).Locator("p").First.BoundingBoxAsync();
+        var target = await mention.BoundingBoxAsync();
+        Assert.NotNull(paragraph);
+        Assert.NotNull(target);
+        await page.Mouse.MoveAsync(paragraph.X + 1, paragraph.Y + paragraph.Height / 2);
+        await page.Mouse.DownAsync();
+        await page.Mouse.MoveAsync(target.X + target.Width / 2, target.Y + target.Height / 2, new() { Steps = 5 });
+        await page.Mouse.UpAsync();
+
+        await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-selected", "");
+        Assert.Equal("hi Luke Skywalker", await DomSelectionTextAsync(page));
+    }
+
+    [Fact] // a document saved while mentions were segmented imports them as atomic tokens
+    public async Task SegmentedMentionJson_ImportsAsToken()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(SpacesEditor);
+        var moduleUrl = Fx.BaseUrl + "_content/Blazor.Lexical/blazor-lexical.mjs";
+        await InsertLukeAsync(page, "hi ");
+
+        var json = await page.EvaluateAsync<string>(
+            "async ([url, id]) => (await import(url)).getEditorStateJson(id)",
+            new[] { moduleUrl, "editor-mention-spaces" });
+        var legacy = Regex.Replace(
+            json, "(\"mode\":)\"token\"(,[^{}]*\"type\":\"mention\")", "$1\"segmented\"$2");
+        Assert.Contains("\"segmented\"", legacy);
+
+        var reimported = await page.EvaluateAsync<string>(
+            @"async ([url, id, state]) => {
+                const mod = await import(url);
+                mod.setEditorStateJson(id, state);
+                return mod.getEditorStateJson(id);
+            }",
+            new[] { moduleUrl, "editor-mention-spaces", legacy });
+        Assert.DoesNotContain("\"segmented\"", reimported);
+
+        // Backspace from the end still removes the mention whole. Focusing a selection-less
+        // editor puts the caret at the document end.
+        await page.EvaluateAsync(
+            "async ([url, id]) => (await import(url)).focus(id)",
+            new[] { moduleUrl, "editor-mention-spaces" });
+        await Expect(editor).ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("Backspace");
+        await page.Keyboard.PressAsync("Backspace");
+        await Expect(editor.Locator("span[data-lexical-mention]")).ToHaveCountAsync(0);
+        Assert.Equal("hi ", await TextContentAsync(editor));
+    }
+
+    // --- Clipping (#editor-mention-clip): the picker escapes an overflow:hidden container ---
+
+    private const string ClipEditor = "#editor-mention-clip";
+    private const string ClipMenu = ".harness-mention-clip .blazor-lexical__mention-menu";
+
+    /// <summary>Scrolls the clip container to <paramref name="block"/> and opens a three-row picker.</summary>
+    private static async Task<(LocatorBoundingBoxResult Menu, LocatorBoundingBoxResult Container)>
+        OpenClippedPickerAsync(IPage page, string block)
+    {
+        await page.Locator($"{ClipEditor}[data-lexical-editor='true']").WaitForAsync();
+        var container = page.Locator("#mention-clip-container");
+        await container.EvaluateAsync("(el, block) => el.scrollIntoView({ block })", block);
+
+        // Focus without Playwright's own scroll-into-view, which would move the page.
+        await page.Locator(ClipEditor).FocusAsync();
+        await page.Keyboard.TypeAsync("@a");
+        var menu = page.Locator(ClipMenu);
+        await Expect(menu).ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(menu.Locator("[data-lexical-mention-item]")).ToHaveCountAsync(3);
+
+        var menuBox = await menu.BoundingBoxAsync();
+        var containerBox = await container.BoundingBoxAsync();
+        Assert.NotNull(menuBox);
+        Assert.NotNull(containerBox);
+        return (menuBox, containerBox);
+    }
+
+    private static void AssertInsideViewport(IPage page, LocatorBoundingBoxResult box)
+    {
+        var viewport = page.ViewportSize!;
+        Assert.InRange(box.X, 0, viewport.Width - box.Width);
+        Assert.InRange(box.Y, 0, viewport.Height - box.Height);
+    }
+
+    [Fact] // the open picker is taller than its overflow:hidden container and fully on screen
+    public async Task Picker_EscapesOverflowHiddenContainer()
+    {
+        var page = await OpenAsync();
+
+        var (menu, container) = await OpenClippedPickerAsync(page, "start");
+
+        Assert.True(menu.Height > container.Height, $"menu {menu.Height}px vs container {container.Height}px");
+        AssertInsideViewport(page, menu);
+        // Room below: the picker opens below the caret.
+        Assert.True(menu.Y > container.Y);
+        // Bounding boxes ignore clipping, so hit-test the menu's bottom, below the container.
+        var bottom = menu.Y + menu.Height - 4;
+        Assert.True(bottom > container.Y + container.Height);
+        Assert.True(await page.EvaluateAsync<bool>(
+            "([x, y]) => document.elementFromPoint(x, y)?.closest('.blazor-lexical__mention-menu') != null",
+            new double[] { menu.X + menu.Width / 2, bottom }));
+    }
+
+    [Fact] // with no room below the caret, the picker flips above it
+    public async Task Picker_FlipsAbove_WhenNoRoomBelow()
+    {
+        var page = await OpenAsync();
+
+        var (menu, container) = await OpenClippedPickerAsync(page, "end");
+
+        AssertInsideViewport(page, menu);
+        Assert.True(menu.Y + menu.Height <= container.Y + container.Height / 2,
+            $"menu bottom {menu.Y + menu.Height} vs container top {container.Y}");
     }
 }
