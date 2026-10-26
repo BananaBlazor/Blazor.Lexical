@@ -674,7 +674,7 @@ public class MentionTests : HarnessTestBase
     }
 
     /// <summary>Clicks the middle of the mention, which selects it whole.</summary>
-    private static async Task SelectByClickAsync(IPage page, ILocator mention)
+    private static async Task SelectByClickAsync(ILocator mention)
     {
         await mention.ClickAsync();
         await Expect(mention).ToHaveAttributeAsync("data-lexical-mention-selected", "");
@@ -690,7 +690,7 @@ public class MentionTests : HarnessTestBase
         var errors = CaptureErrors(page);
         var mention = await InsertLukeAsync(page);
 
-        await SelectByClickAsync(page, mention);
+        await SelectByClickAsync(mention);
 
         Assert.Equal("Luke Skywalker", await DomSelectionTextAsync(page));
         // Past the query debounce: the picker stays closed.
@@ -705,7 +705,7 @@ public class MentionTests : HarnessTestBase
     {
         var page = await OpenAsync();
         var mention = await InsertLukeAsync(page);
-        await SelectByClickAsync(page, mention);
+        await SelectByClickAsync(mention);
 
         await page.Keyboard.TypeAsync("x");
 
@@ -718,7 +718,7 @@ public class MentionTests : HarnessTestBase
     {
         var page = await OpenAsync();
         var mention = await InsertLukeAsync(page);
-        await SelectByClickAsync(page, mention);
+        await SelectByClickAsync(mention);
 
         await page.Keyboard.PressAsync("Backspace");
         await Expect(mention).ToHaveCountAsync(0);
@@ -736,7 +736,7 @@ public class MentionTests : HarnessTestBase
     {
         var page = await OpenAsync();
         var mention = await InsertLukeAsync(page);
-        await SelectByClickAsync(page, mention);
+        await SelectByClickAsync(mention);
 
         await page.Keyboard.PressAsync(key);
         await Expect(mention).Not.ToHaveAttributeAsync("data-lexical-mention-selected", "");
@@ -909,6 +909,6 @@ public class MentionTests : HarnessTestBase
 
         AssertInsideViewport(page, menu);
         Assert.True(menu.Y + menu.Height <= container.Y + container.Height / 2,
-            $"menu bottom {menu.Y + menu.Height} vs container top {container.Y}");
+            $"menu bottom {menu.Y + menu.Height} vs container middle {container.Y + container.Height / 2}");
     }
 }

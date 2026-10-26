@@ -970,7 +970,7 @@ export function registerMentions(
   // The floating menu is created here (not authored in Blazor) because its rows are
   // built from provider data. A manual popover renders in the top layer, so no
   // ancestor's overflow clips it; it is placed in viewport coordinates at the caret.
-  // It stays a DOM child of root, so teardown and attribute conventions are unchanged.
+  // It stays a DOM child of root, so root-scoped selectors find it.
   const menuEl = document.createElement('div');
   menuEl.className = 'blazor-lexical__mention-menu';
   menuEl.popover = 'manual';
