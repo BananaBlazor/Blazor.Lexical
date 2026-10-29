@@ -108,6 +108,20 @@ public sealed class LexicalTheme
     public string? HrSelected { get; set; }
 
     /// <summary>
+    /// Class for a page break — the <c>&lt;figure type="page-break"&gt;</c> node
+    /// <see cref="LexicalPageBreak"/> contributes. Named <c>pageBreak</c> on the wire.
+    /// </summary>
+    public string? PageBreak { get; set; }
+
+    /// <summary>
+    /// Class added <i>alongside</i> <see cref="PageBreak"/> while a break is selected (a
+    /// break is selected by clicking it, which is what lets Delete remove it). Give it a
+    /// visible treatment, such as an outline, since a break has no text to show a
+    /// selection on.
+    /// </summary>
+    public string? PageBreakSelected { get; set; }
+
+    /// <summary>
     /// The theme whose class names are styled by the bundled <c>blazor-lexical.css</c>,
     /// giving formatting a sensible default appearance out of the box.
     /// </summary>
@@ -124,6 +138,8 @@ public sealed class LexicalTheme
         SuggestionInsertion = "blazor-lexical__suggestion-insertion",
         Hr = "blazor-lexical__hr",
         HrSelected = "blazor-lexical__hr--selected",
+        PageBreak = "blazor-lexical__page-break",
+        PageBreakSelected = "blazor-lexical__page-break--selected",
         Table = "blazor-lexical__table",
         TableCell = "blazor-lexical__table-cell",
         TableCellHeader = "blazor-lexical__table-cell-header",

@@ -78,6 +78,7 @@ import highlightsRuntime from './highlights';
 import suggestionsRuntime from './suggestions';
 import statsRuntime from './stats';
 import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
+import pageBreakRuntime, { INSERT_PAGE_BREAK_COMMAND } from './page-break';
 import tabIndentRuntime from './tabindent';
 // App-agnostic primitives handed to extensions as `setup.primitives`. Both are tiny,
 // dependency-free (only `lexical` types) and stateless, so — like mentions — they are
@@ -109,7 +110,7 @@ import { HISTORY_MERGE_TAG, SILENT_UPDATE_TAG } from './tags';
 
 // The nodes every editor registers, so HTML/Markdown round-trips carry headings,
 // quotes, lists and links — not just plain paragraphs. Everything else, the table,
-// mention and horizontal-rule nodes included, arrives through the extension contract.
+// mention, horizontal-rule and page-break nodes included, arrives through the extension contract.
 // Named here (rather than inline in createEditor) because the extension loader also
 // needs their types, to catch an extension claiming one of them.
 const CORE_NODES: ReadonlyArray<Klass<LexicalNode>> = [
@@ -571,6 +572,10 @@ function runCommandToken(
       // not declared nothing has registered a handler and the dispatch is a no-op.
       editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined);
       break;
+    case 'page-break':
+      // Same as `hr:`: without the page-break extension the dispatch is a no-op.
+      editor.dispatchCommand(INSERT_PAGE_BREAK_COMMAND, undefined);
+      break;
     case 'clear-formatting':
       clearFormattingOnEditor(editor);
       break;
@@ -858,6 +863,8 @@ export async function create(
           factory = statsRuntime;
         } else if (desc.builtIn === 'hr') {
           factory = hrRuntime;
+        } else if (desc.builtIn === 'pageBreak') {
+          factory = pageBreakRuntime;
         } else if (desc.builtIn === 'tabIndent') {
           factory = tabIndentRuntime;
         } else if (desc.builtIn) {

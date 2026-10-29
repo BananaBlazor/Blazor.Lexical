@@ -14,8 +14,8 @@
 // node class. (Note this is NOT an argument about `@preact/signals-core`, which
 // is already in our bundle: @lexical/rich-text, history, list, link and html all
 // depend on @lexical/extension transitively. The weight here is the barrel.)
-// The update-listener loop below replaces upstream's signal-driven selection
-// handling, which is only signal-driven to serve its reactive wrapper.
+// Selection and delete come from the shared atomic-block helper, which replaces
+// upstream's signal-driven handling (signal-driven only to serve its reactive wrapper).
 //
 // The one thing a port cannot preserve is *command identity*: our
 // INSERT_HORIZONTAL_RULE_COMMAND is a distinct object from upstream's, so code
@@ -23,23 +23,13 @@
 // serialized form still interoperate). See docs/architecture.md.
 // ---------------------------------------------------------------------------
 
-import { $insertNodeToNearestRoot, addClassNamesToElement, removeClassNamesFromElement } from '@lexical/utils';
+import { $insertNodeToNearestRoot, addClassNamesToElement } from '@lexical/utils';
 import {
   $create,
-  $createNodeSelection,
   $getDocument,
-  $getNodeFromDOMNode,
-  $getSelection,
-  $isNodeSelection,
-  $setSelection,
-  CLICK_COMMAND,
   COMMAND_PRIORITY_EDITOR,
-  COMMAND_PRIORITY_LOW,
   createCommand,
   DecoratorNode,
-  isDOMNode,
-  KEY_BACKSPACE_COMMAND,
-  KEY_DELETE_COMMAND,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
@@ -47,9 +37,9 @@ import {
   type LexicalCommand,
   type LexicalEditor,
   type LexicalNode,
-  type NodeKey,
   type SerializedLexicalNode,
 } from 'lexical';
+import { registerAtomicBlockSelection } from './atomic-block';
 import type { LexicalExtensionModule, LexicalExtensionSetup } from './extension';
 
 /** The serialized form of a {@link HorizontalRuleNode} — no fields beyond the base. */
@@ -124,97 +114,6 @@ export function $isHorizontalRuleNode(
 }
 
 /**
- * Selects `node` on its own, so the rule reads as "the thing the caret is on" and
- * Delete/Backspace act on it. Shift-click extends an existing node selection.
- */
-function $selectHorizontalRule(key: NodeKey, extend: boolean): void {
-  const selection = $getSelection();
-  const nodeSelection =
-    extend && $isNodeSelection(selection) ? selection : $createNodeSelection();
-  if (nodeSelection !== selection) {
-    $setSelection(nodeSelection);
-  }
-  if (nodeSelection.has(key)) {
-    nodeSelection.delete(key);
-  } else {
-    nodeSelection.add(key);
-  }
-}
-
-/** Deletes every selected horizontal rule; true when it handled the key. */
-function $deleteSelectedHorizontalRules(): boolean {
-  const selection = $getSelection();
-  if (!$isNodeSelection(selection)) {
-    return false;
-  }
-  let handled = false;
-  for (const node of selection.getNodes()) {
-    if ($isHorizontalRuleNode(node)) {
-      node.remove();
-      handled = true;
-    }
-  }
-  return handled;
-}
-
-/**
- * Paints the `hrSelected` class onto the rules currently in the node selection.
- *
- * Upstream drives this with a signal per node key; an update listener does the
- * same job here because the set of rules in a document is small and we only ever
- * touch the ones whose selected-ness actually changed.
- */
-function registerSelectionPainting(editor: LexicalEditor, selectedClass: string): () => void {
-  let painted = new Set<NodeKey>();
-
-  const paint = (): void => {
-    const next = editor.getEditorState().read(() => {
-      const selection = $getSelection();
-      if (!$isNodeSelection(selection)) {
-        return new Set<NodeKey>();
-      }
-      const keys = new Set<NodeKey>();
-      for (const node of selection.getNodes()) {
-        if ($isHorizontalRuleNode(node)) {
-          keys.add(node.getKey());
-        }
-      }
-      return keys;
-    });
-
-    for (const key of painted) {
-      if (!next.has(key)) {
-        const dom = editor.getElementByKey(key);
-        if (dom !== null) {
-          removeClassNamesFromElement(dom, selectedClass);
-        }
-      }
-    }
-    for (const key of next) {
-      if (!painted.has(key)) {
-        const dom = editor.getElementByKey(key);
-        if (dom !== null) {
-          addClassNamesToElement(dom, selectedClass);
-        }
-      }
-    }
-    painted = next;
-  };
-
-  const unregister = editor.registerUpdateListener(paint);
-  return () => {
-    unregister();
-    // Leave no styling behind on teardown; the DOM may outlive the editor.
-    for (const key of painted) {
-      const dom = editor.getElementByKey(key);
-      if (dom !== null) {
-        removeClassNamesFromElement(dom, selectedClass);
-      }
-    }
-  };
-}
-
-/**
  * The horizontal-rule feature as a `LexicalExtensionFactory`. Contributes the node
  * and its theme keys, and performs no interop in either direction — the C# half's
  * only call is the `insert` escape hatch below.
@@ -246,32 +145,7 @@ export default function hrExtension(setup: LexicalExtensionSetup): LexicalExtens
           },
           COMMAND_PRIORITY_EDITOR,
         ),
-        editor.registerCommand(
-          CLICK_COMMAND,
-          (event: MouseEvent) => {
-            if (!isDOMNode(event.target)) {
-              return false;
-            }
-            const node = $getNodeFromDOMNode(event.target);
-            if (!$isHorizontalRuleNode(node)) {
-              return false;
-            }
-            $selectHorizontalRule(node.getKey(), event.shiftKey);
-            return true;
-          },
-          COMMAND_PRIORITY_LOW,
-        ),
-        editor.registerCommand(
-          KEY_DELETE_COMMAND,
-          $deleteSelectedHorizontalRules,
-          COMMAND_PRIORITY_LOW,
-        ),
-        editor.registerCommand(
-          KEY_BACKSPACE_COMMAND,
-          $deleteSelectedHorizontalRules,
-          COMMAND_PRIORITY_LOW,
-        ),
-        registerSelectionPainting(editor, selectedClass),
+        registerAtomicBlockSelection(editor, $isHorizontalRuleNode, selectedClass),
         () => {
           currentEditor = undefined;
         },

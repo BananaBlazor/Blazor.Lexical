@@ -36,6 +36,7 @@
   --blazor-lexical-suggestion-insertion-bg: rgb(198, 246, 213); /* proposed insertion */
   --blazor-lexical-suggestion-insertion: rgb(34, 84, 61);
   --blazor-lexical-hr-color: rgb(206, 208, 212);        /* horizontal rule line */
+  --blazor-lexical-page-break-label: "Page break";      /* text shown on a page break */
   --blazor-lexical-toc-indent: 0.9rem;                  /* per-level outline indent */
   --blazor-lexical-toc-active: rgb(33, 111, 219);
 }
@@ -584,6 +585,58 @@
 .blazor-lexical__hr--selected {
   outline: 2px solid var(--blazor-lexical-accent);
   outline-offset: 3px;
+}
+
+/* Page break: a dashed rule with a centred label (the label's background masks the
+   line). Selected the same way as a rule. Printing the live editor paginates at it. */
+.blazor-lexical__page-break {
+  position: relative;
+  height: 1.5em;
+  margin: 1em 0;
+  padding: 0;
+  cursor: default;
+}
+
+.blazor-lexical__page-break::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed var(--blazor-lexical-hr-color);
+}
+
+.blazor-lexical__page-break::after {
+  content: var(--blazor-lexical-page-break-label);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 0.6em;
+  background: var(--blazor-lexical-surface);
+  color: var(--blazor-lexical-muted);
+  font-size: 0.75em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.blazor-lexical__page-break--selected {
+  outline: 2px solid var(--blazor-lexical-accent);
+  outline-offset: 3px;
+}
+
+@media print {
+  .blazor-lexical__page-break {
+    break-after: page;
+    height: 0;
+    margin: 0;
+    outline: none;
+  }
+
+  .blazor-lexical__page-break::before,
+  .blazor-lexical__page-break::after {
+    content: none;
+  }
 }
 
 /* Mention picker: a floating list of provider candidates, built by JS at the caret. */
