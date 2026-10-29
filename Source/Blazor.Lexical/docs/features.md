@@ -109,7 +109,7 @@ schedule via `GetMentionsAsync` + `RefreshMentionAsync`/`RefreshMentionsByValueA
 applied with `SILENT_UPDATE_TAG` + `history-merge` so they add no undo step and the content
 push skips them. So opening a document and refreshing stale names never marks it dirty.
 
-**Starting a session from a button.** `<LexicalMentionButton Initiator="@">` renders a
+**Starting a session from a button.** `<LexicalMentionButton Initiator="@@">` renders a
 `mention:@` command token, so the delegated listener calls `startMention` with no interop and
 mirrors `canStartMention` onto `data-lexical-disabled` (see `js-contract.md`).
 `StartMentionAsync(initiator)` is the programmatic path to the same function. `startMention`

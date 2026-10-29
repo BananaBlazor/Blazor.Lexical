@@ -692,7 +692,8 @@ public class MentionTests : HarnessTestBase
 
         await Expect(button).ToHaveAttributeAsync("data-lexical-disabled", "");
         await Expect(button).ToHaveAttributeAsync("aria-disabled", "true");
-        await button.ClickAsync();
+        // Forced: Playwright won't click an aria-disabled control, but a user's click still lands.
+        await button.ClickAsync(new() { Force = true });
 
         Assert.Equal("", await TextContentAsync(page.Locator(editorId)));
         Assert.Empty(errors);

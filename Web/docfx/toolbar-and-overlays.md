@@ -139,8 +139,8 @@ round-trip by design — that is the only expected interop for toolbar/menu acti
 
   To start a mention from the toolbar, add a `<LexicalMentionButton>` per initiator. It
   inserts the initiator at the caret and opens the picker, as if typed, with no .NET
-  round trip. It is disabled while the editor is read-only or when no `<LexicalMention>`
-  with a `Provider` uses its initiator. Its content defaults to the initiator; pass your own
+  round trip. It is disabled while the editor is read-only, while a node or table is
+  selected, or when no `<LexicalMention>` with a `Provider` uses its initiator. Its content defaults to the initiator; pass your own
   icon instead:
 
   ```razor
