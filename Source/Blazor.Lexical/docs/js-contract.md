@@ -45,6 +45,11 @@ changing the bundle, the command tokens, or any overlay.
   `markdownUrlPrefix`; it imports from `mentions.ts` (core), never the reverse.
 - `hr.ts` — horizontal rule. Static in core (~1 kb). Ports upstream's `HorizontalRuleNode`
   and adds a non-signal selection painter; see `architecture.md` for why it is a port.
+- `page-break.ts` — page break. Static in core (~1 kb). Ports the Lexical playground's
+  `PageBreakNode` (`"page-break"`, `figure[type=page-break]`).
+- `atomic-block.ts` — `registerAtomicBlockSelection`: the shared click-select,
+  Delete/Backspace and selected-class painting for atomic block decorators. Used by
+  `hr.ts` and `page-break.ts`; not a factory.
 - `tabindent.ts` — Tab/Shift+Tab block indentation. Static in core, behaviour only (no
   node, no theme). Also a port of upstream's `registerTabIndentation`.
 - `ghost.ts` — inline ghost completion: the muted "rest of the word" hint painted in an
@@ -60,10 +65,11 @@ changing the bundle, the command tokens, or any overlay.
   import each other (a cycle that would drag the core entry into any lazy chunk).
 
 `mentions.ts`, `table.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`,
-`suggestions.ts`, `stats.ts`, `hr.ts` and `tabindent.ts` all **default-export a
-`LexicalExtensionFactory`**, so `create()` loads them through the same contract as a
-consumer extension — resolved by the closed `builtIn` switch (`'table' | 'mentions' | 'toc'
-| 'marks' | 'comments' | 'highlights' | 'suggestions' | 'stats' | 'hr' | 'tabIndent'`).
+`suggestions.ts`, `stats.ts`, `hr.ts`, `page-break.ts` and `tabindent.ts` all
+**default-export a `LexicalExtensionFactory`**, so `create()` loads them through the same
+contract as a consumer extension — resolved by the closed `builtIn` switch (`'table' |
+'mentions' | 'toc' | 'marks' | 'comments' | 'highlights' | 'suggestions' | 'stats' | 'hr' |
+'pageBreak' | 'tabIndent'`).
 
 ## Bundling
 
@@ -110,6 +116,8 @@ Buttons declare a token; JS (`runCommandToken` / `updateToolbarDom` / `isCommand
 - `hr:insert` — dispatches `INSERT_HORIZONTAL_RULE_COMMAND`. Needs no module handle (unlike
   `table:`): without `<LexicalHorizontalRule>` nothing has registered a handler, so the
   token is a silent no-op. No active state.
+- `page-break:insert` — dispatches `INSERT_PAGE_BREAK_COMMAND`. Same shape as `hr:insert`:
+  without `<LexicalPageBreak>` it is a silent no-op. No active state.
 - `clear-formatting`
 
 Style via `[data-lexical-active]` / `[data-lexical-disabled]` in

@@ -72,6 +72,10 @@ Buttons declare a command token that JS interprets. The built-in tokens:
 - `table:insert[:RxC]` (e.g. `table:3x4`)
 - `hr:insert` — inserts a horizontal rule. Does nothing unless the editor nests
   `<LexicalHorizontalRule />`.
+- `page-break:insert` — inserts a page break. Does nothing unless the editor nests
+  `<LexicalPageBreak />`. Nesting it also adds a toolbar button (hide it with
+  `<LexicalToolbar ShowPageBreak="false" />`; the default is `true`) and a "Page break"
+  slash item.
 - `clear-formatting`
 
 The enums model these tokens, so custom chrome doesn't have to spell them out — use

@@ -246,6 +246,23 @@ public class LexicalFeatureExtensionTests
         Assert.False(new LexicalHorizontalRule().ToDto().HasInvokeHandler);
     }
 
+    // --- Page break ------------------------------------------------------
+
+    [Fact]
+    public void PageBreak_is_a_built_in_module_with_no_options()
+    {
+        var dto = new LexicalPageBreak().ToDto();
+
+        Assert.Equal("pageBreak", dto.BuiltIn);
+        Assert.Null(dto.Options);
+    }
+
+    [Fact] // inserting a break is a JS command; nothing calls back into .NET
+    public void PageBreak_reports_no_invoke_handler()
+    {
+        Assert.False(new LexicalPageBreak().ToDto().HasInvokeHandler);
+    }
+
     // --- Tab indent ------------------------------------------------------
 
     [Fact]
@@ -285,6 +302,7 @@ public class LexicalFeatureExtensionTests
     [InlineData(typeof(LexicalSuggestions))]
     [InlineData(typeof(LexicalStats))]
     [InlineData(typeof(LexicalHorizontalRule))]
+    [InlineData(typeof(LexicalPageBreak))]
     [InlineData(typeof(LexicalTabIndent))]
     public void A_second_instance_in_one_editor_throws(Type extensionType)
     {

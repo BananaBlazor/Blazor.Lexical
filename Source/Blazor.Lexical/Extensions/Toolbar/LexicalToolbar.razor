@@ -33,7 +33,7 @@
         {
             <LexicalHyperlink />
         }
-        @if (ShowTableControls || ShowHorizontalRuleControl)
+        @if (ShowTableControls || ShowHorizontalRuleControl || ShowPageBreakControl)
         {
             <div class="blazor-lexical__toolbar-group">
                 @if (ShowTableControls)
@@ -43,6 +43,10 @@
                 @if (ShowHorizontalRuleControl)
                 {
                     <LexicalCommandButton Command="hr:insert" Title="Insert divider">—</LexicalCommandButton>
+                }
+                @if (ShowPageBreakControl)
+                {
+                    <LexicalCommandButton Command="page-break:insert" Title="Insert page break">⤓</LexicalCommandButton>
                 }
             </div>
         }

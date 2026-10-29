@@ -31,6 +31,10 @@
         {
             <LexicalSlashItem Command="hr:insert" Label="Divider" Keywords="divider horizontal rule line separator break hr" />
         }
+        @if (Editor?.HasExtension<LexicalPageBreak>() ?? false)
+        {
+            <LexicalSlashItem Command="page-break:insert" Label="Page break" Keywords="page break new page pagebreak" />
+        }
     }
 </div>
 
@@ -39,7 +43,8 @@
     /// The editor this menu lives in, supplied by <see cref="LexicalEditor"/>'s
     /// cascade. Used to include the items whose extensions are optional — the table
     /// item only when the editor nests a <see cref="LexicalTables"/> extension, the
-    /// divider only with a <see cref="LexicalHorizontalRule"/>.
+    /// divider only with a <see cref="LexicalHorizontalRule"/>, the page break only with a
+    /// <see cref="LexicalPageBreak"/>.
     /// </summary>
     [CascadingParameter] public LexicalEditor? Editor { get; set; }
 
@@ -69,9 +74,9 @@
 
     /// <summary>
     /// The menu items. When omitted, a default set (paragraph, H1–H3, bulleted and
-    /// numbered lists, quote, plus a table and a divider when the editor enables those
-    /// extensions) is shown. Supply your own <see cref="LexicalSlashItem"/> entries to
-    /// change the options or add custom insert actions.
+    /// numbered lists, quote, plus a table, a divider and a page break when the editor
+    /// enables those extensions) is shown. Supply your own <see cref="LexicalSlashItem"/>
+    /// entries to change the options or add custom insert actions.
     /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 

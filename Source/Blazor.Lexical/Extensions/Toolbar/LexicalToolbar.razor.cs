@@ -67,6 +67,17 @@ public partial class LexicalToolbar : ComponentBase, IDisposable
     private bool ShowHorizontalRuleControl =>
         ShowHorizontalRule && (Editor?.HasExtension<LexicalHorizontalRule>() ?? false);
 
+    /// <summary>
+    /// Show the insert-page-break button (default true). Only rendered when the editor
+    /// nests a <see cref="LexicalPageBreak"/> extension, since the command is inert
+    /// without the page-break node registered.
+    /// </summary>
+    [Parameter] public bool ShowPageBreak { get; set; } = true;
+
+    /// <summary>Whether the page-break button should render (extension present and not hidden).</summary>
+    private bool ShowPageBreakControl =>
+        ShowPageBreak && (Editor?.HasExtension<LexicalPageBreak>() ?? false);
+
     /// <inheritdoc />
     protected override void OnInitialized()
     {

@@ -71,6 +71,8 @@ public class HorizontalRuleTests : HarnessTestBase
         await page.Keyboard.PressAsync("Backspace");
 
         await Expect(page.Locator("#editor-hr hr.blazor-lexical__hr")).ToHaveCountAsync(0);
+        // The key removed only the rule, not text at the caret as well.
+        await Expect(page.Locator("#editor-hr")).ToContainTextAsync("above");
     }
 
     [Fact] // the node is upstream's, so <hr> survives an HTML round trip
