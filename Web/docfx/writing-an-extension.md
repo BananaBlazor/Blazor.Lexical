@@ -328,6 +328,67 @@ response guard so an answer that arrives after the user moved on is discarded.
 Where the affordance is a state attribute rather than text, there is no string to
 localize — worth copying.
 
+## 3e. Block decorators: atomic and indentable
+
+A custom block `DecoratorNode` (an image, a stamp, an embedded widget) has no text of its
+own, so the caret can't select it. `setup.primitives.atomicBlock.register` gives it the
+behaviour of the built-in horizontal rule: click selects it (shift-click adds it to the
+selection), Delete/Backspace remove it, and a selected node gets the class you name. The
+node must return `false` from `isInline()` and render `contentEditable = false`.
+
+To make it indentable as well, implement the three methods Lexical's element blocks have:
+`canIndent()` (return `true`), `getIndent()` and `setIndent(n)`. The node keeps the level
+itself — store it, serialize it, and render it:
+
+```js
+export default function stampExtension(setup) {
+  const { DecoratorNode } = setup.lexical;
+  const { mergeRegister } = setup.utils;
+
+  class StampNode extends DecoratorNode {
+    __indent = 0;
+    static getType() { return 'stamp'; }
+    static clone(node) { const n = new StampNode(node.__key); n.__indent = node.__indent; return n; }
+    static importJSON(json) { return new StampNode().updateFromJSON(json); }
+    updateFromJSON(json) { const w = super.updateFromJSON(json); w.__indent = json.indent ?? 0; return w; }
+    exportJSON() { return { ...super.exportJSON(), indent: this.getIndent() }; }
+    isInline() { return false; }
+    canIndent() { return true; }
+    getIndent() { return this.getLatest().__indent; }
+    setIndent(indent) { const w = this.getWritable(); w.__indent = indent; return w; }
+    createDOM() {
+      const dom = document.createElement('div');
+      dom.contentEditable = 'false';
+      dom.className = 'my-stamp';
+      this.updateDOM(null, dom);
+      return dom;
+    }
+    updateDOM(prev, dom) {
+      dom.style.paddingInlineStart = this.__indent ? `${this.__indent * 2}em` : '';
+      return false;
+    }
+    decorate() { return null; }
+  }
+
+  return {
+    name: 'my-extensions/stamp',
+    nodes: [StampNode],
+    register: ({ editor }) =>
+      mergeRegister(
+        setup.primitives.atomicBlock.register(editor, (n) => n instanceof StampNode, 'my-stamp--selected'),
+        // …your insert command and other registrations
+      ),
+  };
+}
+```
+
+Indenting decorators needs `<LexicalIndent />` on the editor: with it, the Indent/Outdent
+buttons move a selected stamp (and a stamp at the top level of a text selection), capped
+by `MaxIndent` like any block, and with `<LexicalTabIndent />` so do Tab/Shift+Tab. Without
+`<LexicalIndent />` decorators are not indented. Each step is an ordinary undoable change.
+The TypeScript contract is `AtomicBlockApi` / `IndentableBlockNode` in
+`blazor-lexical-extension.d.ts`.
+
 ## 4. Shipping it
 
 - **JS: nothing for the consumer to do.** Put `badge.mjs` in your RCL's `wwwroot`; it is

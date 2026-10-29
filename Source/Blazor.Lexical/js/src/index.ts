@@ -15,6 +15,8 @@ import {
   CAN_UNDO_COMMAND,
   CAN_REDO_COMMAND,
   COMMAND_PRIORITY_LOW,
+  INDENT_CONTENT_COMMAND,
+  OUTDENT_CONTENT_COMMAND,
   type EditorThemeClasses,
   type Klass,
   type LexicalEditor,
@@ -80,11 +82,14 @@ import statsRuntime from './stats';
 import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
 import pageBreakRuntime, { INSERT_PAGE_BREAK_COMMAND } from './page-break';
 import tabIndentRuntime from './tabindent';
-// App-agnostic primitives handed to extensions as `setup.primitives`. Both are tiny,
-// dependency-free (only `lexical` types) and stateless, so — like mentions — they are
+import indentRuntime from './indent';
+// App-agnostic primitives handed to extensions as `setup.primitives`. All are small,
+// stateless and need nothing beyond the core bundle, so — like mentions — they are
 // imported statically and cost no extra fetch. See extension.ts `LexicalPrimitives`.
 import { createGhostApi } from './ghost';
 import { createEntityCommitApi } from './entity-commit';
+import { registerAtomicBlockSelection } from './atomic-block';
+import { setElDisabled } from './toolbar-dom';
 // Consumer extension contract — types only (see extension.ts), so this import is
 // erased and the external modules stay entirely outside our bundle.
 import type {
@@ -443,13 +448,13 @@ function splitCommandToken(token: string): [string, string | undefined] {
 
 /**
  * Whether a `data-lexical-command` token is "active" for the given state, or
- * null when the command has no active concept (history, clear-formatting).
+ * null when the command has no active concept (history, indent, clear-formatting).
  */
 function isCommandActive(token: string, state: SelectionStateDto): boolean | null {
   const [type, arg] = splitCommandToken(token);
   switch (type) {
     case 'format':
-      return stateHasFormat(state, arg);
+      return stateHasFormat(state, arg ?? '');
     case 'block':
       return arg === 'select' ? null : state.blockType === arg;
     case 'list':
@@ -462,15 +467,6 @@ function isCommandActive(token: string, state: SelectionStateDto): boolean | nul
       return state.isLink;
     default:
       return null;
-  }
-}
-
-function setElDisabled(el: Element, disabled: boolean): void {
-  el.toggleAttribute('data-lexical-disabled', disabled);
-  if (disabled) {
-    el.setAttribute('aria-disabled', 'true');
-  } else {
-    el.removeAttribute('aria-disabled');
   }
 }
 
@@ -517,7 +513,7 @@ function runCommandToken(
       editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, (arg ?? '') as ElementFormatType);
       break;
     case 'block':
-      applyBlockType(editor, arg);
+      applyBlockType(editor, arg ?? '');
       break;
     case 'list': {
       if (arg === 'remove') {
@@ -592,6 +588,14 @@ function runCommandToken(
     case 'mention':
       // mention:<initiator> — starts a typeahead session as if the initiator were typed.
       mentionsModule?.startMention(editor, arg ?? '');
+      break;
+    case 'indent':
+      // Reaches indent.ts's capped handlers when LexicalIndent or LexicalTabIndent is
+      // declared, the stock rich-text ones (uncapped) otherwise.
+      editor.dispatchCommand(
+        arg === 'out' ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND,
+        undefined,
+      );
       break;
   }
 }
@@ -854,12 +858,13 @@ export async function create(
     // the same classes the editor registers, which a copy bundled into the extension
     // would not be. `lexical` is already in the bundle, so this resolves locally.
     const lexicalRuntime = await import('lexical');
-    // The primitives namespace, built once and shared across every extension: both APIs
-    // are stateless (ghost.attach takes the editor as an argument, entityCommit.create is
-    // editor-free), so one object is safe for all of them.
+    // The primitives namespace, built once and shared across every extension: every API
+    // is stateless (ghost.attach and atomicBlock.register take the editor as an argument,
+    // entityCommit.create is editor-free), so one object is safe for all of them.
     const primitives: LexicalExtensionSetup['primitives'] = {
       ghost: createGhostApi(),
       entityCommit: createEntityCommitApi(),
+      atomicBlock: { register: registerAtomicBlockSelection },
     };
     for (const desc of descriptors) {
       try {
@@ -893,6 +898,8 @@ export async function create(
           factory = pageBreakRuntime;
         } else if (desc.builtIn === 'tabIndent') {
           factory = tabIndentRuntime;
+        } else if (desc.builtIn === 'indent') {
+          factory = indentRuntime;
         } else if (desc.builtIn) {
           console.error(`[Blazor.Lexical] unknown built-in extension '${desc.builtIn}'`);
           continue;

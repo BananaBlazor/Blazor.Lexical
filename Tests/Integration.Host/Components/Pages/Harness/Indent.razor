@@ -1,0 +1,130 @@
+@page "/harness/indent"
+@using System.Text.Json
+
+<PageTitle>Harness — indent</PageTitle>
+
+<h1>Indent</h1>
+
+<section>
+    <h2>Indent — LexicalIndent tokens, cap, exclusions, disabled state, indentable decorators</h2>
+    @* Every editor also carries HarnessBlockDecorator, which mirrors each block's level
+       from the editor state onto its DOM as data-harness-indent (no focus change needed
+       to read it). It is not an indent extension: it adds no indent behaviour. *@
+
+    @* LexicalIndent alone (cap 3, so levels 0..2), the default toolbar, an opted-in and a
+       plain decorator, and an opted-in decorator nested inside a list item. *@
+    <LexicalEditor @ref="_indent"
+                   Id="editor-indent"
+                   CssClass="harness-indent"
+                   Theme="LexicalTheme.Default"
+                   ReadOnly="@_readOnly"
+                   InitialContent="@LexicalContent.FromEditorStateJson(IndentSeed)">
+        <LexicalToolbar />
+        <LexicalIndent MaxIndent="3" />
+        <HarnessBlockDecorator Variant="indentable" />
+        <HarnessBlockDecorator Variant="plain" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-indent-readonly" @onclick="() => _readOnly = !_readOnly">Toggle read-only</button>
+        <button id="btn-indent-roundtrip" @onclick="RoundTrip">Round-trip state JSON</button>
+    </div>
+    <p>Round trip: <span id="indent-roundtrip">@_roundTrip</span></p>
+
+    @* Both components, in opposite declaration orders: LexicalIndent's cap (2) and its
+       IndentListItems="false" must win over LexicalTabIndent's MaxIndent="5" either way. *@
+    <LexicalEditor Id="editor-indent-tab-first"
+                   CssClass="harness-indent-tab-first"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromEditorStateJson(TabSeed)">
+        <LexicalToolbar />
+        <LexicalTabIndent MaxIndent="5" />
+        <LexicalIndent MaxIndent="2" IndentListItems="false" MaxIndentReason="Two levels at most" />
+        <HarnessBlockDecorator Variant="indentable" />
+    </LexicalEditor>
+
+    <LexicalEditor Id="editor-indent-tab-last"
+                   CssClass="harness-indent-tab-last"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromEditorStateJson(TabSeed)">
+        <LexicalToolbar />
+        <LexicalIndent MaxIndent="2" IndentListItems="false" MaxIndentReason="Two levels at most" />
+        <LexicalTabIndent MaxIndent="5" />
+        <HarnessBlockDecorator Variant="indentable" />
+    </LexicalEditor>
+
+    @* Flat lists, seeded with an already-nested item that indenting could not create. *@
+    <LexicalEditor Id="editor-indent-flat"
+                   CssClass="harness-indent-flat"
+                   Theme="LexicalTheme.Default"
+                   InitialContent="@LexicalContent.FromHtml(FlatSeed)">
+        <LexicalToolbar />
+        <LexicalIndent IndentListItems="false" />
+        <HarnessBlockDecorator Variant="plain" />
+    </LexicalEditor>
+
+    @* No indent extension: the tokens reach the stock rich-text handlers, uncapped. *@
+    <LexicalEditor Id="editor-indent-uncapped"
+                   CssClass="harness-indent-uncapped"
+                   Theme="LexicalTheme.Default">
+        <LexicalIndentButton Outdent="true" />
+        <LexicalIndentButton />
+        <HarnessBlockDecorator Variant="plain" />
+    </LexicalEditor>
+</section>
+
+@code {
+    private LexicalEditor? _indent;
+    private bool _readOnly;
+    private string _roundTrip = "";
+
+    private static readonly string IndentSeed = HarnessState.Document(
+        HarnessState.Paragraph("alpha"),
+        HarnessState.Block("harness-block", "A"),
+        HarnessState.Paragraph("beta"),
+        HarnessState.Block("harness-block-plain", "P"),
+        HarnessState.BulletList(
+            HarnessState.ListItem(1, HarnessState.Text("item"), HarnessState.Block("harness-block", "N"))));
+
+    private static readonly string TabSeed = HarnessState.Document(
+        HarnessState.Paragraph("para"),
+        HarnessState.Block("harness-block", "T"),
+        HarnessState.BulletList(
+            HarnessState.ListItem(1, HarnessState.Text("one")),
+            HarnessState.ListItem(2, HarnessState.Text("two"))));
+
+    private const string FlatSeed =
+        "<ul><li>outer<ul><li>nested</li></ul></li></ul><p>after</p>";
+
+    /// <summary>
+    /// Reads the state JSON, writes it straight back, and reports each opted-in block's
+    /// level from the JSON (label:indent), proving exportJSON/updateFromJSON carry it.
+    /// </summary>
+    private async Task RoundTrip()
+    {
+        if (_indent is null)
+        {
+            return;
+        }
+        var json = await _indent.GetEditorStateJsonAsync();
+        await _indent.SetEditorStateJsonAsync(json);
+        using var document = JsonDocument.Parse(json);
+        var levels = new List<string>();
+        Collect(document.RootElement.GetProperty("root"), levels);
+        _roundTrip = string.Join(" ", levels);
+    }
+
+    private static void Collect(JsonElement node, List<string> levels)
+    {
+        if (node.GetProperty("type").GetString() == "harness-block")
+        {
+            levels.Add($"{node.GetProperty("label").GetString()}:{node.GetProperty("indent").GetInt32()}");
+        }
+        if (node.TryGetProperty("children", out var children))
+        {
+            foreach (var child in children.EnumerateArray())
+            {
+                Collect(child, levels);
+            }
+        }
+    }
+}

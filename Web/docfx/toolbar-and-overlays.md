@@ -33,7 +33,8 @@ To keep the default controls and simply *add* to them, use `StartContent` /
 `ChildContent`, by contrast, **replaces** the default set. Compose your own toolbar
 from the primitives and groups when that is what you want:
 `LexicalCommandButton`, `LexicalFormatButton`, `LexicalHistoryButton`,
-`LexicalListButton`, `LexicalBlockButton`, `LexicalAlignButton`, and the groups
+`LexicalListButton`, `LexicalBlockButton`, `LexicalAlignButton`, `LexicalIndentButton`,
+and the groups
 `LexicalBasicFormatting`, `LexicalHistoryGroup`, `LexicalListGroup`,
 `LexicalBlockSelect`, `LexicalHyperlink`, and `LexicalTableButton` (an insert grid
 picker).
@@ -76,7 +77,11 @@ Buttons declare a command token that JS interprets. The built-in tokens:
   `<LexicalPageBreak />`. Nesting it also adds a toolbar button (hide it with
   `<LexicalToolbar ShowPageBreak="false" />`; the default is `true`) and a "Page break"
   slash item.
+- `indent:{in|out}` — indents or outdents the selected blocks. Works without any extension
+  (uncapped); nest `<LexicalIndent />` for a cap and a disabled state (see below).
 - `clear-formatting`
+
+A disabled built-in button still shows its tooltip on hover; clicks on it are ignored.
 
 The enums model these tokens, so custom chrome doesn't have to spell them out — use
 `ToJsToken()` (and `FromJsToken()` to go back) on `LexicalTextFormat`,
@@ -88,6 +93,40 @@ The enums model these tokens, so custom chrome doesn't have to spell them out �
     Bold
 </button>
 ```
+
+## Indent and outdent
+
+Nest `<LexicalIndent />` to get Indent/Outdent buttons in the default toolbar (after the
+list buttons; hide them with `<LexicalToolbar ShowIndent="false" />`). In your own toolbar,
+use `<LexicalIndentButton />` and `<LexicalIndentButton Outdent="true" />` (default titles
+"Indent" / "Outdent", glyphs ⇥ / ⇤; pass `Title` or child content to change them).
+
+```razor
+<LexicalEditor>
+    <LexicalToolbar />
+    <LexicalIndent MaxIndent="4" IndentListItems="false" />
+    <LexicalTabIndent />
+</LexicalEditor>
+```
+
+- `MaxIndent` — levels below this value are allowed (`4` allows 0–3); unset means no cap.
+  Same meaning as on `<LexicalTabIndent>`.
+- `IndentListItems` (default `true`) — set `false` to keep lists flat when your output
+  can't represent nested lists. List items then never move, and Backspace at the start of
+  an already-nested item no longer un-nests it either.
+- `MaxIndentReason`, `AtMarginReason`, `NotIndentableReason` — the text shown when a button
+  is disabled. Defaults: "Maximum indent reached", "Already at the left margin",
+  "Indenting does not apply to this selection".
+
+A button is disabled when it would do nothing: every selected block is at the cap (Indent)
+or the left margin (Outdent), nothing in the selection can be indented (including list
+items with `IndentListItems="false"`), or the editor is read-only. The reason becomes the
+button's `data-lexical-disabled` value, tooltip and accessible label; the original title
+returns when it re-enables. Style it with `[data-lexical-disabled]`.
+
+`<LexicalIndent>` adds no key bindings: add `<LexicalTabIndent />` for Tab/Shift+Tab. With
+both, Tab follows `<LexicalIndent>`'s cap and list setting whichever is declared first, and
+`LexicalTabIndent.MaxIndent` is ignored. Everything runs client-side, with no .NET calls.
 
 ## The opt-in escape hatch
 

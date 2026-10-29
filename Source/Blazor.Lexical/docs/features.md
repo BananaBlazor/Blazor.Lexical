@@ -1,7 +1,7 @@
-# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, page break, tab indent, block gutter
+# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, page break, tab indent, indent, block gutter
 
 Read this before changing anything under `Extensions/` or the matching `js/src/*.ts`
-(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `suggestions.ts`, `stats.ts`, `hr.ts`, `page-break.ts`, `atomic-block.ts`, `tabindent.ts`, and
+(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `suggestions.ts`, `stats.ts`, `hr.ts`, `page-break.ts`, `atomic-block.ts`, `tabindent.ts`, `indent.ts`, and
 `registerBlockGutters` in `overlays.ts`). The text-quote anchor engine `marks`, `highlights` and
 `suggestions` share lives in `text-quote.ts`; the read-only selection bridge those first two use
 lives in `dom-selection.ts`. The DOM markers and command tokens these features use are in
@@ -396,10 +396,60 @@ editor.
 depth, and a caret mid-text still inserts a tab. No node, no theme, no interop —
 behaviour only, which is the shape the contract has to accommodate.
 
+It owns no indent handler: `MaxIndent` goes into `indent.ts`'s registry as the *fallback*
+policy (element blocks only, list items included), used only while no `<LexicalIndent>` is
+present. Alone it behaves as before. Tab on a node selection holding an opted-in decorator
+maps to indent/outdent too, but only when `<LexicalIndent>` is present; any other node
+selection lets Tab leave the editor.
+
 **Opt-in for accessibility, not taste.** Binding Tab inside the editor takes it away from
 keyboard navigation and traps focus; Lexical's own docs discourage the behaviour for that
 reason. It is a component rather than an editor flag so that enabling it is a deliberate
 act, and the C# doc comment says so.
+
+## Indent
+
+`js/src/indent.ts` + `Extensions/Indent/`. Owns indent/outdent policy for the editor: the
+`indent:in` / `indent:out` tokens (`LexicalIndentButton`; the default toolbar shows both
+when `HasExtension<LexicalIndent>()` and `ShowIndent`), Tab when `<LexicalTabIndent>` is
+also present, and the buttons' disabled state. Adds no key binding, no node, no theme, no
+interop.
+
+- **`MaxIndent`** (`int?`): exclusive, like `LexicalTabIndent.MaxIndent` — `n` allows
+  levels below `n`; null is uncapped. When both set it, this one wins.
+- **`IndentListItems`** (default true): false leaves list items where they are (Lexical
+  indents a list item by nesting it, which flat output can't represent). Consequence:
+  Backspace at the front of a nested list item no longer un-nests it. `@lexical/list`
+  does that outdent by calling `$handleOutdent` directly rather than dispatching
+  `OUTDENT_CONTENT_COMMAND`, so `indent.ts` also claims `KEY_BACKSPACE_COMMAND` for that
+  caret position (`$isAtFrontOfNestedListItem`). Enter on an empty nested item still
+  un-nests it (`$handleListInsertParagraph`); that is the list's exit gesture and is left
+  alone.
+- **Reasons** (`MaxIndentReason`, `AtMarginReason`, `NotIndentableReason`): overridable
+  strings; null falls back to the JS English defaults.
+
+**One policy per editor, order-independent.** Extensions can't see each other and built-ins
+register in markup order, so neither component checks for the other. Each registers a
+policy in a `WeakMap<LexicalEditor, IndentState>`: `LexicalIndent`'s is authoritative,
+`LexicalTabIndent`'s a fallback. One ref-counted pair of `COMMAND_PRIORITY_CRITICAL`
+indent/outdent handlers reads the active policy at dispatch time.
+
+**Handlers claim governed selections.** They walk the blocks `$handleIndentAndOutdent`
+would (nearest non-inline element ancestor per node, deduplicated, `canIndent()` true) plus
+opted-in decorators (`IndentableBlockNode`, see `extensions.md`) — node-selected ones, and
+range-selected ones whose parent is the root or a shadow root, which upstream never reaches.
+Excluded list items are dropped, the rest clamped to `[0, MaxIndent)`. They return `true`
+whenever a candidate block was found, even if nothing moved (including when every block is
+an excluded list item): a `false` would let the stock EDITOR-priority handlers run uncapped.
+Without either component the tokens reach those stock handlers.
+
+**Disabled state** comes from the same walk, so it can't drift from what the commands do.
+Painted only by `LexicalIndent`, synchronously from update and editable listeners. Indent:
+not editable, no candidate, or only excluded list items → `NotIndentableReason`; else every
+movable block at the cap → `MaxIndentReason`. Outdent likewise with `AtMarginReason` at
+level 0. See `js-contract.md` for the attributes. Rewriting the Blazor-rendered `title` is
+tolerated because Blazor patches it only when the parameter changes; keep it to these two
+controls.
 
 ## Block gutters (the per-block hover rails)
 

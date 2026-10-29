@@ -48,7 +48,7 @@ contract.
   cases; **we log and skip the later module**, per the invariant below.
 - **`setup` is the whole environment**: `options`, `lexical` and `utils` (the host's own
   module namespaces), `invokeDotNet`/`notifyDotNet`/`canInvokeDotNet`, `silentUpdateTag`,
-  and `primitives` (the ghost/entity-commit building blocks — see below). Anything an
+  and `primitives` (the ghost/entity-commit/atomic-block building blocks — see below). Anything an
   extension would otherwise import or hardcode belongs here.
 - **Single-instance by default**: `RegisterExtension` **throws** on a second instance of a
   type unless it overrides `AllowMultiple`. Stricter than the mentions dedupe (instance
@@ -169,14 +169,16 @@ parent. The engine has one owner: `js/src/block-drag.ts`, which `overlays.ts` ru
 both the policy and policy-free paths — "no policy" is just the empty policy, so the default
 top-level reorder is the same code.
 
-## `setup.primitives` — ghost completion & entity commit
+## `setup.primitives` — ghost completion, entity commit, atomic blocks
 
-`setup.primitives` carries two app-agnostic building blocks the SDK owns because they are
-easy to get subtly wrong per-app, both aimed at the **typed reference field** pattern — an
+`setup.primitives` carries app-agnostic building blocks the SDK owns because they are
+easy to get subtly wrong per-app. Two are aimed at the **typed reference field** pattern — an
 editable region whose content is conceptually a reference to an entity (a city, a tag, a
-person) rather than free text. Unlike `lexical`/`utils` (namespaces to call), these are
-stateless factories, so one `primitives` object is shared across every extension on the
-page: `ghost.attach` takes the editor as an argument, `entityCommit.create` is editor-free.
+person) rather than free text; the third gives custom block decorators the selection
+behaviour of the built-in rule and page break. Unlike `lexical`/`utils` (namespaces to call),
+these are stateless factories, so one `primitives` object is shared across every extension
+on the page: `ghost.attach` and `atomicBlock.register` take the editor as an argument,
+`entityCommit.create` is editor-free.
 
 ### `primitives.ghost` — inline ghost completion
 
@@ -227,6 +229,29 @@ Worked example: `Samples/Extensions.ReferenceFields` (a city-tag field: `par` gh
 `par│is`, ↓ cycles Paris→Parma, Tab/Enter accepts, an unknown city creates optimistically),
 demoed at the website's `/reference-fields` page and driven by
 `/harness/reference-fields` in `Tests/Integration/ReferenceFieldsTests.cs`.
+
+### `primitives.atomicBlock` — selectable block decorators
+
+`atomicBlock.register(editor, isNode, selectedClass)` is `registerAtomicBlockSelection`
+(`js/src/atomic-block.ts`), the code `hr.ts` and `page-break.ts` run on, exposed unchanged:
+click selects a matching node (shift-click toggles it in a node selection), Delete/Backspace
+remove the selected ones, and selected nodes get `selectedClass`. Returns a teardown (which
+strips any class it painted) for the extension's `mergeRegister`. The node must be a block
+`DecoratorNode` whose DOM is `contentEditable=false`. Handlers run at `COMMAND_PRIORITY_LOW`
+and return `false` for nodes `isNode` rejects, so the node's own LOW-priority handlers
+still run for other targets.
+
+### `IndentableBlockNode` — indentable block decorators
+
+Not a primitive but part of the same d.ts: a block `DecoratorNode` opts into indenting by
+implementing `ElementNode`'s three methods, `canIndent()` (true), `getIndent()` and
+`setIndent(n)` (through `getWritable()`). The node owns its level — a field, carried in
+`exportJSON`/`updateFromJSON`/`exportDOM` and painted in `createDOM`/`updateDOM`; the library
+only calls the methods. Detection is a duck-typed guard internal to `indent.ts`. Only
+`<LexicalIndent>`'s policy indents decorators (node-selected ones, and range-selected ones
+whose parent is the root or a shadow root such as a table cell — a decorator inside a list
+item moves with its containing block); the stock rich-text handlers and `<LexicalTabIndent>`'s fallback visit element
+blocks only. See `features.md`, "Indent".
 
 ## Adding a push channel
 

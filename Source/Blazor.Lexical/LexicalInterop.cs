@@ -232,6 +232,28 @@ internal sealed class TabIndentExtensionOptionsDto
 }
 
 /// <summary>
+/// Options payload for the indent extension, mirrored by the JS <c>IndentOptionsDto</c>.
+/// Null reasons fall back to the JS defaults.
+/// </summary>
+internal sealed class IndentExtensionOptionsDto
+{
+    /// <summary>Maximum indent depth (exclusive), or null for no cap.</summary>
+    public int? MaxIndent { get; set; }
+
+    /// <summary>Whether list items may be indented and outdented.</summary>
+    public bool IndentListItems { get; set; } = true;
+
+    /// <summary>Disabled reason at the cap.</summary>
+    public string? MaxIndentReason { get; set; }
+
+    /// <summary>Disabled reason at the left margin.</summary>
+    public string? AtMarginReason { get; set; }
+
+    /// <summary>Disabled reason when nothing in the selection can be indented.</summary>
+    public string? NotIndentableReason { get; set; }
+}
+
+/// <summary>
 /// The comment composer built-in's <c>GetOptions()</c> payload — the mirror of the JS
 /// <c>CommentComposerOptionsDto</c>.
 /// </summary>
@@ -325,6 +347,7 @@ internal sealed class LexicalSelectionStateDto
 [JsonSerializable(typeof(LexicalTocEntry[]))]
 [JsonSerializable(typeof(StatsExtensionOptionsDto))]
 [JsonSerializable(typeof(TabIndentExtensionOptionsDto))]
+[JsonSerializable(typeof(IndentExtensionOptionsDto))]
 [JsonSerializable(typeof(CommentComposerExtensionOptionsDto))]
 [JsonSerializable(typeof(LexicalDocumentStats))]
 [JsonSerializable(typeof(LexicalBlockRef))]
