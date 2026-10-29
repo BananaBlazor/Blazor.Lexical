@@ -17,7 +17,7 @@
 // `IndentableBlockNode`); only the authoritative policy indents them.
 // ---------------------------------------------------------------------------
 
-import { $isListItemNode } from '@lexical/list';
+import { $isListItemNode, $isListNode } from '@lexical/list';
 import { $findMatchingParent, mergeRegister } from '@lexical/utils';
 import {
   $getSelection,
@@ -27,7 +27,9 @@ import {
   $isRangeSelection,
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_CRITICAL,
+  COMMAND_PRIORITY_LOW,
   INDENT_CONTENT_COMMAND,
+  KEY_BACKSPACE_COMMAND,
   OUTDENT_CONTENT_COMMAND,
   type BaseSelection,
   type DecoratorNode,
@@ -164,6 +166,44 @@ function registerHandlers(editor: LexicalEditor): () => void {
   return mergeRegister(
     editor.registerCommand(INDENT_CONTENT_COMMAND, handler(false), COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(OUTDENT_CONTENT_COMMAND, handler(true), COMMAND_PRIORITY_CRITICAL),
+    // @lexical/list outdents a nested item on Backspace at its front by calling
+    // $handleOutdent directly, not through OUTDENT_CONTENT_COMMAND. Claim that key first
+    // when list items are excluded, as the outdent handler would.
+    editor.registerCommand(
+      KEY_BACKSPACE_COMMAND,
+      (event) => {
+        const active = activePolicy(editor);
+        if (active === null || active.policy.indentListItems || !$isAtFrontOfNestedListItem()) {
+          return false;
+        }
+        event.preventDefault();
+        return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    ),
+  );
+}
+
+/**
+ * Whether the selection is a caret at the front of a nested list item: the case
+ * @lexical/list's Backspace handler turns into an outdent (`ListItemNode.collapseAtStart`).
+ */
+function $isAtFrontOfNestedListItem(): boolean {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) || !selection.isCollapsed() || selection.anchor.offset !== 0) {
+    return false;
+  }
+  let node: LexicalNode | null = selection.anchor.getNode();
+  while (node !== null && !$isListItemNode(node)) {
+    if (node.getPreviousSibling() !== null) {
+      return false;
+    }
+    node = node.getParent();
+  }
+  return (
+    $isListItemNode(node) &&
+    !$isListNode(node.getFirstChild()) &&
+    $isListItemNode(node.getParent()?.getParent())
   );
 }
 

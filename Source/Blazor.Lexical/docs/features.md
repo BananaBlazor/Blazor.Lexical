@@ -419,8 +419,12 @@ interop.
   levels below `n`; null is uncapped. When both set it, this one wins.
 - **`IndentListItems`** (default true): false leaves list items where they are (Lexical
   indents a list item by nesting it, which flat output can't represent). Consequence:
-  `@lexical/rich-text` turns Backspace at the front of an indented block into
-  `OUTDENT_CONTENT_COMMAND`, so Backspace no longer un-nests a nested list item either.
+  Backspace at the front of a nested list item no longer un-nests it. `@lexical/list`
+  does that outdent by calling `$handleOutdent` directly rather than dispatching
+  `OUTDENT_CONTENT_COMMAND`, so `indent.ts` also claims `KEY_BACKSPACE_COMMAND` for that
+  caret position (`$isAtFrontOfNestedListItem`). Enter on an empty nested item still
+  un-nests it (`$handleListInsertParagraph`); that is the list's exit gesture and is left
+  alone.
 - **Reasons** (`MaxIndentReason`, `AtMarginReason`, `NotIndentableReason`): overridable
   strings; null falls back to the JS English defaults.
 

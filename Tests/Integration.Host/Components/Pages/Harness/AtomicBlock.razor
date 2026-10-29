@@ -1,0 +1,35 @@
+@page "/harness/atomic-block"
+
+<PageTitle>Harness — atomic block</PageTitle>
+
+<h1>Atomic block</h1>
+
+<section>
+    <h2>Atomic block — setup.primitives.atomicBlock on a consumer block decorator</h2>
+    @* The decorator comes from a consumer ESM (harness-block-decorator.mjs), which also
+       registers its own LOW-priority CLICK_COMMAND handler and counts its hits on
+       data-harness-clicks. The editor sits in an @if so a test can dispose it. *@
+    @if (_show)
+    {
+        <LexicalEditor Id="editor-atomic"
+                       CssClass="harness-atomic"
+                       Theme="LexicalTheme.Default"
+                       InitialContent="@LexicalContent.FromEditorStateJson(Seed)">
+            <button id="btn-atomic-insert" type="button" data-harness-block-insert="plain">Block</button>
+            <HarnessBlockDecorator Variant="plain" />
+        </LexicalEditor>
+    }
+    <div>
+        <button id="btn-atomic-remove" @onclick="() => _show = false">Remove editor</button>
+    </div>
+</section>
+
+@code {
+    private bool _show = true;
+
+    private static readonly string Seed = HarnessState.Document(
+        HarnessState.Paragraph("above"),
+        HarnessState.Block("harness-block-plain", "X"),
+        HarnessState.Block("harness-block-plain", "Y"),
+        HarnessState.Paragraph("below"));
+}
