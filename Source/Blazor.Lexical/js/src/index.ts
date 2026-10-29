@@ -454,7 +454,7 @@ function isCommandActive(token: string, state: SelectionStateDto): boolean | nul
   const [type, arg] = splitCommandToken(token);
   switch (type) {
     case 'format':
-      return stateHasFormat(state, arg);
+      return stateHasFormat(state, arg ?? '');
     case 'block':
       return arg === 'select' ? null : state.blockType === arg;
     case 'list':
@@ -513,7 +513,7 @@ function runCommandToken(
       editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, (arg ?? '') as ElementFormatType);
       break;
     case 'block':
-      applyBlockType(editor, arg);
+      applyBlockType(editor, arg ?? '');
       break;
     case 'list': {
       if (arg === 'remove') {
