@@ -339,14 +339,14 @@ public class IndentTests : HarnessTestBase
         await CaretAtStartAsync(nested);
         await page.Keyboard.PressAsync("Backspace");
 
-        await Expect(page.Locator("#editor-indent-flat ul ul li")).ToHaveCountAsync(1);
-        await Expect(page.Locator("#editor-indent-flat ul ul li")).ToHaveTextAsync("nested");
+        await Expect(nested).ToHaveCountAsync(1);
+        await Expect(nested).ToHaveTextAsync("nested");
         await Expect(page.Locator("#editor-indent-flat")).ToContainTextAsync("outer");
 
         // Elsewhere in the item Backspace still deletes.
         await page.Keyboard.PressAsync("End");
         await page.Keyboard.PressAsync("Backspace");
-        await Expect(page.Locator("#editor-indent-flat ul ul li")).ToHaveTextAsync("neste");
+        await Expect(nested).ToHaveTextAsync("neste");
     }
 
     // --- no indent extension -------------------------------------------------------------

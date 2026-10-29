@@ -92,16 +92,13 @@ function activePolicy(editor: LexicalEditor): { policy: IndentPolicy; authoritat
  * node selection, the opted-in decorators in it.
  */
 function $collectBlocks(selection: BaseSelection | null, decorators: boolean): IndentableBlock[] {
-  const blocks: IndentableBlock[] = [];
   if ($isNodeSelection(selection)) {
-    if (decorators) {
-      blocks.push(...selection.getNodes().filter($isIndentableDecorator));
-    }
-    return blocks;
+    return decorators ? selection.getNodes().filter($isIndentableDecorator) : [];
   }
   if (!$isRangeSelection(selection)) {
-    return blocks;
+    return [];
   }
+  const blocks: IndentableBlock[] = [];
   const seen = new Set<string>();
   const add = (block: IndentableBlock): void => {
     if (!seen.has(block.getKey())) {
@@ -216,11 +213,13 @@ export function registerIndentPolicy(
   policy: IndentPolicy,
   authoritative: boolean,
 ): () => void {
-  let state = states.get(editor);
-  if (state === undefined) {
-    state = { authoritative: null, fallback: null, refs: 0, unregisterHandlers: () => {} };
-    states.set(editor, state);
-  }
+  const state: IndentState = states.get(editor) ?? {
+    authoritative: null,
+    fallback: null,
+    refs: 0,
+    unregisterHandlers: () => {},
+  };
+  states.set(editor, state);
   if (state.refs++ === 0) {
     state.unregisterHandlers = registerHandlers(editor);
   }
@@ -229,15 +228,14 @@ export function registerIndentPolicy(
   } else {
     state.fallback = policy;
   }
-  const owned = state;
   return () => {
     if (authoritative) {
-      owned.authoritative = null;
+      state.authoritative = null;
     } else {
-      owned.fallback = null;
+      state.fallback = null;
     }
-    if (--owned.refs === 0) {
-      owned.unregisterHandlers();
+    if (--state.refs === 0) {
+      state.unregisterHandlers();
       states.delete(editor);
     }
   };

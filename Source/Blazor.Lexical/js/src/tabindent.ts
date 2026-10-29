@@ -76,13 +76,9 @@ function registerTabIndentation(editor: LexicalEditor, maxIndent?: number): () =
       (event) => {
         const selection = $getSelection();
         let command: LexicalCommand<void>;
-        if ($isRangeSelection(selection)) {
-          command = $indentOverTab(selection)
-            ? event.shiftKey
-              ? OUTDENT_CONTENT_COMMAND
-              : INDENT_CONTENT_COMMAND
-            : INSERT_TAB_COMMAND;
-        } else if ($isIndentableNodeSelection(editor, selection)) {
+        if ($isRangeSelection(selection) && !$indentOverTab(selection)) {
+          command = INSERT_TAB_COMMAND;
+        } else if ($isRangeSelection(selection) || $isIndentableNodeSelection(editor, selection)) {
           command = event.shiftKey ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND;
         } else {
           return false;

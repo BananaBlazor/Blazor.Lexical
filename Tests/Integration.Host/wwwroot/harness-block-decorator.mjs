@@ -142,13 +142,14 @@ export default function harnessBlockExtension(setup) {
         });
       };
 
+      const insertSelector = `[data-harness-block-insert="${variant}"]`;
       const onMouseDown = (e) => {
-        if (e.target.closest(`[data-harness-block-insert="${variant}"]`)) {
+        if (e.target.closest(insertSelector)) {
           e.preventDefault();
         }
       };
       const onClick = (e) => {
-        if (e.target.closest(`[data-harness-block-insert="${variant}"]`)) {
+        if (e.target.closest(insertSelector)) {
           editor.update(() => {
             $insertNodeToNearestRoot(new HarnessBlockNode('inserted'));
           });
