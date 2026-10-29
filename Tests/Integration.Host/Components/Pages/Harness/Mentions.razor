@@ -43,6 +43,8 @@
                    Placeholder="Type #tags…"
                    Theme="LexicalTheme.Default">
         <LexicalMention Initiator="@HashInitiator" Color="#e8b800" Freeform="true" />
+        @* No provider for #, so this stays disabled. *@
+        <LexicalMentionButton Initiator="@HashInitiator" />
     </LexicalEditor>
 
     <LexicalEditor @ref="_mentionReadOnly"
@@ -52,6 +54,35 @@
                    InitialContent="@LexicalContent.FromText("read only")"
                    Theme="LexicalTheme.Default">
         <LexicalMention Initiator="@AtInitiator" Provider="ResolvePeople" />
+    </LexicalEditor>
+</section>
+
+<section>
+    <h2>Mentions — LexicalMentionButton (mention:&lt;initiator&gt; token)</h2>
+    @* The buttons sit inside the editor so its delegated listener dispatches them, with no
+       .NET handler. ":" proves an initiator containing the token separator; "!" has no
+       config, so stays disabled. The rule gives a node selection, which also disables
+       them; the toggle flips ReadOnly. The second editor has no LexicalMention at all. *@
+    <LexicalEditor Id="editor-mention-button"
+                   CssClass="harness-mention-button"
+                   Placeholder="Type, then click a mention button…"
+                   ReadOnly="_mentionButtonReadOnly"
+                   Theme="LexicalTheme.Default">
+        <LexicalMentionButton Initiator="@AtInitiator" Title="Mention a person" />
+        <LexicalMentionButton Initiator=":" />
+        <LexicalMentionButton Initiator="@UnknownInitiator" />
+        <button id="btn-mention-button-hr" type="button" data-lexical-command="hr:insert">Rule</button>
+        <LexicalMention Initiator="@AtInitiator" Provider="ResolvePeople" />
+        <LexicalMention Initiator=":" Provider="ResolvePeople" />
+        <LexicalHorizontalRule />
+    </LexicalEditor>
+    <button id="btn-mention-button-toggle-readonly"
+            @onclick="() => _mentionButtonReadOnly = !_mentionButtonReadOnly">Toggle read-only</button>
+
+    <LexicalEditor Id="editor-mention-button-none"
+                   CssClass="harness-mention-button-none"
+                   Theme="LexicalTheme.Default">
+        <LexicalMentionButton Initiator="@AtInitiator" />
     </LexicalEditor>
 </section>
 
@@ -208,6 +239,8 @@
     // No config uses it, so StartMentionAsync must refuse it.
     private const string UnknownInitiator = "!";
     private const string HashInitiator = "#";
+
+    private bool _mentionButtonReadOnly;
 
     private LexicalEditor? _mentionHashtag;
     private LexicalEditor? _mentionReadOnly;
