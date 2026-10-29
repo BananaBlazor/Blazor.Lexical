@@ -1,7 +1,7 @@
-# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, tab indent, block gutter
+# Built-in features: tables, mentions, TOC, marks, comment composer, highlights, suggestions, stats, horizontal rule, page break, tab indent, block gutter
 
 Read this before changing anything under `Extensions/` or the matching `js/src/*.ts`
-(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `suggestions.ts`, `stats.ts`, `hr.ts`, `tabindent.ts`, and
+(`table.ts`, `mentions.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`, `suggestions.ts`, `stats.ts`, `hr.ts`, `page-break.ts`, `atomic-block.ts`, `tabindent.ts`, and
 `registerBlockGutters` in `overlays.ts`). The text-quote anchor engine `marks`, `highlights` and
 `suggestions` share lives in `text-quote.ts`; the read-only selection bridge those first two use
 lives in `dom-selection.ts`. The DOM markers and command tokens these features use are in
@@ -359,9 +359,32 @@ keys match upstream and documents round-trip with other Lexical apps. Inserted b
 `hr:insert` token (toolbar button and slash item, both gated on
 `HasExtension<LexicalHorizontalRule>()`) or `InsertAsync()` from C#. Clicking a rule puts
 it in a node selection — which is what makes Delete/Backspace meaningful and what
-`hrSelected` styles — painted by an update listener rather than upstream's signals.
-Zero interop. Opt-in, so an `<hr>` in HTML loaded into an editor without the extension is
-dropped, the same trade tables make.
+`hrSelected` styles — via the shared `atomic-block.ts` helper (an update listener paints
+the class, rather than upstream's signals). Zero interop. Opt-in, so an `<hr>` in HTML
+loaded into an editor without the extension is dropped, the same trade tables make.
+
+## Page break
+
+`js/src/page-break.ts` + `Extensions/PageBreak/`. A port of the Lexical playground's
+`PageBreakNode`: node type `"page-break"`, DOM `<figure type="page-break">`, so documents
+round-trip with other Lexical apps. Inserted by the `page-break:insert` token (toolbar
+button and slash item, both gated on `HasExtension<LexicalPageBreak>()`) or `InsertAsync()`
+from C#. Selection and Delete/Backspace come from the same `atomic-block.ts` helper hr uses
+(the playground's React component is not ported); theme keys `pageBreak` /
+`pageBreakSelected`. Zero interop; opt-in, so page-break markup loaded without the
+extension is dropped.
+
+**Top-level only.** A node transform splits any list, quote or paragraph around a nested
+break; inside a table cell (a shadow root) it moves after the table. When nothing follows,
+an empty paragraph is appended so the caret has somewhere to go.
+
+**HTML.** Export adds `style="break-after: page; page-break-after: always"`, so exported
+HTML paginates in print and HTML-to-PDF/Word tools without extra CSS. Import accepts
+`figure[type=page-break]` and Word's clipboard form, `<br style="page-break-before:always">`
+(or `break-before: page`); a plain `<br>` stays a line break. Markdown has no page-break
+form, so markdown export drops them. Default CSS draws a dashed rule with a label
+(`--blazor-lexical-page-break-label`) and a `@media print` rule that paginates the live
+editor.
 
 ## Tab indentation
 

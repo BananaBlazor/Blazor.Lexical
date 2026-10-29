@@ -195,6 +195,9 @@ invention. Theme fragments merge with upstream `deepThemeMergeInPlace` semantics
 (reimplemented, since that helper is internal to the package). The horizontal-rule node
 and the tab-indentation handler are ports of upstream's, keeping the `"horizontalrule"`
 node type and the `hr`/`hrSelected` theme keys so documents and themes interoperate.
+The page-break node is likewise a port of the Lexical playground's `PageBreakNode`, keeping
+its `"page-break"` type and `figure[type=page-break]` DOM; its React component is replaced
+by the shared `atomic-block.ts` selection helper that hr also uses.
 
 **One divergence is deliberate**: upstream *throws* on a name clash or a declared
 conflict and refuses to build the editor. We log and skip the offending module, because
