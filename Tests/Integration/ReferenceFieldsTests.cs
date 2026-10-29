@@ -67,7 +67,10 @@ public class ReferenceFieldsTests : HarnessTestBase
     {
         var page = await OpenAsync();
 
-        await TypeAsync(page, Editor, "par");
+        // One input event, so the typing is exactly one history step. Typed key by key,
+        // a pause past the history merge window on a slow runner splits it into two.
+        await page.ClickAsync(Editor);
+        await page.Keyboard.InsertTextAsync("par");
         await Expect(page.Locator(Ghost)).ToHaveTextAsync("is");
 
         await page.Keyboard.PressAsync("Control+z");
