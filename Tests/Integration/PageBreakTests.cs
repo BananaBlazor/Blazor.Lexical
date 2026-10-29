@@ -170,7 +170,7 @@ public class PageBreakTests : HarnessTestBase
         await Expect(page.Locator("#editor-pb")).ToContainTextAsync("second");
     }
 
-    [Fact] // in a table cell the break lands after the table, leaving the cell untouched
+    [Fact] // from a table cell the break lands after the table, and so does the caret
     public async Task InsertingInATableCell_PutsTheBreakAfterTheTable()
     {
         var page = await OpenAsync();
@@ -179,8 +179,10 @@ public class PageBreakTests : HarnessTestBase
         await page.Locator("#editor-pb td").First.ClickAsync();
         await page.Keyboard.PressAsync("End");
         await page.ClickAsync($".harness-pb {ToolbarButton}");
+        await page.Keyboard.TypeAsync("typed ");
 
         await Expect(page.Locator($"#editor-pb > table + {Break}")).ToHaveCountAsync(1);
+        await Expect(page.Locator($"#editor-pb > {Break} + p")).ToHaveTextAsync("typed after");
         await Expect(page.Locator($"#editor-pb td {Break}")).ToHaveCountAsync(0);
         await Expect(page.Locator("#editor-pb td p")).ToHaveCountAsync(1);
         await Expect(page.Locator("#editor-pb td")).ToHaveTextAsync("cell");

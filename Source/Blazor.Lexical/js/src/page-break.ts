@@ -216,10 +216,9 @@ export default function pageBreakExtension(setup: LexicalExtensionSetup): Lexica
               $insertNodeToNearestRoot(node);
             }
             if (node.getNextSibling() === null) {
-              const paragraph = $createParagraphNode();
-              node.insertAfter(paragraph);
-              paragraph.selectStart();
+              node.insertAfter($createParagraphNode());
             }
+            node.selectNext(0, 0);
             return true;
           },
           COMMAND_PRIORITY_EDITOR,
