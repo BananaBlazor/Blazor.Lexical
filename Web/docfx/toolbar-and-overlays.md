@@ -137,5 +137,30 @@ round-trip by design — that is the only expected interop for toolbar/menu acti
   @* "[#12 · Budget](#ticket:42)" loads as a mention with id "42" *@
   ```
 
+  To start a mention from the toolbar, add a `<LexicalMentionButton>` per initiator. It
+  inserts the initiator at the caret and opens the picker, as if typed, with no .NET
+  round trip. It is disabled while the editor is read-only, while a node or table is
+  selected, or when no `<LexicalMention>` with a `Provider` uses its initiator. Its content defaults to the initiator; pass your own
+  icon instead:
+
+  ```razor
+  <LexicalEditor>
+      <LexicalToolbar>
+          <EndContent>
+              <LexicalMentionButton Initiator="@@" Title="Mention a person">
+                  <i class="icon-at"></i>
+              </LexicalMentionButton>
+              <LexicalMentionButton Initiator="#" Title="Reference a ticket">
+                  <i class="icon-hash"></i>
+              </LexicalMentionButton>
+          </EndContent>
+      </LexicalToolbar>
+      <LexicalMention Initiator="@@" Provider="SearchPeople" />
+      <LexicalMention Initiator="#" Provider="SearchTickets" />
+  </LexicalEditor>
+  ```
+
+  `editor.StartMentionAsync("@")` does the same from code.
+
 See the [API Reference](xref:Blazor.Lexical) for the full parameter set of each
 component.

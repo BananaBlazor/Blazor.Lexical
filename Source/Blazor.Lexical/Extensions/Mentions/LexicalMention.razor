@@ -13,7 +13,9 @@
 
    Interop is opt-in: a config with no Provider does zero JS→.NET calls (freeform
    highlighting is pure client-side); only a Provider config queries .NET as the user
-   types. *@
+   types.
+
+   To start a session from a toolbar button, add a <LexicalMentionButton Initiator="@@" />. *@
 
 @code {
     /// <summary>The editor this config belongs to, supplied by <see cref="LexicalEditor"/>'s cascade.</summary>

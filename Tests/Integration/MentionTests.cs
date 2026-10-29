@@ -14,6 +14,8 @@ namespace Tests.Integration;
 ///   config with no provider — pure-JS hashtag highlighting, zero interop;
 /// - <c>#editor-mention-readonly</c>: a read-only editor with an "@" provider config,
 ///   which <c>StartMentionAsync</c> must refuse;
+/// - <c>#editor-mention-button</c> / <c>#editor-mention-button-none</c>:
+///   <c>LexicalMentionButton</c>s with and without mention configs;
 /// - <c>#editor-mention-spaces</c>: an "@" config with <c>AllowSpacesInQuery</c>, also
 ///   used for atomic-mention selection and editing;
 /// - <c>#editor-mention-clip</c>: an "@" editor inside a short <c>overflow: hidden</c>
@@ -614,6 +616,115 @@ public class MentionTests : HarnessTestBase
 
         await Expect(page.Locator("#mention-start-result")).ToHaveTextAsync("refused");
         Assert.Equal(text, await TextContentAsync(page.Locator(editorId)));
+    }
+
+    // --- LexicalMentionButton (#editor-mention-button): the mention:<initiator> token ---
+
+    private const string ButtonEditor = "#editor-mention-button";
+    private const string ButtonMenu = ".harness-mention-button .blazor-lexical__mention-menu";
+
+    private static ILocator MentionButton(IPage page, string root, string initiator)
+        => page.Locator($"{root} [data-lexical-command='mention:{initiator}']");
+
+    [Fact] // the button keeps the caret: the trigger goes in mid-text and the picker opens
+    public async Task MentionButton_MidText_InsertsAtTheCaret()
+    {
+        var page = await OpenAsync();
+        var errors = CaptureErrors(page);
+        var editor = page.Locator(ButtonEditor);
+        var button = MentionButton(page, ".harness-mention-button", "@");
+
+        await Expect(button).ToHaveAttributeAsync("aria-label", "Mention a person");
+        await TypeAsync(page, ButtonEditor, "hello world");
+        for (var i = 0; i < " world".Length; i++)
+        {
+            await page.Keyboard.PressAsync("ArrowLeft");
+        }
+        await button.ClickAsync();
+
+        await Expect(page.Locator(ButtonMenu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        await Expect(editor).ToBeFocusedAsync();
+        Assert.Equal("hello @ world", await TextContentAsync(editor));
+        Assert.Empty(errors);
+    }
+
+    [Fact] // a button-started session commits a candidate exactly like a typed one
+    public async Task MentionButton_ThenEnter_InsertsMention()
+    {
+        var page = await OpenAsync();
+        var editor = page.Locator(ButtonEditor);
+
+        await TypeAsync(page, ButtonEditor, "hi");
+        await MentionButton(page, ".harness-mention-button", "@").ClickAsync();
+        await Expect(page.Locator(ButtonMenu)).ToHaveAttributeAsync("data-lexical-visible", "");
+        await page.Keyboard.TypeAsync("le");
+        await Expect(page.Locator(ButtonMenu).Locator("[data-lexical-mention-item]")).ToHaveCountAsync(1);
+        await page.Keyboard.PressAsync("Enter");
+
+        await Expect(editor.Locator("span[data-lexical-mention]")).ToHaveTextAsync("Leia Organa");
+    }
+
+    [Fact] // the token argument is everything after the first ':', so ':' itself is a usable initiator
+    public async Task MentionButton_InitiatorWithColon_StartsSession()
+    {
+        var page = await OpenAsync();
+        var button = MentionButton(page, ".harness-mention-button", ":");
+
+        // Default content and label come from the initiator.
+        await Expect(button).ToHaveTextAsync(":");
+        await Expect(button).ToHaveAttributeAsync("aria-label", "Insert :");
+        await button.ClickAsync();
+
+        await Expect(page.Locator(ButtonMenu).Locator("[data-lexical-mention-item]")).ToHaveCountAsync(3);
+        Assert.Equal(":", await TextContentAsync(page.Locator(ButtonEditor)));
+    }
+
+    [Theory] // no config, a provider-less config, or no mentions at all: disabled, and a click is inert
+    [InlineData(".harness-mention-button", "!", ButtonEditor)]
+    [InlineData(".harness-mention-hashtag", "#", "#editor-mention-hashtag")]
+    [InlineData(".harness-mention-button-none", "@", "#editor-mention-button-none")]
+    public async Task MentionButton_WithoutProviderConfig_IsDisabledAndInert(
+        string root, string initiator, string editorId)
+    {
+        var page = await OpenAsync();
+        var errors = CaptureErrors(page);
+        var button = MentionButton(page, root, initiator);
+
+        await Expect(button).ToHaveAttributeAsync("data-lexical-disabled", "");
+        await Expect(button).ToHaveAttributeAsync("aria-disabled", "true");
+        // Forced: Playwright won't click an aria-disabled control, but a user's click still lands.
+        await button.ClickAsync(new() { Force = true });
+
+        Assert.Equal("", await TextContentAsync(page.Locator(editorId)));
+        Assert.Empty(errors);
+    }
+
+    [Fact] // read-only disables the button; making the editor editable again re-enables it
+    public async Task MentionButton_ReadOnly_DisablesUntilEditable()
+    {
+        var page = await OpenAsync();
+        var button = MentionButton(page, ".harness-mention-button", "@");
+
+        await Expect(button).Not.ToHaveAttributeAsync("data-lexical-disabled", "");
+        await page.ClickAsync("#btn-mention-button-toggle-readonly");
+        await Expect(button).ToHaveAttributeAsync("data-lexical-disabled", "");
+        await page.ClickAsync("#btn-mention-button-toggle-readonly");
+        await Expect(button).Not.ToHaveAttributeAsync("data-lexical-disabled", "");
+    }
+
+    [Fact] // a node selection has no caret, so the button disables until the caret returns
+    public async Task MentionButton_NodeSelection_DisablesUntilCaretReturns()
+    {
+        var page = await OpenAsync();
+        var button = MentionButton(page, ".harness-mention-button", "@");
+
+        await TypeAsync(page, ButtonEditor, "above");
+        await page.ClickAsync("#btn-mention-button-hr");
+        await page.Locator($"{ButtonEditor} hr").ClickAsync();
+        await Expect(button).ToHaveAttributeAsync("data-lexical-disabled", "");
+
+        await page.Locator($"{ButtonEditor} p").First.ClickAsync();
+        await Expect(button).Not.ToHaveAttributeAsync("data-lexical-disabled", "");
     }
 
     // Raw textContent: Playwright's text assertions collapse whitespace, hiding a doubled space.

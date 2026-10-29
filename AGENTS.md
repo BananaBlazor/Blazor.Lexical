@@ -74,3 +74,6 @@ The docs site only builds with `-p:BuildDocs=true` (e.g. `dotnet publish Web -c 
 ## Shell
 
 Commands run from the repo root already — do not prefix with `cd`.
+
+**No heredocs — ever.** Never write `<<` in a shell command: it hangs the shell on this
+Windows setup. Use files instead.

@@ -119,6 +119,10 @@ Buttons declare a token; JS (`runCommandToken` / `updateToolbarDom` / `isCommand
 - `page-break:insert` — dispatches `INSERT_PAGE_BREAK_COMMAND`. Same shape as `hr:insert`:
   without `<LexicalPageBreak>` it is a silent no-op. No active state.
 - `clear-formatting`
+- `mention:<initiator>` — `startMention` through the mentions runtime; a no-op without one.
+  JS sets `data-lexical-disabled` whenever `canStartMention` is false (read-only, no provider
+  config for the initiator, or a node/table selection), refreshed on update and on
+  editability change. The initiator may contain `:` — every token splits at its first `:`.
 
 Style via `[data-lexical-active]` / `[data-lexical-disabled]` in
 `wwwroot/blazor-lexical.css` — never a Blazor-set `.is-active` class.

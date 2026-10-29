@@ -619,6 +619,22 @@ function $charBeforeCaret(selection: RangeSelection): string {
 }
 
 /**
+ * Whether {@link startMention} would start a session for `initiator`: the editor is
+ * editable, a provider config uses it, and the selection is a range or absent (a node or
+ * table selection has no caret). Read-only; drives the `mention:` buttons' disabled state.
+ */
+export function canStartMention(editor: LexicalEditor, initiator: string): boolean {
+  return (
+    editor.isEditable() &&
+    getMentionConfigs(editor).some((c) => c.hasProvider && c.initiator === initiator) &&
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      return selection === null || $isRangeSelection(selection);
+    })
+  );
+}
+
+/**
  * Starts a mention session for the provider config with `initiator`, as if the user had
  * typed it: replaces any selected range, inserts the initiator at the caret (the document
  * end when the editor has no selection) with a separating space when the caret follows a
@@ -628,10 +644,7 @@ function $charBeforeCaret(selection: RangeSelection): string {
  * selection is active.
  */
 export function startMention(editor: LexicalEditor, initiator: string): boolean {
-  if (
-    !editor.isEditable() ||
-    !getMentionConfigs(editor).some((c) => c.hasProvider && c.initiator === initiator)
-  ) {
+  if (!canStartMention(editor, initiator)) {
     return false;
   }
   // The update callback runs synchronously; only its commit is deferred.

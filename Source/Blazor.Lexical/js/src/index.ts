@@ -433,11 +433,20 @@ function stateHasFormat(state: SelectionStateDto, format: string): boolean {
 }
 
 /**
+ * Splits a `data-lexical-command` token at its first `:` into type and argument, so an
+ * argument may itself contain `:` (e.g. a `mention:` initiator).
+ */
+function splitCommandToken(token: string): [string, string | undefined] {
+  const sep = token.indexOf(':');
+  return sep < 0 ? [token, undefined] : [token.slice(0, sep), token.slice(sep + 1)];
+}
+
+/**
  * Whether a `data-lexical-command` token is "active" for the given state, or
  * null when the command has no active concept (history, clear-formatting).
  */
 function isCommandActive(token: string, state: SelectionStateDto): boolean | null {
-  const [type, arg] = token.split(':');
+  const [type, arg] = splitCommandToken(token);
   switch (type) {
     case 'format':
       return stateHasFormat(state, arg);
@@ -490,15 +499,16 @@ function updateToolbarDom(root: HTMLElement, state: SelectionStateDto): void {
 
 /**
  * Runs a `data-lexical-command` token against the editor. `table` tokens need the
- * lazily-loaded {@link TableModule}; when it isn't loaded (the editor didn't opt into
- * the table feature) a `table:` token is simply a no-op.
+ * lazily-loaded {@link TableModule} and `mention` tokens the mentions runtime; when the
+ * editor didn't opt into that feature the token is simply a no-op.
  */
 function runCommandToken(
   editor: LexicalEditor,
   token: string,
   tableModule?: TableModule,
+  mentionsModule?: typeof mentionsRuntime,
 ): void {
-  const [type, arg] = token.split(':');
+  const [type, arg] = splitCommandToken(token);
   switch (type) {
     case 'format':
       editor.dispatchCommand(FORMAT_TEXT_COMMAND, arg as TextFormatType);
@@ -579,7 +589,23 @@ function runCommandToken(
     case 'clear-formatting':
       clearFormattingOnEditor(editor);
       break;
+    case 'mention':
+      // mention:<initiator> — starts a typeahead session as if the initiator were typed.
+      mentionsModule?.startMention(editor, arg ?? '');
+      break;
   }
+}
+
+/** Disables each `mention:<initiator>` control under `root` that can't start a session now. */
+function updateMentionButtons(
+  root: HTMLElement,
+  editor: LexicalEditor,
+  mentionsModule?: typeof mentionsRuntime,
+): void {
+  root.querySelectorAll('[data-lexical-command^="mention:"]').forEach((el) => {
+    const [, initiator] = splitCommandToken(el.getAttribute('data-lexical-command')!);
+    setElDisabled(el, !mentionsModule?.canStartMention(editor, initiator ?? ''));
+  });
 }
 
 /**
@@ -1055,7 +1081,7 @@ export async function create(
     if (!el || el.hasAttribute('data-lexical-disabled')) {
       return;
     }
-    runCommandToken(editor, el.getAttribute('data-lexical-command')!, tableModule);
+    runCommandToken(editor, el.getAttribute('data-lexical-command')!, tableModule, mentionsModule);
     editor.focus();
   };
   const onChange = (e: Event) => {
@@ -1215,6 +1241,7 @@ export async function create(
   const refreshToolbar = () => {
     const state = editor.getEditorState().read(() => readSelectionState(canUndo, canRedo));
     updateToolbarDom(root, state);
+    updateMentionButtons(root, editor, mentionsModule);
     if (notify.selection) {
       const json = JSON.stringify(state);
       if (json !== lastSelectionJson) {
@@ -1272,6 +1299,8 @@ export async function create(
         },
         COMMAND_PRIORITY_LOW,
       ),
+      // setEditable commits no update, but mention buttons disable while read-only.
+      editor.registerEditableListener(refreshToolbar),
     ),
   );
 
