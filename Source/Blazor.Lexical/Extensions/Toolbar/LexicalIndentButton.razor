@@ -1,0 +1,31 @@
+@namespace Blazor.Lexical
+
+@* Indents (indent:in) or outdents (indent:out) the selected blocks. With a nested
+   LexicalIndent, JS caps the level and sets data-lexical-disabled (with the reason as
+   its value and as the tooltip) when the button would do nothing. *@
+<LexicalCommandButton Command="@(Outdent ? "indent:out" : "indent:in")"
+                      Title="@(Title ?? (Outdent ? "Outdent" : "Indent"))"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @(Outdent ? "⇤" : "⇥")
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>Outdent instead of indent (default false).</summary>
+    [Parameter] public bool Outdent { get; set; }
+
+    /// <summary>Tooltip / accessible label. Defaults to "Indent" or "Outdent".</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default glyph.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

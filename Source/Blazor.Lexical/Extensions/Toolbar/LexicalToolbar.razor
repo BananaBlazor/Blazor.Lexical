@@ -29,6 +29,13 @@
         {
             <LexicalListGroup />
         }
+        @if (ShowIndentControls)
+        {
+            <div class="blazor-lexical__toolbar-group">
+                <LexicalIndentButton Outdent="true" />
+                <LexicalIndentButton />
+            </div>
+        }
         @if (ShowLink)
         {
             <LexicalHyperlink />

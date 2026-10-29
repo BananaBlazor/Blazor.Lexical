@@ -131,6 +131,82 @@ export interface LexicalPrimitives {
   ghost: GhostCompletionApi;
   /** The entity-commit state machine. See {@link EntityCommitApi}. */
   entityCommit: EntityCommitApi;
+  /** Atomic block selection for block decorators. See {@link AtomicBlockApi}. */
+  atomicBlock: AtomicBlockApi;
+}
+
+/**
+ * Atomic block selection: the behaviour the built-in horizontal rule and page break
+ * use, for a custom block `DecoratorNode` with no text of its own.
+ */
+export interface AtomicBlockApi {
+  /**
+   * Click-to-select, Delete/Backspace removal and `selectedClass` painting for the
+   * block decorators `isNode` matches. Returns the teardown, which also strips any class
+   * it painted.
+   *
+   * - Call it from `register(ctx)` with `ctx.editor` and include the result in the
+   *   `mergeRegister` teardown.
+   * - `isNode` is usually `(n) => n instanceof MyNode`.
+   * - The node must be a block-level `DecoratorNode` (`isInline()` false) whose DOM is
+   *   `contentEditable = false`.
+   * - Selected nodes get `selectedClass`; style it with an outline, as the built-in
+   *   `hrSelected` / `pageBreakSelected` theme classes do. Shift-click toggles a node in
+   *   an existing node selection.
+   *
+   * The handlers run at `COMMAND_PRIORITY_LOW` and return `false` for nodes `isNode`
+   * does not match, so a node's own LOW-priority click/key handlers still run for other
+   * targets.
+   *
+   * ```ts
+   * register: ({ editor }) =>
+   *   mergeRegister(
+   *     setup.primitives.atomicBlock.register(editor, (n) => n instanceof StampNode, 'stamp--selected'),
+   *     // …the extension's other registrations
+   *   ),
+   * ```
+   */
+  register(
+    editor: LexicalEditor,
+    isNode: (node: LexicalNode | null | undefined) => node is LexicalNode,
+    selectedClass: string,
+  ): () => void;
+}
+
+/**
+ * A block `DecoratorNode` that opts into indenting by implementing the same three
+ * methods `ElementNode` has. With `<LexicalIndent />` on the editor, the indent/outdent
+ * commands (toolbar buttons, and Tab/Shift+Tab with `<LexicalTabIndent />`) move a
+ * node-selected decorator, or one at the top level of a range selection.
+ *
+ * The node keeps its own state and rendering; the library only calls these methods.
+ * Store the level in a field, serialize it in `exportJSON`/`updateFromJSON` (and
+ * `exportDOM`), and reflect it in `createDOM`/`updateDOM`:
+ *
+ * ```ts
+ * class StampNode extends DecoratorNode<null> {
+ *   __indent = 0;
+ *   canIndent() { return true; }
+ *   getIndent() { return this.getLatest().__indent; }
+ *   setIndent(indent: number) { const w = this.getWritable(); w.__indent = indent; return w; }
+ *   updateDOM(prev: StampNode, dom: HTMLElement) {
+ *     dom.style.paddingInlineStart = this.__indent ? `${this.__indent * 2}em` : '';
+ *     return false;
+ *   }
+ *   // clone/afterCloneFrom copy __indent; exportJSON/updateFromJSON carry `indent`.
+ * }
+ * ```
+ *
+ * Without `<LexicalIndent />` decorators are not indented: the stock Lexical handlers
+ * only visit element blocks.
+ */
+export interface IndentableBlockNode {
+  /** `true` to opt in. */
+  canIndent(): boolean;
+  /** The current indent level (0 at the left margin). */
+  getIndent(): number;
+  /** Sets the indent level. Must go through `getWritable()`. */
+  setIndent(indent: number): this;
 }
 
 /**

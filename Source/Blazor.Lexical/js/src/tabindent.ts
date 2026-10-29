@@ -17,18 +17,13 @@
 // editor the consumer did not ask to behave that way must not.
 // ---------------------------------------------------------------------------
 
-import {
-  $getNearestBlockElementAncestorOrThrow,
-  $handleIndentAndOutdent,
-  mergeRegister,
-} from '@lexical/utils';
+import { $getNearestBlockElementAncestorOrThrow, mergeRegister } from '@lexical/utils';
 import {
   $createRangeSelection,
   $getSelection,
   $isBlockElementNode,
   $isRangeSelection,
   $normalizeSelection__EXPERIMENTAL,
-  COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_EDITOR,
   INDENT_CONTENT_COMMAND,
   INSERT_TAB_COMMAND,
@@ -39,6 +34,7 @@ import {
   type RangeSelection,
 } from 'lexical';
 import type { LexicalExtensionModule, LexicalExtensionSetup } from './extension';
+import { $isIndentableNodeSelection, registerIndentPolicy } from './indent';
 
 /**
  * Whether Tab should indent the block rather than insert a tab character:
@@ -70,8 +66,8 @@ function $indentOverTab(selection: RangeSelection): boolean {
 }
 
 /**
- * Registers the Tab/Shift+Tab handler, plus an indent handler that honours
- * `maxIndent`. Returns the teardown.
+ * Registers the Tab/Shift+Tab handler, plus `maxIndent` as the fallback indent policy
+ * (see indent.ts). Returns the teardown.
  */
 function registerTabIndentation(editor: LexicalEditor, maxIndent?: number): () => void {
   return mergeRegister(
@@ -79,38 +75,24 @@ function registerTabIndentation(editor: LexicalEditor, maxIndent?: number): () =
       KEY_TAB_COMMAND,
       (event) => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection)) {
+        let command: LexicalCommand<void>;
+        if ($isRangeSelection(selection)) {
+          command = $indentOverTab(selection)
+            ? event.shiftKey
+              ? OUTDENT_CONTENT_COMMAND
+              : INDENT_CONTENT_COMMAND
+            : INSERT_TAB_COMMAND;
+        } else if ($isIndentableNodeSelection(editor, selection)) {
+          command = event.shiftKey ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND;
+        } else {
           return false;
         }
         event.preventDefault();
-        const command: LexicalCommand<void> = $indentOverTab(selection)
-          ? event.shiftKey
-            ? OUTDENT_CONTENT_COMMAND
-            : INDENT_CONTENT_COMMAND
-          : INSERT_TAB_COMMAND;
         return editor.dispatchCommand(command, undefined);
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand(
-      INDENT_CONTENT_COMMAND,
-      () => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) {
-          return false;
-        }
-        return $handleIndentAndOutdent((block) => {
-          if (!block.canIndent()) {
-            return;
-          }
-          const newIndent = block.getIndent() + 1;
-          if (maxIndent === undefined || newIndent < maxIndent) {
-            block.setIndent(newIndent);
-          }
-        });
-      },
-      COMMAND_PRIORITY_CRITICAL,
-    ),
+    registerIndentPolicy(editor, { maxIndent, indentListItems: true }, false),
   );
 }
 

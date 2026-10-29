@@ -311,10 +311,11 @@
   background: var(--blazor-lexical-btn-active);
 }
 
+/* Still receives pointer events, so a disabled control's title (the reason) shows on
+   hover; the delegated click listener ignores [data-lexical-disabled] controls. */
 .blazor-lexical__toolbar-btn[data-lexical-disabled] {
   opacity: 0.3;
   cursor: default;
-  pointer-events: none;
 }
 
 /* The block-type <select> styled as a borderless toolbar item: muted 14px label

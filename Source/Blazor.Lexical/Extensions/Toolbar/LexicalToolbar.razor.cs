@@ -78,6 +78,16 @@ public partial class LexicalToolbar : ComponentBase, IDisposable
     private bool ShowPageBreakControl =>
         ShowPageBreak && (Editor?.HasExtension<LexicalPageBreak>() ?? false);
 
+    /// <summary>
+    /// Show the indent and outdent buttons (default true). Only rendered when the editor
+    /// nests a <see cref="LexicalIndent"/> extension, which owns their cap and disabled
+    /// state.
+    /// </summary>
+    [Parameter] public bool ShowIndent { get; set; } = true;
+
+    /// <summary>Whether the indent buttons should render (extension present and not hidden).</summary>
+    private bool ShowIndentControls => ShowIndent && (Editor?.HasExtension<LexicalIndent>() ?? false);
+
     /// <inheritdoc />
     protected override void OnInitialized()
     {
