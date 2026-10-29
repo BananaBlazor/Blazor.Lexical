@@ -18,7 +18,8 @@
 # Lexical minor from the lockfile, and the last component is this workflow's run
 # number — unique and increasing with no lookup, and nothing to commit before
 # publishing. Gaps (failed runs, dry runs, a Lexical-minor change) are expected and
-# harmless. Tick prerelease to publish Major.Minor.<run number>-preview instead.
+# harmless. Runs publish Major.Minor.<run number>-preview by default; untick prerelease
+# to publish a release version.
 #
 # Renaming this file starts a new workflow whose run numbers restart at 1. That can
 # only ever collide with an existing version, and both pushes fail on a duplicate
@@ -62,9 +63,9 @@ on:
         type: boolean
         default: false
       prerelease:
-        description: 'Append -preview (a prerelease package)'
+        description: 'Append -preview (a prerelease package). Untick to publish a release version'
         type: boolean
-        default: false
+        default: true
       tag:
         description: 'After a nuget.org push, tag the commit v<version> and cut a GitHub Release'
         type: boolean
