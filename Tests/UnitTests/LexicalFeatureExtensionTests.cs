@@ -1,6 +1,9 @@
 using System.Text.Json;
 using Blazor.Lexical;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 // These tests set [Parameter] properties directly, which BL0005 flags because the
 // framework normally owns them. That is the point here: the assertions are about what a
@@ -293,6 +296,95 @@ public class LexicalFeatureExtensionTests
         Assert.False(new LexicalTabIndent().ToDto().HasInvokeHandler);
     }
 
+    // --- Indent ----------------------------------------------------------
+
+    [Fact]
+    public void Indent_is_a_built_in_module()
+    {
+        var dto = new LexicalIndent().ToDto();
+
+        Assert.Equal("indent", dto.BuiltIn);
+        Assert.Null(dto.ModuleUrl);
+    }
+
+    [Fact] // the JS side reads these exact camelCase keys
+    public void Indent_options_serialize_every_knob()
+    {
+        var options = Options(new LexicalIndent
+        {
+            MaxIndent = 3,
+            IndentListItems = false,
+            MaxIndentReason = "cap",
+            AtMarginReason = "margin",
+            NotIndentableReason = "n/a",
+        });
+
+        Assert.Equal(3, options.GetProperty("maxIndent").GetInt32());
+        Assert.False(options.GetProperty("indentListItems").GetBoolean());
+        Assert.Equal("cap", options.GetProperty("maxIndentReason").GetString());
+        Assert.Equal("margin", options.GetProperty("atMarginReason").GetString());
+        Assert.Equal("n/a", options.GetProperty("notIndentableReason").GetString());
+    }
+
+    [Fact] // unset nullables are omitted (JS supplies the defaults); the bool is always sent
+    public void Indent_options_default_to_uncapped_with_list_items_and_no_reasons()
+    {
+        var options = Options(new LexicalIndent());
+
+        Assert.True(options.GetProperty("indentListItems").GetBoolean());
+        Assert.False(options.TryGetProperty("maxIndent", out _));
+        Assert.False(options.TryGetProperty("maxIndentReason", out _));
+        Assert.False(options.TryGetProperty("atMarginReason", out _));
+        Assert.False(options.TryGetProperty("notIndentableReason", out _));
+    }
+
+    [Fact] // capping and disabled painting are client-side only
+    public void Indent_reports_no_invoke_handler()
+    {
+        Assert.False(new LexicalIndent { MaxIndent = 2 }.ToDto().HasInvokeHandler);
+    }
+
+    [Theory] // the token and default title the JS indent policy and painter key off
+    [InlineData(false, "indent:in", "Indent")]
+    [InlineData(true, "indent:out", "Outdent")]
+    public async Task IndentButton_renders_the_indent_token_and_default_title(
+        bool outdent, string token, string title)
+    {
+        var html = await RenderAsync<LexicalIndentButton>(new Dictionary<string, object?>
+        {
+            [nameof(LexicalIndentButton.Outdent)] = outdent,
+        });
+
+        Assert.Contains($"data-lexical-command=\"{token}\"", html);
+        Assert.Contains($"title=\"{title}\"", html);
+        Assert.Contains($"aria-label=\"{title}\"", html);
+    }
+
+    [Fact]
+    public async Task IndentButton_uses_a_custom_title()
+    {
+        var html = await RenderAsync<LexicalIndentButton>(new Dictionary<string, object?>
+        {
+            [nameof(LexicalIndentButton.Title)] = "Increase indent",
+        });
+
+        Assert.Contains("title=\"Increase indent\"", html);
+    }
+
+    /// <summary>Renders a component to static HTML with the framework's <see cref="HtmlRenderer"/>.</summary>
+    private static async Task<string> RenderAsync<TComponent>(IDictionary<string, object?> parameters)
+        where TComponent : IComponent
+    {
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        await using var renderer = new HtmlRenderer(services, NullLoggerFactory.Instance);
+        return await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var output = await renderer.RenderComponentAsync<TComponent>(
+                ParameterView.FromDictionary(parameters));
+            return output.ToHtmlString();
+        });
+    }
+
     // --- Single-instance -------------------------------------------------
 
     [Theory] // a duplicate would register nodes and listeners twice, so it fails loudly
@@ -304,6 +396,7 @@ public class LexicalFeatureExtensionTests
     [InlineData(typeof(LexicalHorizontalRule))]
     [InlineData(typeof(LexicalPageBreak))]
     [InlineData(typeof(LexicalTabIndent))]
+    [InlineData(typeof(LexicalIndent))]
     public void A_second_instance_in_one_editor_throws(Type extensionType)
     {
         var editor = new LexicalEditor();

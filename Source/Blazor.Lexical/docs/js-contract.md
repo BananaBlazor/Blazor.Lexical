@@ -49,9 +49,16 @@ changing the bundle, the command tokens, or any overlay.
   `PageBreakNode` (`"page-break"`, `figure[type=page-break]`).
 - `atomic-block.ts` — `registerAtomicBlockSelection`: the shared click-select,
   Delete/Backspace and selected-class painting for atomic block decorators. Used by
-  `hr.ts` and `page-break.ts`; not a factory.
+  `hr.ts` and `page-break.ts`; not a factory. Surfaced to extensions as
+  `setup.primitives.atomicBlock.register`.
+- `indent.ts` — the shared per-editor indent policy (`registerIndentPolicy`): one pair of
+  CRITICAL `INDENT_CONTENT_COMMAND`/`OUTDENT_CONTENT_COMMAND` handlers applying the cap,
+  the list-item exclusion and opted-in block decorators; default-exports the `indent`
+  factory, which also paints the `indent:` controls' disabled state. Static in core.
+- `toolbar-dom.ts` — `setElDisabled`, shared by `index.ts` and `indent.ts`.
 - `tabindent.ts` — Tab/Shift+Tab block indentation. Static in core, behaviour only (no
-  node, no theme). Also a port of upstream's `registerTabIndentation`.
+  node, no theme). Also a port of upstream's `registerTabIndentation`; its cap is a
+  fallback policy in `indent.ts`'s registry rather than a handler of its own.
 - `ghost.ts` — inline ghost completion: the muted "rest of the word" hint painted in an
   overlay outside the contenteditable. Static in core (a few hundred bytes, only `lexical`
   types). Surfaced to extensions as `setup.primitives.ghost` (not a `builtIn` factory — it
@@ -65,11 +72,11 @@ changing the bundle, the command tokens, or any overlay.
   import each other (a cycle that would drag the core entry into any lazy chunk).
 
 `mentions.ts`, `table.ts`, `toc.ts`, `marks.ts`, `comments.ts`, `highlights.ts`,
-`suggestions.ts`, `stats.ts`, `hr.ts`, `page-break.ts` and `tabindent.ts` all
+`suggestions.ts`, `stats.ts`, `hr.ts`, `page-break.ts`, `tabindent.ts` and `indent.ts` all
 **default-export a `LexicalExtensionFactory`**, so `create()` loads them through the same
 contract as a consumer extension — resolved by the closed `builtIn` switch (`'table' |
 'mentions' | 'toc' | 'marks' | 'comments' | 'highlights' | 'suggestions' | 'stats' | 'hr' |
-'pageBreak' | 'tabIndent'`).
+'pageBreak' | 'tabIndent' | 'indent'`).
 
 ## Bundling
 
@@ -84,7 +91,8 @@ each run.
 `wwwroot/blazor-lexical-extension.d.ts` (a shipped static web asset) so extension authors
 get the contract typed; the `.csproj` registers it alongside the generated `.mjs` files.
 That `.d.ts` is the whole asserted extension surface — `setup` (`lexical`/`utils`/
-`invokeDotNet`/…, and `setup.primitives` — the ghost/entity-commit primitives) and the
+`invokeDotNet`/…, and `setup.primitives` — the ghost/entity-commit/atomic-block
+primitives) and the
 `register(ctx)` context, `ctx.blockLayout` included (see [extensions.md](extensions.md)) —
 so a new `setup`/context member is live the moment it lands here. Adding
 `setup.primitives.*` is therefore purely: add the type to `extension.ts`, wire the runtime
@@ -123,9 +131,19 @@ Buttons declare a token; JS (`runCommandToken` / `updateToolbarDom` / `isCommand
   JS sets `data-lexical-disabled` whenever `canStartMention` is false (read-only, no provider
   config for the initiator, or a node/table selection), refreshed on update and on
   editability change. The initiator may contain `:` — every token splits at its first `:`.
+- `indent:{in|out}` — dispatches `INDENT_CONTENT_COMMAND`/`OUTDENT_CONTENT_COMMAND`. No
+  active state. With `<LexicalIndent>` its CRITICAL handlers cap and filter them, and it
+  sets `data-lexical-disabled` (value = the reason) plus `aria-disabled`, and swaps
+  `title`/`aria-label` for the reason (originals stashed in `data-lexical-title`/
+  `data-lexical-aria-label`, restored on re-enable and dispose). Refreshed synchronously
+  on update and editability change; read-only counts as not indentable. With only
+  `<LexicalTabIndent>` its fallback cap applies and nothing is painted; with neither, the
+  stock rich-text handlers run, uncapped.
 
 Style via `[data-lexical-active]` / `[data-lexical-disabled]` in
-`wwwroot/blazor-lexical.css` — never a Blazor-set `.is-active` class.
+`wwwroot/blazor-lexical.css` — never a Blazor-set `.is-active` class. A disabled toolbar
+button keeps pointer events (so its `title` tooltip shows); the delegated click listener is
+what ignores `[data-lexical-disabled]` controls.
 
 ## Overlays
 

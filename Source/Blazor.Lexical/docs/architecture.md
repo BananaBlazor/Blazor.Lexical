@@ -164,6 +164,17 @@ The mechanics are in [extensions.md](extensions.md); the consumer-facing guide i
   out through `register(ctx)`, exactly as `ctx.blockLayout` does for positioning. The gutter
   stays a plain overlay with no new C# surface; the policy defaults reproduce the historic
   top-level behavior, so "no policy" and "no interop" remain the same, un-opted-into state.
+- **Extensions can't see each other, so overlap goes through a shared registry.**
+  `LexicalIndent` and `LexicalTabIndent` both want to cap indenting, and built-ins register
+  in markup order, so "skip if the other is present" can't be written. Instead each
+  registers a policy in `indent.ts`'s per-editor registry (`LexicalIndent`'s authoritative,
+  `LexicalTabIndent`'s a fallback) and one pair of CRITICAL handlers reads the active policy
+  at dispatch time. Those handlers return `true` for any selection they govern even when
+  nothing moves: Lexical's stock EDITOR-priority handlers would otherwise run and bypass the
+  cap. The disabled state is computed from the same block walk, so the buttons can't
+  disagree with the commands — and disabled toolbar buttons keep pointer events, so the
+  `title` carrying the reason actually shows (the delegated click listener already ignores
+  `[data-lexical-disabled]`).
 
 ## Why we borrow from `@lexical/extension` but don't build on it
 
