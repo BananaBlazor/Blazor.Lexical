@@ -933,8 +933,8 @@ public partial class LexicalEditor : ComponentBase, IAsyncDisposable
     /// preceded by a space when the caret follows a non-space character, and focuses the
     /// editor; the picker then opens exactly as for a typed trigger. The insert is an
     /// ordinary edit: it adds an undo step and raises <see cref="OnContentChanged"/>.
-    /// Use it from a button that teaches the trigger: the editor keeps its caret while
-    /// the button has focus. Returns <see langword="false"/>, changing nothing, when the editor is not ready or
+    /// For a toolbar button, use <see cref="LexicalMentionButton"/>, which does the same
+    /// client-side with no interop; this is the programmatic path. Returns <see langword="false"/>, changing nothing, when the editor is not ready or
     /// read-only, a node or table selection is active, or no <see cref="LexicalMention"/>
     /// with a <see cref="LexicalMention.Provider"/> uses <paramref name="initiator"/>.
     /// </summary>

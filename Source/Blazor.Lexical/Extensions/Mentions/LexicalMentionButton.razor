@@ -1,0 +1,41 @@
+@namespace Blazor.Lexical
+
+@* Starts a mention session for a <LexicalMention>'s initiator, as if the user typed it
+   at the caret. Pure markup (token: mention:<initiator>) — the editor's delegated JS
+   listener dispatches it with no interop, and sets data-lexical-disabled while the editor
+   is read-only, no provider config uses the initiator, or a node/table selection is
+   active.
+
+     <LexicalToolbar>
+         <LexicalMentionButton Initiator="@@" Title="Mention a person" />
+         <LexicalMentionButton Initiator="#" Title="Reference an item" />
+     </LexicalToolbar> *@
+<LexicalCommandButton Command="@($"mention:{Initiator}")"
+                      Title="@(Title ?? $"Insert {Initiator}")"
+                      CssClass="@CssClass">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @Initiator
+    }
+</LexicalCommandButton>
+
+@code {
+    /// <summary>
+    /// The initiator of the <see cref="LexicalMention"/> to start (e.g. <c>"@"</c>). The
+    /// button is disabled unless a mention config with a provider uses it. Required.
+    /// </summary>
+    [Parameter, EditorRequired] public string Initiator { get; set; } = "";
+
+    /// <summary>Tooltip / accessible label. Defaults to "Insert {Initiator}".</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra CSS class(es) for the button.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Custom button content, replacing the default (the initiator text).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
