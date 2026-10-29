@@ -101,6 +101,7 @@ public class PageBreakTests : HarnessTestBase
 
         await TypeAsync(page, "#editor-pb", "above");
         await page.ClickAsync("#btn-pb-insert-cs");
+        await page.Keyboard.TypeAsync("below");
         var pageBreak = page.Locator($"#editor-pb {Break}");
         await pageBreak.ClickAsync();
         await Expect(pageBreak).ToHaveClassAsync(new Regex("blazor-lexical__page-break--selected"));
@@ -108,6 +109,9 @@ public class PageBreakTests : HarnessTestBase
         await page.Keyboard.PressAsync("Delete");
 
         await Expect(page.Locator($"#editor-pb {Break}")).ToHaveCountAsync(0);
+        // The key removed only the break, not text beside the caret as well.
+        await Expect(page.Locator("#editor-pb")).ToContainTextAsync("above");
+        await Expect(page.Locator("#editor-pb")).ToContainTextAsync("below");
     }
 
     [Fact] // export carries the print style, and re-importing the export keeps one break
@@ -127,7 +131,7 @@ public class PageBreakTests : HarnessTestBase
         Assert.Single(Regex.Matches(await html.InnerTextAsync(), "<figure"));
     }
 
-    [Fact] // Word's clipboard page break imports as a break, lifted out of its paragraph
+    [Fact] // Word's clipboard page break imports as a break, splitting its paragraph
     public async Task WordStyleBr_ImportsAsAPageBreak()
     {
         var page = await OpenAsync();
@@ -135,9 +139,8 @@ public class PageBreakTests : HarnessTestBase
         await page.ClickAsync("#btn-pb-set-word");
 
         await Expect(page.Locator($"#editor-pb > {Break}")).ToHaveCountAsync(1);
-        await Expect(page.Locator($"#editor-pb p {Break}")).ToHaveCountAsync(0);
-        await Expect(page.Locator("#editor-pb")).ToContainTextAsync("above");
-        await Expect(page.Locator("#editor-pb")).ToContainTextAsync("below");
+        await Expect(page.Locator($"#editor-pb > p:has(+ {Break})")).ToHaveTextAsync("above");
+        await Expect(page.Locator($"#editor-pb > {Break} + p")).ToHaveTextAsync("below");
     }
 
     [Fact] // a plain <br> is still a line break
@@ -165,6 +168,22 @@ public class PageBreakTests : HarnessTestBase
         await Expect(page.Locator($"#editor-pb li {Break}, #editor-pb ul {Break}")).ToHaveCountAsync(0);
         await Expect(page.Locator("#editor-pb")).ToContainTextAsync("first");
         await Expect(page.Locator("#editor-pb")).ToContainTextAsync("second");
+    }
+
+    [Fact] // in a table cell the break lands after the table, leaving the cell untouched
+    public async Task InsertingInATableCell_PutsTheBreakAfterTheTable()
+    {
+        var page = await OpenAsync();
+
+        await page.ClickAsync("#btn-pb-set-table");
+        await page.Locator("#editor-pb td").First.ClickAsync();
+        await page.Keyboard.PressAsync("End");
+        await page.ClickAsync($".harness-pb {ToolbarButton}");
+
+        await Expect(page.Locator($"#editor-pb > table + {Break}")).ToHaveCountAsync(1);
+        await Expect(page.Locator($"#editor-pb td {Break}")).ToHaveCountAsync(0);
+        await Expect(page.Locator("#editor-pb td p")).ToHaveCountAsync(1);
+        await Expect(page.Locator("#editor-pb td")).ToHaveTextAsync("cell");
     }
 
     [Fact] // no extension, no handler: the token does nothing, and loaded markup is dropped

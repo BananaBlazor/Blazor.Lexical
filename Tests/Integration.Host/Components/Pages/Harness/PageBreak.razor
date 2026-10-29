@@ -17,14 +17,16 @@
         <LexicalToolbar />
         <LexicalSlashMenu />
         <LexicalPageBreak @ref="_ext" />
+        <LexicalTables />
     </LexicalEditor>
     <div>
         <button id="btn-pb-insert-cs" @onclick="InsertFromCSharp">Page break (C#)</button>
         <button id="btn-pb-get-html" @onclick="GetHtml">Get HTML</button>
         <button id="btn-pb-set-figure" @onclick='() => SetHtml("<p>above</p><figure type=\"page-break\"></figure><p>below</p>")'>Set figure</button>
-        <button id="btn-pb-set-word" @onclick='() => SetHtml("<p>above</p><p><br style=\"page-break-before:always\"></p><p>below</p>")'>Set Word break</button>
+        <button id="btn-pb-set-word" @onclick='() => SetHtml("<p>above<span><br clear=\"all\" style=\"mso-special-character:line-break;page-break-before:always\"></span>below</p>")'>Set Word break</button>
         <button id="btn-pb-set-plain-br" @onclick='() => SetHtml("<p>one<br>two</p>")'>Set plain br</button>
         <button id="btn-pb-set-list" @onclick='() => SetHtml("<ul><li>first</li><li>second</li></ul>")'>Set list</button>
+        <button id="btn-pb-set-table" @onclick='() => SetHtml("<table><tr><td>cell</td></tr></table>")'>Set table</button>
         <button id="btn-pb-roundtrip" @onclick="RoundTrip">Round trip</button>
     </div>
     <p>PB html: <span id="pb-html">@_html</span></p>

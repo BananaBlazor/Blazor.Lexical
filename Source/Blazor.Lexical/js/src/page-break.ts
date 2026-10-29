@@ -12,12 +12,14 @@
 // playground's, so code holding that command will not reach our handler.
 // ---------------------------------------------------------------------------
 
-import { $insertNodeToNearestRoot, addClassNamesToElement } from '@lexical/utils';
+import { $findMatchingParent, $insertNodeToNearestRoot, addClassNamesToElement } from '@lexical/utils';
 import {
   $create,
   $createParagraphNode,
   $getDocument,
+  $getSelection,
   $isElementNode,
+  $isRangeSelection,
   $isRootNode,
   $isRootOrShadowRoot,
   $splitNode,
@@ -134,6 +136,20 @@ function $isHollow(element: ElementNode): boolean {
   return element.getChildren().every((child) => $isElementNode(child) && $isHollow(child));
 }
 
+/** True inside a shadow root other than the document root (a table cell). */
+function $isInShadowRoot(node: LexicalNode): boolean {
+  return $findMatchingParent(node, (n) => $isRootOrShadowRoot(n) && !$isRootNode(n)) !== null;
+}
+
+/** The ancestor of `node` (or `node` itself) that is a direct child of the root. */
+function $getRootChild(node: LexicalNode): LexicalNode {
+  let top = node;
+  while (!$isRootNode(top.getParentOrThrow())) {
+    top = top.getParentOrThrow();
+  }
+  return top;
+}
+
 /**
  * Keeps a page break a direct child of the root. Inside lists, quotes and paragraphs
  * the ancestors are split around it; inside a shadow root (a table cell), where
@@ -146,15 +162,8 @@ function $hoistToRoot(node: PageBreakNode): void {
     return;
   }
 
-  let top: LexicalNode = parent;
-  let inShadowRoot = $isRootOrShadowRoot(parent);
-  while (!$isRootNode(top.getParentOrThrow())) {
-    top = top.getParentOrThrow();
-    inShadowRoot ||= $isRootOrShadowRoot(top);
-  }
-
-  if (inShadowRoot) {
-    top.insertAfter(node);
+  if ($isInShadowRoot(node)) {
+    $getRootChild(parent).insertAfter(node);
   } else {
     const [left, right] = $splitNode(parent, node.getIndexWithinParent());
     right.insertBefore(node);
@@ -196,7 +205,16 @@ export default function pageBreakExtension(setup: LexicalExtensionSetup): Lexica
         editor.registerCommand(
           INSERT_PAGE_BREAK_COMMAND,
           () => {
-            const node = $insertNodeToNearestRoot($createPageBreakNode());
+            const node = $createPageBreakNode();
+            const selection = $getSelection();
+            const anchor = $isRangeSelection(selection) ? selection.anchor.getNode() : null;
+            if (anchor !== null && $isInShadowRoot(anchor)) {
+              // In a table cell, go straight after the table: inserting at the caret
+              // would split the cell's paragraph before the transform moves the break.
+              $getRootChild(anchor).insertAfter(node);
+            } else {
+              $insertNodeToNearestRoot(node);
+            }
             if (node.getNextSibling() === null) {
               const paragraph = $createParagraphNode();
               node.insertAfter(paragraph);
