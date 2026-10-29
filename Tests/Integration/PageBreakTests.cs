@@ -99,8 +99,10 @@ public class PageBreakTests : HarnessTestBase
     {
         var page = await OpenAsync();
 
+        // The in-editor toolbar button inserts synchronously and keeps focus, so the
+        // typing that follows lands after the break.
         await TypeAsync(page, "#editor-pb", "above");
-        await page.ClickAsync("#btn-pb-insert-cs");
+        await page.ClickAsync($".harness-pb {ToolbarButton}");
         await page.Keyboard.TypeAsync("below");
         var pageBreak = page.Locator($"#editor-pb {Break}");
         await pageBreak.ClickAsync();
