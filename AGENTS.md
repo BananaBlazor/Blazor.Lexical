@@ -75,8 +75,5 @@ The docs site only builds with `-p:BuildDocs=true` (e.g. `dotnet publish Web -c 
 
 Commands run from the repo root already — do not prefix with `cd`.
 
-**No heredocs — ever.** Never write `<<` in a shell command (`<<'EOF'`, `<<'PY'`, even an
-empty or probe one): it hangs the shell on this Windows Git Bash setup and stalls the
-session. Edit files with the Edit/Write tools; run scripts by saving them to a file and
-passing its path; put commit messages or PR bodies in a file (`git commit -F`,
-`gh pr create --body-file`) or use repeated `-m` flags.
+**No heredocs — ever.** Never write `<<` in a shell command: it hangs the shell on this
+Windows setup. Use files instead.
