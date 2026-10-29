@@ -54,7 +54,7 @@ export function registerAtomicBlockSelection(
   isNode: (node: LexicalNode | null | undefined) => node is LexicalNode,
   selectedClass: string,
 ): () => void {
-  const $deleteSelected = (): boolean => {
+  const $deleteSelected = (event: KeyboardEvent | null): boolean => {
     const selection = $getSelection();
     if (!$isNodeSelection(selection)) {
       return false;
@@ -65,6 +65,10 @@ export function registerAtomicBlockSelection(
         node.remove();
         handled = true;
       }
+    }
+    if (handled) {
+      // Otherwise the browser's own Backspace/Delete also edits the text at the caret.
+      event?.preventDefault();
     }
     return handled;
   };

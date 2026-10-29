@@ -1,0 +1,101 @@
+@page "/harness/page-break"
+
+<PageTitle>Harness — page break</PageTitle>
+
+<h1>Page break</h1>
+
+<section>
+    <h2>Page break — an opt-in node, inserted from the toolbar, slash menu or C#</h2>
+    @* editor-pb carries the extension with the full toolbar and slash menu;
+       editor-pb-hidden carries it but hides the toolbar button; editor-pb-absent
+       deliberately has no extension, which proves the page-break:insert token is an
+       inert no-op and the markup is dropped. *@
+    <LexicalEditor @ref="_editor"
+                   Id="editor-pb"
+                   CssClass="harness-pb"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+        <LexicalSlashMenu />
+        <LexicalPageBreak @ref="_ext" />
+    </LexicalEditor>
+    <div>
+        <button id="btn-pb-insert-cs" @onclick="InsertFromCSharp">Page break (C#)</button>
+        <button id="btn-pb-get-html" @onclick="GetHtml">Get HTML</button>
+        <button id="btn-pb-set-figure" @onclick='() => SetHtml("<p>above</p><figure type=\"page-break\"></figure><p>below</p>")'>Set figure</button>
+        <button id="btn-pb-set-word" @onclick='() => SetHtml("<p>above</p><p><br style=\"page-break-before:always\"></p><p>below</p>")'>Set Word break</button>
+        <button id="btn-pb-set-plain-br" @onclick='() => SetHtml("<p>one<br>two</p>")'>Set plain br</button>
+        <button id="btn-pb-set-list" @onclick='() => SetHtml("<ul><li>first</li><li>second</li></ul>")'>Set list</button>
+        <button id="btn-pb-roundtrip" @onclick="RoundTrip">Round trip</button>
+    </div>
+    <p>PB html: <span id="pb-html">@_html</span></p>
+
+    <LexicalEditor Id="editor-pb-hidden"
+                   CssClass="harness-pb-hidden"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar ShowPageBreak="false" />
+        <LexicalPageBreak />
+    </LexicalEditor>
+
+    <LexicalEditor @ref="_absentEditor"
+                   Id="editor-pb-absent"
+                   CssClass="harness-pb-absent"
+                   Theme="LexicalTheme.Default">
+        <LexicalToolbar />
+        <LexicalSlashMenu />
+        @* Inside the editor: the delegated dispatcher is bound to the editor root. *@
+        <button id="btn-pb-absent-insert" type="button" data-lexical-command="page-break:insert">Page break</button>
+    </LexicalEditor>
+    <div>
+        <button id="btn-pb-absent-set-figure" @onclick="SetAbsentFigure">Set figure (absent)</button>
+    </div>
+</section>
+
+@code {
+    private LexicalEditor? _editor;
+    private LexicalEditor? _absentEditor;
+    private LexicalPageBreak? _ext;
+    private string _html = "";
+
+    private async Task InsertFromCSharp()
+    {
+        if (_ext is not null)
+        {
+            await _ext.InsertAsync();
+        }
+    }
+
+    private async Task GetHtml()
+    {
+        if (_editor is not null)
+        {
+            _html = await _editor.GetHtmlAsync();
+        }
+    }
+
+    private async Task SetHtml(string html)
+    {
+        if (_editor is not null)
+        {
+            await _editor.SetHtmlAsync(html);
+        }
+    }
+
+    // Exports, re-imports the export, then exports again: the second export must still
+    // hold exactly one break.
+    private async Task RoundTrip()
+    {
+        if (_editor is not null)
+        {
+            await _editor.SetHtmlAsync(await _editor.GetHtmlAsync());
+            _html = await _editor.GetHtmlAsync();
+        }
+    }
+
+    private async Task SetAbsentFigure()
+    {
+        if (_absentEditor is not null)
+        {
+            await _absentEditor.SetHtmlAsync("<p>above</p><figure type=\"page-break\"></figure><p>below</p>");
+        }
+    }
+}
