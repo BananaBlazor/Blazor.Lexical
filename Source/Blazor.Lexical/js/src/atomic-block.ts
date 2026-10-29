@@ -51,7 +51,7 @@ function $selectNode(key: NodeKey, extend: boolean): void {
  */
 export function registerAtomicBlockSelection(
   editor: LexicalEditor,
-  isNode: (node: LexicalNode | null | undefined) => node is LexicalNode,
+  isNode: (node: LexicalNode | null | undefined) => boolean,
   selectedClass: string,
 ): () => void {
   const $deleteSelected = (event: KeyboardEvent | null): boolean => {
@@ -115,7 +115,7 @@ export function registerAtomicBlockSelection(
           return false;
         }
         const node = $getNodeFromDOMNode(event.target);
-        if (!isNode(node)) {
+        if (node === null || !isNode(node)) {
           return false;
         }
         $selectNode(node.getKey(), event.shiftKey);

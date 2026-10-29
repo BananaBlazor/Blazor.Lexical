@@ -168,7 +168,7 @@ export interface AtomicBlockApi {
    */
   register(
     editor: LexicalEditor,
-    isNode: (node: LexicalNode | null | undefined) => node is LexicalNode,
+    isNode: (node: LexicalNode | null | undefined) => boolean,
     selectedClass: string,
   ): () => void;
 }

@@ -73,7 +73,7 @@ public class IndentTests : HarnessTestBase
     // --- buttons on paragraphs -----------------------------------------------------------
 
     [Fact] // the default toolbar shows Outdent then Indent once LexicalIndent is nested
-    public async Task Toolbar_ShowsIndentButtons_OnlyWithLexicalIndent()
+    public async Task Toolbar_ShowsIndentButtons_WithLexicalIndent()
     {
         var page = await OpenAsync();
 
@@ -342,6 +342,11 @@ public class IndentTests : HarnessTestBase
         await Expect(page.Locator("#editor-indent-flat ul ul li")).ToHaveCountAsync(1);
         await Expect(page.Locator("#editor-indent-flat ul ul li")).ToHaveTextAsync("nested");
         await Expect(page.Locator("#editor-indent-flat")).ToContainTextAsync("outer");
+
+        // Elsewhere in the item Backspace still deletes.
+        await page.Keyboard.PressAsync("End");
+        await page.Keyboard.PressAsync("Backspace");
+        await Expect(page.Locator("#editor-indent-flat ul ul li")).ToHaveTextAsync("neste");
     }
 
     // --- no indent extension -------------------------------------------------------------

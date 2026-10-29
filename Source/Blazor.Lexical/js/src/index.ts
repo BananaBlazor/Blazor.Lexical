@@ -83,8 +83,8 @@ import hrRuntime, { INSERT_HORIZONTAL_RULE_COMMAND } from './hr';
 import pageBreakRuntime, { INSERT_PAGE_BREAK_COMMAND } from './page-break';
 import tabIndentRuntime from './tabindent';
 import indentRuntime from './indent';
-// App-agnostic primitives handed to extensions as `setup.primitives`. All are tiny,
-// dependency-free (only `lexical` types) and stateless, so — like mentions — they are
+// App-agnostic primitives handed to extensions as `setup.primitives`. All are small,
+// stateless and need nothing beyond the core bundle, so — like mentions — they are
 // imported statically and cost no extra fetch. See extension.ts `LexicalPrimitives`.
 import { createGhostApi } from './ghost';
 import { createEntityCommitApi } from './entity-commit';
@@ -590,8 +590,8 @@ function runCommandToken(
       mentionsModule?.startMention(editor, arg ?? '');
       break;
     case 'indent':
-      // Reaches LexicalIndent's capped handlers when declared, the stock rich-text
-      // ones (uncapped) otherwise.
+      // Reaches indent.ts's capped handlers when LexicalIndent or LexicalTabIndent is
+      // declared, the stock rich-text ones (uncapped) otherwise.
       editor.dispatchCommand(
         arg === 'out' ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND,
         undefined,

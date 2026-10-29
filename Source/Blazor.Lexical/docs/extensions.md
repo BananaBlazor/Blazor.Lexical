@@ -249,8 +249,8 @@ implementing `ElementNode`'s three methods, `canIndent()` (true), `getIndent()` 
 `exportJSON`/`updateFromJSON`/`exportDOM` and painted in `createDOM`/`updateDOM`; the library
 only calls the methods. Detection is a duck-typed guard internal to `indent.ts`. Only
 `<LexicalIndent>`'s policy indents decorators (node-selected ones, and range-selected ones
-whose parent is the root — a decorator inside a list item or cell moves with its containing
-block); the stock rich-text handlers and `<LexicalTabIndent>`'s fallback visit element
+whose parent is the root or a shadow root such as a table cell — a decorator inside a list
+item moves with its containing block); the stock rich-text handlers and `<LexicalTabIndent>`'s fallback visit element
 blocks only. See `features.md`, "Indent".
 
 ## Adding a push channel
