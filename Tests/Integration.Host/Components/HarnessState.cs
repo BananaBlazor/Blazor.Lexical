@@ -31,8 +31,13 @@ public static class HarnessState
     /// <summary>A plain text node.</summary>
     public static JsonObject Text(string text) => new()
     {
-        ["detail"] = 0, ["format"] = 0, ["mode"] = "normal", ["style"] = "",
-        ["text"] = text, ["type"] = "text", ["version"] = 1,
+        ["detail"] = 0,
+        ["format"] = 0,
+        ["mode"] = "normal",
+        ["style"] = "",
+        ["text"] = text,
+        ["type"] = "text",
+        ["version"] = 1,
     };
 
     private static JsonObject Element(
