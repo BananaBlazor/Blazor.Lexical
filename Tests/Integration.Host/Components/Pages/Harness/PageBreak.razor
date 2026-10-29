@@ -21,8 +21,7 @@
     </LexicalEditor>
     <div>
         <button id="btn-pb-insert-cs" @onclick="InsertFromCSharp">Page break (C#)</button>
-        <button id="btn-pb-get-html" @onclick="GetHtml">Get HTML</button>
-        <button id="btn-pb-set-figure" @onclick='() => SetHtml("<p>above</p><figure type=\"page-break\"></figure><p>below</p>")'>Set figure</button>
+        <button id="btn-pb-set-figure" @onclick="() => SetHtml(FigureHtml)">Set figure</button>
         <button id="btn-pb-set-word" @onclick='() => SetHtml("<p>above<span><br clear=\"all\" style=\"mso-special-character:line-break;page-break-before:always\"></span>below</p>")'>Set Word break</button>
         <button id="btn-pb-set-plain-br" @onclick='() => SetHtml("<p>one<br>two</p>")'>Set plain br</button>
         <button id="btn-pb-set-list" @onclick='() => SetHtml("<ul><li>first</li><li>second</li></ul>")'>Set list</button>
@@ -58,19 +57,13 @@
     private LexicalPageBreak? _ext;
     private string _html = "";
 
+    private const string FigureHtml = "<p>above</p><figure type=\"page-break\"></figure><p>below</p>";
+
     private async Task InsertFromCSharp()
     {
         if (_ext is not null)
         {
             await _ext.InsertAsync();
-        }
-    }
-
-    private async Task GetHtml()
-    {
-        if (_editor is not null)
-        {
-            _html = await _editor.GetHtmlAsync();
         }
     }
 
@@ -97,7 +90,7 @@
     {
         if (_absentEditor is not null)
         {
-            await _absentEditor.SetHtmlAsync("<p>above</p><figure type=\"page-break\"></figure><p>below</p>");
+            await _absentEditor.SetHtmlAsync(FigureHtml);
         }
     }
 }

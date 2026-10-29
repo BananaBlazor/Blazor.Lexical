@@ -110,9 +110,9 @@ import { HISTORY_MERGE_TAG, SILENT_UPDATE_TAG } from './tags';
 
 // The nodes every editor registers, so HTML/Markdown round-trips carry headings,
 // quotes, lists and links — not just plain paragraphs. Everything else, the table,
-// mention, horizontal-rule and page-break nodes included, arrives through the extension contract.
-// Named here (rather than inline in createEditor) because the extension loader also
-// needs their types, to catch an extension claiming one of them.
+// mention, horizontal-rule and page-break nodes included, arrives through the
+// extension contract. Named here (rather than inline in createEditor) because the
+// extension loader also needs their types, to catch an extension claiming one of them.
 const CORE_NODES: ReadonlyArray<Klass<LexicalNode>> = [
   HeadingNode,
   QuoteNode,
